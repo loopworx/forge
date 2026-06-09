@@ -41,7 +41,7 @@ The po-agent and ux-agent facilitate a structured discovery process:
 - **Lean Canvas** — problem, solution, unique value proposition
 - **Empathy Mapping** — understand the customer before writing a single requirement
 - **Trade-off Sliders** — team-wide prioritization: quality vs. cost vs. UX vs. security (no ties allowed)
-- **Event Storming** — interactive back-and-forth conversation mapping domain events, commands, policies, and UI elements. UI stickies become user stories. Policies and commands become acceptance criteria.
+- **Event Storming** — interactive back-and-forth conversation mapping domain events, commands, policies, and UI elements. UI stickies become user stories. Policies and commands become acceptance criteria. The final phase of event storming produces `CONTEXT.md` — the project's ubiquitous language.
 - **Iteration Mapping** — story dependencies → parallel tracks → Linear cards, automatically
 
 ### 2. Story Refinement
@@ -86,6 +86,8 @@ One sub-slice at a time. One AC at a time. No implementation code before the out
 
 ### 5. The Kanban Stages
 
+Linear is the delivery state machine. Every agent's session starts by querying Linear for their assigned story and its current stage — not by reading handoff notes or plan files.
+
 ```
 in-analysis          → story refinement (all four gates)
 ready-for-dev        → developer picks up = 100% commitment
@@ -105,28 +107,48 @@ No feature branches. Every push goes to production if CI is green — but unfini
 
 ---
 
-## The Delivery State Machine
+## Ubiquitous Language
 
-Agents coordinate through a shared `.forge/` directory — a file-based event bus:
+> *"With a ubiquitous language, conversations among developers and expressions of the code are all derived from the same domain model."*
+> — Eric Evans, Domain-Driven Design
+
+Agents dropped into a project with no shared vocabulary use 20 words where 1 will do. Forge solves this by generating `CONTEXT.md` as the final phase of every event storming session.
+
+`CONTEXT.md` defines:
+- **Domain terms** — canonical names for every entity, event, command, and policy discovered during event storming, with explicit "avoid" aliases
+- **Bounded context boundaries** — which terms belong to which service/domain
+- **Agent communication protocol** — the shared vocabulary of the delivery process itself (e.g. "outer Acceptance Test" not "E2E test", "desk check" not "demo", "sub-slice" not "partial implementation")
+- **Flagged ambiguities** — terms that look like synonyms but aren't
+
+`CONTEXT.md` lives in the repo root and is a **mandatory read for every agent at session start**. Any agent that encounters a term not in `CONTEXT.md` must stop and propose an addition before using it. The po-agent owns it; all agents can propose updates.
+
+---
+
+## Agent Session Start Protocol
+
+Every agent, every session, in this order:
 
 ```
-.forge/
-├── state/
-│   ├── current-story.yaml      # active story, AC status, current loop
-│   └── iteration-state.yaml    # what's in-progress, blocked, done
-├── events/
-│   ├── ac-desk-check-ready.json
-│   ├── desk-check-approved.json
-│   ├── story-deployed.json
-│   ├── story-accepted.json
-│   └── flag-flip-approved.json
-└── artifacts/
-    ├── project.constraints.yaml  # trade-off slider output — all agents read this
-    ├── iteration-map.md
-    └── stories/
+1. Query Linear → what story is assigned to me and what stage is it in?
+2. Read CONTEXT.md → speak the project's language
+3. Read project.constraints.yaml → know the priorities (quality > cost > UX etc.)
+4. Begin — the Linear stage determines what happens next
 ```
 
-Every agent's session starts by reading `.forge/state/` — not conversation handoff notes, not plan files. The delivery state is the single source of truth.
+No handoff notes. No plan files. No conversation summaries. State lives in Linear and the repo — not in context windows.
+
+---
+
+## Project Artifacts
+
+Two files live in the repo root and are read by all agents:
+
+```
+CONTEXT.md                  # ubiquitous language — generated from event storming
+project.constraints.yaml    # trade-off slider output — team priorities
+```
+
+Story content (ACs, UX spec references, feature flag names, Gherkin scenarios) lives in Linear. A snapshot is committed to `stories/` when a story moves to `ready-for-dev` — at that point the story is locked and the snapshot never drifts from Linear.
 
 ---
 
@@ -150,12 +172,13 @@ An agent cannot rationalize "I'll just wire the handler first" — `running-atdd
 ## Skills Library
 
 **Meta**
-- `using-forge` — precedence rules, agent roles, session start ritual
-- `resuming-sessions` — re-run outer Acceptance Test before reading anything else
+- `using-forge` — precedence rules, agent roles, session start protocol
+- `resuming-sessions` — query Linear + read CONTEXT.md before anything else
 
 **Discovery**
 - `facilitating-inception` — lean canvas, empathy map, trade-off sliders, event storming, iteration map
-- `facilitating-event-storming` — interactive domain event discovery
+- `facilitating-event-storming` — interactive domain event discovery; final phase produces `CONTEXT.md`
+- `establishing-ubiquitous-language` — generates and maintains `CONTEXT.md` from event storming output
 - `writing-stories` — INVEST-compliant story writing with four-gate review
 - `building-iteration-map` — dependency graph → Linear cards via MCP
 
@@ -212,12 +235,13 @@ Skills: ~/.agents/forge/skills
 ## Philosophy
 
 - **Customer value first** — every story traces to an empathy map pain point; no story is written without it
+- **Shared language** — agents and humans speak from the same domain model; `CONTEXT.md` is generated before the first story is written
 - **INVEST or bust** — stories with technical detail, untestable ACs, or no clear customer value never reach the backlog
 - **Test-first is non-negotiable** — the first file edit in any session is always a test file; implementation code is forbidden until the outer Acceptance Test is RED
 - **Vertical slices** — every story is deployable end-to-end; no frontend-only or backend-only stories
 - **Trunk over branches** — feature flags make branches unnecessary; continuous deployment makes them dangerous
 - **Agents have roles** — a developer agent that makes architecture decisions is a liability; role separation is enforced by skill design
-- **State over memory** — agents read `.forge/state/`, not conversation history; delivery state survives context windows
+- **State over memory** — agents query Linear and read repo artifacts; delivery state survives context windows
 
 ---
 
@@ -245,4 +269,4 @@ MIT — see LICENSE file.
 
 ---
 
-*Forge is inspired by XP and Lean delivery practices, Mike Cohn's* User Stories Applied, *and the hard lessons learned from watching AI agents skip the outer RED.*
+*Forge is inspired by XP and Lean delivery practices, Eric Evans'* Domain-Driven Design, *Mike Cohn's* User Stories Applied, *and the hard lessons learned from watching AI agents skip the outer RED.*

@@ -2,7 +2,7 @@
 
 **Forge** is a lean software delivery framework for AI agents — from inception to production.
 
-Where other agent frameworks hand you a coding assistant, Forge gives you an autonomous engineering organization: seven specialized agents, a shared delivery state machine, and a strict ATDD-first process modeled on Thoughtworks' battle-tested XP/Lean delivery practices.
+Where other agent frameworks hand you a coding assistant, Forge gives you an autonomous engineering organization: seven specialized agents, a shared delivery state machine, and a strict ATDD-first process built on battle-tested XP and Lean delivery practices.
 
 Your agents don't just write code. They run discovery workshops, write INVEST-compliant user stories, make architecture decisions, implement vertical slices test-first, desk check each acceptance criterion, manage feature flags, and ship — continuously, to production, without you babysitting them.
 
@@ -64,7 +64,9 @@ Before story 1 starts:
 
 Iteration 1 cannot start until the acceptance test scaffold is green on CI and a test environment is live.
 
-### 4. Iteration N — The ATDD Loop
+### 4. Iteration N — The ATDD (Acceptance Test-Driven Development) Loop
+
+ATDD is a collaborative practice where acceptance criteria are expressed as executable tests *before* any implementation begins. The outer Acceptance Test is the sole definition of done — everything else serves it.
 
 For each story, the developer agent runs a strict process:
 
@@ -243,4 +245,4 @@ MIT — see LICENSE file.
 
 ---
 
-*Forge is inspired by Thoughtworks' XP and Lean delivery practices, Mike Cohn's* User Stories Applied, *and the hard lessons learned from watching AI agents skip the outer RED.*
+*Forge is inspired by XP and Lean delivery practices, Mike Cohn's* User Stories Applied, *and the hard lessons learned from watching AI agents skip the outer RED.*

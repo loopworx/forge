@@ -1,0 +1,65 @@
+# Event Storm — Bookshelve
+# Produced by: facilitating-event-storming (po-agent + ux-agent)
+# Status: Approved 2026-06-02
+
+events:
+  - id: EVT-001
+    name: BookSaved
+    trigger: SaveBook command
+    actor: Reader
+    aggregate: ReadingList
+    policies: []
+    ui: Book Search Results Screen
+
+  - id: EVT-002
+    name: BookMarkedAsRead
+    trigger: MarkBookRead command
+    actor: Reader
+    aggregate: ReadingList
+    policies:
+      - When BookMarkedAsRead, move book to read shelf
+    ui: Reading List Screen
+
+  - id: EVT-003
+    name: BookRemovedFromList
+    trigger: RemoveBook command
+    actor: Reader
+    aggregate: ReadingList
+    policies: []
+    ui: Reading List Screen
+
+  - id: EVT-004
+    name: ReadingListViewed
+    trigger: ViewReadingList command
+    actor: Reader
+    aggregate: ReadingList
+    policies: []
+    ui: Reading List Screen
+
+bounded_contexts:
+  - name: ReadingList
+    aggregates: [ReadingList, Book]
+    owns: [EVT-001, EVT-002, EVT-003, EVT-004]
+
+  - name: BookSearch
+    aggregates: [BookSearchResult]
+    owns: []
+    note: Delegates to Open Library API. Read-only from our domain.
+
+story_candidates:
+  - ui: Book Search Results Screen
+    pain_point: P1 - Recommendations lost before acted on
+    gain: G1 - Instant capture
+    events: [EVT-001]
+    candidate_story: Reader searches for a book by title and saves it in one action
+
+  - ui: Reading List Screen
+    pain_point: P2 - Existing tools feel heavy
+    gain: G2 - A clear short list they trust
+    events: [EVT-002, EVT-003, EVT-004]
+    candidate_story: Reader views their list and marks a book as read
+
+hotspots:
+  - id: HOT-001
+    question: Does search happen on-device or via API call on every keystroke?
+    resolution: API call on submit, not keystroke. Avoids rate limit issues. Resolved 2026-06-02.

@@ -1,0 +1,22 @@
+# project.constraints.yaml — Bookshelve
+# Produced by: facilitating-inception Phase 3 (po-agent)
+# Trade-off Sliders set by human PO on 2026-06-01
+
+priorities:
+  quality: 1
+  ux: 2
+  cost: 3
+  security: 4
+  note: Security ranked 4 because Bookshelve has no auth, payments, or PII in Iteration 1.
+        Revisit when sync/accounts feature is scoped.
+
+max_parallel_developer_agents: 2
+
+feature_flags:
+  platform: unleash
+  server_url: https://unleash.bookshelve-test.example.com
+  default_strategy: userWithId
+
+environments:
+  test_url: https://bookshelve-test.example.com
+  production_url: https://bookshelve.example.com

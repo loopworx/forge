@@ -41,8 +41,8 @@ The po-agent and ux-agent facilitate a structured discovery process:
 - **Lean Canvas** — problem, solution, unique value proposition
 - **Empathy Mapping** — understand the customer before writing a single requirement
 - **Trade-off Sliders** — team-wide prioritization: quality vs. cost vs. UX vs. security (no ties allowed)
-- **Event Storming** — interactive back-and-forth conversation mapping domain events, commands, policies, and UI elements. UI stickies become user stories. Policies and commands become acceptance criteria. The final phase of event storming produces `CONTEXT.md` — the project's ubiquitous language.
-- **Iteration Mapping** — story dependencies → parallel tracks → Linear cards, automatically
+- **Event Storming** — interactive back-and-forth conversation mapping domain events, commands, policies, and UI elements. UI stickies become user stories. Policies and commands become acceptance criteria. The final phase produces `CONTEXT.md` — the project's ubiquitous language.
+- **Iteration Mapping** — dependency graph → topological sort → iteration layers → Linear Projects + Cycles, automatically
 
 ### 2. Story Refinement
 Every story passes a four-gate review before it's playable:
@@ -51,7 +51,7 @@ Every story passes a four-gate review before it's playable:
 3. **Developer gate** — is this technically feasible? cost signal? estimable?
 4. **QA gate** — is every AC testable through the UI alone, as an outside customer would test it?
 
-Stories that fail any gate go back to the PO. Stories that pass are `ready-for-dev` — and when a developer agent picks one up, it makes a 100% commitment: exactly this, nothing more, nothing less.
+Stories that fail any gate go back to the PO. Stories that pass land in their iteration's Linear Project as `ready-for-dev`.
 
 All stories follow the **INVEST principle** and Mike Cohn's *User Stories Applied* — no technical detail in stories. Backend shape, API design, database schema all live in ADRs, not stories.
 
@@ -86,24 +86,48 @@ One sub-slice at a time. One AC at a time. No implementation code before the out
 
 ### 5. The Kanban Stages
 
-Linear is the delivery state machine. Every agent's session starts by querying Linear for their assigned story and its current stage — not by reading handoff notes or plan files.
+Linear is the delivery state machine. There are two boards:
+
+**Board 1 — Iteration Map (Linear Roadmap/Projects)**
+One Project per iteration. Stories are assigned to iterations based on a topological sort of their dependency graph — stories with no dependencies go into Iteration 1, stories depending on Iteration 1 go into Iteration 2, and so on. This board is the backlog. Stories with no iteration assignment are unscoped.
+
+**Board 2 — Delivery Board (Linear Cycle)**
+The active iteration's stories move through the delivery state machine:
 
 ```
 in-analysis          → story refinement (all four gates)
-ready-for-dev        → developer picks up = 100% commitment
+ready-for-dev        → any developer agent can pull (first available wins)
 in-dev               → ATDD loop + desk check per AC
-ready-for-qa         → story deployed to test environment
+ready-for-qa         → story deployed to test environment; QA agent pulls
 in-qa                → QA full regression suite
-ready-for-acceptance → PO picks up
+ready-for-acceptance → PO agent pulls
 in-acceptance        → PO smoke tests all ACs
-ready-to-deploy      → human approves flag flip
+ready-to-deploy      → HUMAN approves flag flip
 (done)               → feature flag on, Linear card closed
 ```
 
-Bug cards found in `in-qa` or `in-acceptance` go directly to `ready-for-dev` — no refinement needed, they're regressions against already-accepted ACs.
+Bug cards found in `in-qa` or `in-acceptance` go directly to `ready-for-dev` — no refinement needed.
 
-### 6. Trunk-Based Continuous Deployment
-No feature branches. Every push goes to production if CI is green — but unfinished stories are feature-flagged off via [Unleash](https://www.getunleash.io/) (self-hosted, open source). When a story is accepted, the PO approves the flag flip and the feature is live.
+**Stories are pulled, not assigned.** When a developer agent starts a session with no active story, it queries Linear for the oldest story in `ready-for-dev` and atomically moves it to `in-dev` with self-assignment in a single API call. If two agents race, only one wins — the other pulls the next available story. No orchestrator needed.
+
+**Iteration completion.** After completing a story, every agent checks: *"are all stories in this iteration done?"* If yes, the po-agent posts a completion notice on the Linear milestone and idles. A human PO reviews, then triggers the next iteration by activating the next Cycle. Iterations are variable duration — they end when done, not on a fixed date.
+
+### 6. Iteration Scoping
+
+Forge replaces velocity-based sprint planning with **dependency-driven iteration scoping**:
+
+| Human team concept | Forge equivalent |
+|---|---|
+| Story points | AC count (1 AC ≈ 1 ATDD loop) |
+| Team velocity | Max concurrent agents (human sets this) |
+| Fixed-length sprint | Variable duration — iteration ends when all stories reach `done` |
+| Planning poker | Architect agent flags stories with >5 ACs as split candidates |
+| Sprint planning | Topological sort of dependency graph → iteration layers |
+
+Parallel execution within an iteration is determined by story independence — stories in the same layer with no inter-story dependencies run simultaneously with separate developer agents.
+
+### 7. Trunk-Based Continuous Deployment
+No feature branches. Every push goes to production if CI is green — but unfinished stories are feature-flagged off via [Unleash](https://www.getunleash.io/) (self-hosted, open source). When a story is accepted, the human PO approves the flag flip and the feature is live.
 
 ---
 
@@ -129,9 +153,11 @@ Agents dropped into a project with no shared vocabulary use 20 words where 1 wil
 Every agent, every session, in this order:
 
 ```
-1. Query Linear → what story is assigned to me and what stage is it in?
+1. Query Linear → do I have an active story in-progress?
+   If yes  → resume it (re-run outer Acceptance Test first)
+   If no   → pull oldest story from ready-for-dev (atomic claim)
 2. Read CONTEXT.md → speak the project's language
-3. Read project.constraints.yaml → know the priorities (quality > cost > UX etc.)
+3. Read project.constraints.yaml → know the priorities
 4. Begin — the Linear stage determines what happens next
 ```
 
@@ -148,7 +174,7 @@ CONTEXT.md                  # ubiquitous language — generated from event storm
 project.constraints.yaml    # trade-off slider output — team priorities
 ```
 
-Story content (ACs, UX spec references, feature flag names, Gherkin scenarios) lives in Linear. A snapshot is committed to `stories/` when a story moves to `ready-for-dev` — at that point the story is locked and the snapshot never drifts from Linear.
+Story content lives in Linear. A snapshot is committed to `stories/` when a story moves to `ready-for-dev` — at that point the story is locked and the snapshot never drifts.
 
 ---
 
@@ -180,7 +206,7 @@ An agent cannot rationalize "I'll just wire the handler first" — `running-atdd
 - `facilitating-event-storming` — interactive domain event discovery; final phase produces `CONTEXT.md`
 - `establishing-ubiquitous-language` — generates and maintains `CONTEXT.md` from event storming output
 - `writing-stories` — INVEST-compliant story writing with four-gate review
-- `building-iteration-map` — dependency graph → Linear cards via MCP
+- `building-iteration-map` — topological sort of dependencies → Linear Projects + Cycles via MCP
 
 **Architecture**
 - `deciding-architecture` — ADR authoring, service boundary definition
@@ -239,6 +265,7 @@ Skills: ~/.agents/forge/skills
 - **INVEST or bust** — stories with technical detail, untestable ACs, or no clear customer value never reach the backlog
 - **Test-first is non-negotiable** — the first file edit in any session is always a test file; implementation code is forbidden until the outer Acceptance Test is RED
 - **Vertical slices** — every story is deployable end-to-end; no frontend-only or backend-only stories
+- **Pull, don't push** — agents pull work when ready; no assignment, no queue management, no orchestrator
 - **Trunk over branches** — feature flags make branches unnecessary; continuous deployment makes them dangerous
 - **Agents have roles** — a developer agent that makes architecture decisions is a liability; role separation is enforced by skill design
 - **State over memory** — agents query Linear and read repo artifacts; delivery state survives context windows

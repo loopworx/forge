@@ -1,0 +1,48 @@
+---
+name: validating-test-harness
+level: L2-GUIDED
+owner: qa-agent
+trigger: after bootstrapping-project completes; before Iteration 1 opens
+---
+
+# validating-test-harness
+
+## Description
+
+Blocks Iteration 1 until the testing foundation is proven. The first dummy Acceptance Test must run in CI and pass against the test environment. If the harness is flaky, slow, or non-reproducible, Iteration 1 stays closed.
+
+---
+
+## Required Proof
+
+### Dummy acceptance test
+Create one trivial end-to-end test that proves the harness works:
+- Opens the application
+- Verifies a deterministic page element
+- Runs in CI
+- Runs against test environment
+
+### Pass conditions
+- [ ] Test passes locally
+- [ ] Test passes in CI
+- [ ] Test passes against test environment URL
+- [ ] Runtime is acceptable for repeated use
+- [ ] Failure output is understandable
+
+### Fail conditions
+- Test only passes locally
+- Test depends on manual setup
+- Test flakes across repeated runs
+- CI environment differs materially from test environment
+
+---
+
+## Decision
+
+If all pass conditions hold:
+> Post to Linear: "Acceptance test harness validated. Iteration 1 may begin."
+
+If any fail condition holds:
+> Post to Linear: "Acceptance test harness NOT validated. Iteration 1 blocked. Reason: [reason]"
+
+Iteration 1 is blocked until validation is green.

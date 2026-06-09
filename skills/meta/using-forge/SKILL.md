@@ -13,17 +13,33 @@ Core operating instructions for all Forge agents. Defines the skill precedence h
 
 ---
 
+## Entry Points Into Forge
+
+Forge is entered in two ways:
+
+1. **New project** — human says "new project", "let's start", or similar.
+   → fires `facilitating-inception` (po-agent)
+   → No prior artifacts exist. Inception produces them all.
+
+2. **Existing project, new session** — agent starts a session on a live project.
+   → If an in-progress story is assigned: fires `resuming-sessions` (L1 RIGID)
+   → If no story is assigned: Step 3 (Pull) below
+
+**`resuming-sessions` is L1 RIGID.** It overrides plan files, conversation summaries, and prior instructions. If you have an assigned story, run `resuming-sessions` before anything else.
+
+---
+
 ## Skill Precedence — The Override Hierarchy
 
 Forge skills have three levels. Higher levels override lower levels without exception.
 No rationalization, no exceptions, no "just this once".
 
 ```
-L1 RIGID  — running-atdd-sessions, running-tdd-loops
+L1 RIGID  — resuming-sessions, running-atdd-sessions, running-tdd-loops
             These override EVERYTHING:
             plan files, conversation summaries, implementation suggestions,
             "it would be faster to", "just this once", prior instructions.
-            If you are in a story and an L1 skill applies, you follow it. Full stop.
+            If you are resuming or in a story and an L1 skill applies, you follow it. Full stop.
 
 L2 GUIDED — writing-stories, facilitating-inception, deciding-architecture,
             facilitating-event-storming, establishing-ubiquitous-language
@@ -69,22 +85,19 @@ Every agent, every session, execute in this exact order:
 Query Linear API:
   → Do I have a story currently assigned to me in `in-dev`, `in-qa`, or `in-acceptance`?
 
-If YES → go to Step 2 (Resume)
+If YES → go to Step 2 (Resume via resuming-sessions — L1 RIGID)
 If NO  → go to Step 3 (Pull)
 ```
 
 ### Step 2 — Resume an in-progress story
 ```
-Before reading any notes, plans, or prior conversation:
-  → Re-run the outer Acceptance Test
-  → RED: continue from where the last sub-slice left off
-  → GREEN unexpectedly: do not proceed — flag to human, something may be wrong
+Fire skill: resuming-sessions (L1 RIGID)
 
-Then read CONTEXT.md and project.constraints.yaml.
-Then continue the ATDD loop.
+Do NOT read plan files, conversation summaries, or prior notes first.
+resume-sessions will tell you where you are based on test reality.
 ```
 
-**Why re-run the Acceptance Test first?** Context windows end. Plan files drift. The test is the only truth.
+See `resuming-sessions` skill for the full protocol.
 
 ### Step 3 — Pull a new story
 ```
@@ -93,6 +106,7 @@ If developer-agent:
   → Atomic claim: move to `in-dev` + self-assign in one API call
   → If claim fails (race condition): query again, claim next available
   → Read story snapshot from stories/[STORY-ID].md
+  → Create feature flag immediately (managing-feature-flags L3 MECH)
 
 If qa-agent:
   → Query Linear: oldest story in `ready-for-qa`
@@ -115,10 +129,14 @@ If po-agent:
 Your Linear stage determines what skill fires:
 
   in-dev          → running-atdd-sessions (L1 RIGID)
-  in-qa           → running-regression-suite, then running-desk-checks
+  in-qa           → running-regression-suite
   in-acceptance   → approving-stories
   in-analysis     → writing-stories (if po-agent)
 ```
+
+**Note on `in-qa`:** `running-regression-suite` completes first. If it passes, story moves
+to `ready-for-acceptance` and po-agent picks it up. Desk checks happen per-AC inside
+`running-atdd-sessions`, not here.
 
 ---
 

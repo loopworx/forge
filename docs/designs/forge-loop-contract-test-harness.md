@@ -58,6 +58,26 @@ The harness answers: *"Is this skill library a coherent loop operating system, o
 
 ---
 
+## 3.5 Dependencies
+
+```toml
+[package]
+name = "forge-contract-tests"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pulldown-cmark = "0.9"      # Markdown parser
+serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.9"          # Fixture YAML parsing
+petgraph = "0.6"            # Handoff graph (CFG) analysis
+regex = "1.10"              # State name extraction
+walkdir = "2.4"             # Recursive directory traversal
+thiserror = "1.0"           # Error type derive
+```
+
+---
+
 ## 4. File Layout
 
 ```
@@ -83,8 +103,7 @@ evals/contract-tests/
 │       ├── loop_section_order.rs        # LOOP.md sections appear in canonical order
 │       ├── state_machine.rs             # States in SKILL.md exist in HANDOFFS.md
 │       ├── bidirectional_state.rs       # States in HANDOFFS.md exist in some SKILL.md
-│       ├── handoff_graph.rs             # No dead-end states, all reachable from entry
-│       ├── reachability.rs              # All non-terminal states reachable from ALL entry points
+│       ├── handoff_graph.rs             # No dead-end states, all reachable from entry, terminal states are terminal
 │       ├── cross_references.rs          # README skills → directory existence, HANDOFFS.md skill refs → existence
 │       ├── skill_completeness.rs        # Every skill has required SKILL.md sections
 │       ├── eval_completeness.rs         # Every skill has corresponding eval
@@ -102,6 +121,56 @@ evals/contract-tests/
 ---
 
 ## 5. Core Types
+
+### 5.0 Supporting Enums
+
+```rust
+pub enum SkillCategory {
+    Meta,
+    Discovery,
+    Architecture,
+    Development,
+    Quality,
+    IterationZero,
+    AcceptanceDelivery,
+}
+
+pub enum SkillLevel {
+    L1Rigid,    // L1_RIGID — cannot be overridden
+    L2Guided,   // L2_GUIDED — structured process with human gates
+    L3Mech,     // L3_MECH — mechanical execution
+}
+
+pub enum AgentRole {
+    PoAgent,
+    UxAgent,
+    ArchitectAgent,
+    DeveloperAgent,
+    QaAgent,
+    DevopsAgent,
+    SecopsAgent,
+    AllAgents,  // Meta skills that apply to all
+}
+
+pub enum Severity {
+    Error,      // Blocks implementation; must fix
+    Warning,    // Should fix but non-blocking
+    Info,       // FYI only
+}
+
+pub enum MismatchKind {
+    InFixtureNotRepo,    // Skill in fixture but missing from repo
+    InRepoNotFixture,    // Skill in repo but missing from fixture
+    CategoryMismatch,    // Fixture category differs from actual directory
+}
+
+pub struct State {
+    pub name: String,           // e.g., "ready-for-dev"
+    pub defined_in: Vec<String>, // Skill names that define this state
+    pub is_terminal: bool,
+    pub is_entry: bool,
+}
+```
 
 ### 5.1 Skill
 
@@ -143,6 +212,7 @@ pub struct LoopContract {
     pub skill: String,                     // Which skill this LOOP.md belongs to
     pub sections: Vec<LoopSection>,      // Parsed sections in order
     pub section_order_valid: bool,         // Sections appear in canonical order
+    pub sub_loops: Vec<String>,           // Sub-loop skill names (from fixture)
 }
 
 pub enum LoopSection {
@@ -154,6 +224,24 @@ pub enum LoopSection {
     HaltConditions(String),
     HandoffTarget(String),
     Unknown(String),                       // Catch extra/misspelled sections
+}
+```
+
+### 5.4 Diagnostic (Failure Report)
+
+```rust
+pub struct Diagnostic {
+    pub severity: Severity,                // Error, Warning
+    pub code: String,                      // "LOOP-001", "GRAPH-003", etc.
+    pub message: String,                   // Human-readable description
+    pub location: FileLocation,            // file:line:column
+    pub help: String,                    // "Add LOOP.md to skills/discovery/writing-stories/"
+}
+
+pub struct FileLocation {
+    pub path: PathBuf,
+    pub line: Option<usize>,
+    pub column: Option<usize>,
 }
 ```
 
@@ -191,7 +279,7 @@ pub struct DiscoveredSkill {
     pub has_state_model: bool,
     pub has_handoffs: bool,
     pub level: Option<String>,           // From YAML frontmatter
-    pub heuristic_loop_worthy: bool,      // has_state_model && has_handoffs && !L3-only
+    pub heuristic_loop_worthy: bool,      // has_state_model && has_handoffs
 }
 
 pub struct FixtureMismatch {
@@ -202,36 +290,22 @@ pub struct FixtureMismatch {
 }
 ```
 
-### 5.4 Diagnostic (Failure Report)
-
-```rust
-pub struct Diagnostic {
-    pub severity: Severity,                // Error, Warning
-    pub code: String,                      // "LOOP-001", "GRAPH-003", etc.
-    pub message: String,                   // Human-readable description
-    pub location: FileLocation,            // file:line:column
-    pub help: String,                    // "Add LOOP.md to skills/discovery/writing-stories/"
-}
-
-pub struct FileLocation {
-    pub path: PathBuf,
-    pub line: Option<usize>,
-    pub column: Option<usize>,
-}
-```
-
 ---
 
 ## 6. Validators (Layer 1)
 
 ### 6.1 `loop_completeness` — LOOP-001 to LOOP-099
 
-**Question:** Does every loop-worthy skill have a `LOOP.md`?
+**Question:** Does every skill that the fixture REQUIRES to have a `LOOP.md` actually have one?
+
+**Definition:** A skill is "loop-required" if `fixtures/loop-contract.yaml` lists it with `has_loop: true`. This is the **authoritative** list — the fixture is the contract, not heuristics.
 
 **Algorithm:**
 1. Read `fixtures/loop-contract.yaml` → get list of skills where `has_loop: true`
 2. For each skill, check if `skills/{category}/{skill-name}/LOOP.md` exists
 3. Report missing LOOP.md files with skill path and owner
+
+**Relationship to auto-discovery:** `fixture_drift` (Section 6.12) handles the auto-discovery heuristic and warns when repo skills match heuristics but are not in the fixture. `loop_completeness` is the **hard requirement** — it only checks skills the fixture explicitly mandates.
 
 **Example failures (today):**
 ```
@@ -252,7 +326,7 @@ LOOP-002: Missing LOOP.md
 
 **Algorithm:**
 1. Parse each existing LOOP.md into sections (via markdown heading hierarchy)
-2. Compare against `fixtures/loop-contract.yaml` → `required_sections`
+2. Compare against `fixtures/loop-contract.yaml` → `required_loop_sections`
 3. Report missing sections and unexpected/extra sections
 
 **Example failure:**
@@ -317,7 +391,7 @@ BSTATE-001: State in handoff graph but undefined in any skill
 **Checks:**
 - **No dead-end states** (except terminal): Every state must have ≥1 outbound edge unless it's in `terminal_states`
 - **All states reachable from entry points**: Run BFS from ALL `entry_points` in the fixture, verify all non-terminal states are reachable from at least one entry point
-- **No orphaned skills**: Every skill referenced in a transition must exist in the repo
+- **Terminal states are terminal**: States in `terminal_states` must have 0 outbound edges
 
 **Example failures (today):**
 ```
@@ -400,11 +474,22 @@ ORDER-001: LOOP.md sections out of order
 **Question:** Does every skill have a corresponding eval?
 
 **Algorithm:**
-1. List all skill directories under `skills/*/*/`
-2. Check if `evals/[skill-name]/` directory exists with `prompt.md` and `eval.md`
+1. Read `fixtures/loop-contract.yaml` → get `eval_name` mapping for each skill (defaults to `skill-name` if not specified)
+2. Check if `evals/{eval_name}/` directory exists with `prompt.md` and `eval.md`
 3. Report skills missing evals
 
-**Note:** This is a warning-level diagnostic, not an error. The README says "Write evals before writing skill body content" but not all skills require evals.
+**Note:** This is a warning-level diagnostic, not an error. The README says "Write evals before writing skill body content" but not all skills require evals. Eval names may differ from skill names (e.g., `no-implementation-before-red` tests `running-atdd-sessions`).
+
+**Eval name mapping (derived from repo):**
+| Eval Directory | Skill Tested |
+|---|---|
+| `using-forge` | `using-forge` |
+| `no-implementation-before-red` | `running-atdd-sessions` |
+| `session-resume` | `resuming-sessions` |
+| `story-gate-rejection` | `writing-stories` |
+| `pull-not-push` | `using-forge` |
+| `iteration-completion` | `using-forge` |
+| `desk-check-blocking` | `running-desk-checks` |
 
 **Example:**
 ```
@@ -500,7 +585,31 @@ CAT-001: Fixture category mismatch
 
 ---
 
-## 7. The Fixture File
+## 7. Diagnostic Code Registry
+
+Each validator has a unique prefix and numeric range. This table is the single source of truth for diagnostic codes.
+
+| Validator | Prefix | Range | Description |
+|---|---|---|---|
+| `loop_completeness` | LOOP | 001–099 | Missing LOOP.md for fixture-required skills |
+| `loop_sections` | LOOP | 100–199 | Missing or extra sections in existing LOOP.md |
+| `loop_section_order` | ORDER | 001–099 | Sections out of canonical order in LOOP.md |
+| `state_machine` | STATE | 001–099 | States in SKILL.md not found in HANDOFFS.md |
+| `bidirectional_state` | BSTATE | 001–099 | States in HANDOFFS.md not defined in any SKILL.md |
+| `handoff_graph` | GRAPH | 001–099 | Dead-end states, unreachable states, terminal violations |
+| `cross_references` | REF | 001–099 | Broken skill references in HANDOFFS.md, README |
+| `skill_completeness` | SKILL | 001–099 | Missing required sections in SKILL.md |
+| `eval_completeness` | EVAL | 001–099 | Skills missing evals (warning level) |
+| `loop_state_files` | LSTATE | 001–099 | Missing operational loop-state files (*.loop.md) |
+| `constraints_loop_block` | CONS | 001–099 | Missing `loop:` block in project.constraints.yaml |
+| `fixture_drift` | DRIFT | 001–099 | Fixture/repo mismatch (missing skills, extra skills) |
+| `fixture_category` | CAT | 001–099 | Fixture category does not match actual directory |
+
+**Adding a new validator:** Pick the next available prefix (3–4 uppercase letters, not in use). Use range 001–099. Document here.
+
+---
+
+## 8. The Fixture File
 
 `fixtures/loop-contract.yaml` is the **spec** against which the repo is measured.
 
@@ -521,6 +630,7 @@ loops:
     level: L1_RIGID
     owner: [all-agents]
     has_loop: true
+    eval_name: using-forge
     description: Conductor loop — session start, precedence, iteration governance
 
   - skill: resuming-sessions
@@ -528,6 +638,7 @@ loops:
     level: L1_RIGID
     owner: [all-agents]
     has_loop: true
+    eval_name: session-resume
     description: Session resume loop — crash recovery, proof-driven resume
 
   - skill: loop-guardian
@@ -563,6 +674,7 @@ loops:
     level: L2_GUIDED
     owner: [po-agent]
     has_loop: true
+    eval_name: story-gate-rejection
     description: Story writing loop — four-gate review, INVEST validation
 
   - skill: building-iteration-map
@@ -605,6 +717,7 @@ loops:
     level: L1_RIGID
     owner: [developer-agent]
     has_loop: true
+    eval_name: no-implementation-before-red
     sub_loops:
       - running-tdd-loops
       - running-desk-checks
@@ -629,6 +742,7 @@ loops:
     level: L2_GUIDED
     owner: [qa-agent]
     has_loop: true
+    eval_name: desk-check-blocking
     description: Desk check loop — per-AC UI verification
 
   - skill: running-regression-suite
@@ -722,23 +836,26 @@ handoff_graph_invariants:
   
 terminal_states:
   - done
-  - awaiting-human-gate-6
-  - awaiting-human-gate-7
+  # Note: awaiting-human-gate-6 and awaiting-human-gate-7 are conceptual states
+  # from the perfect loop plan. They are not yet encoded in HANDOFFS.md.
+  # When added, they must have 0 outbound edges.
 
 entry_points:
-  - in-analysis
-  - new-project
-  - resume-session
+  - in-analysis          # Actual graph state — stories start here
+
+entry_triggers:
+  - new-project          # Human event, not a graph node — triggers inception loop
+  - resume-session       # Human event, not a graph node — triggers resuming-sessions
 ```
 
 ---
 
-## 8. Expected Output (Running Today)
+## 9. Expected Output (Running Today)
 
 ```bash
 $ cd evals/contract-tests && cargo test
 
-running 13 test suites
+running 12 test suites
 
 test tests::loop_completeness ... FAILED
   LOOP-001: Missing LOOP.md
@@ -813,17 +930,23 @@ test tests::fixture_drift ... FAILED
     → directory not found: skills/meta/loop-guardian/
     → fix: create skill directory or remove from fixture
 
-test tests::fixture_category ... ok (1 fix applied)
-  CAT-001: Fixture category corrected
-    → securing-pipeline: iteration-zero → acceptance-delivery
+test tests::loop_sections ... ok (0 failures)
 
-failures: 8, success: 5
-total failures: 32, warnings: 14
+test tests::fixture_category ... ok (1 category mismatch detected)
+  CAT-001: Fixture category mismatch
+    → skill: securing-pipeline
+    → fixture says: category: iteration-zero
+    → actual path: skills/acceptance-delivery/securing-pipeline/
+    → fix: update fixture category to acceptance-delivery
+
+failures: 8, success: 4
+total diagnostics: 32 failures, 14 warnings
+```
 ```
 
 ---
 
-## 9. Success Criteria
+## 10. Success Criteria
 
 The harness is complete when:
 
@@ -838,7 +961,75 @@ The harness is complete when:
 
 ---
 
-## 10. Deferrals (Layer 2)
+## 10. Error Handling
+
+### Malformed Markdown
+
+If a parser encounters malformed markdown (unclosed code blocks, invalid YAML frontmatter, etc.):
+- Emit a **warning-level** diagnostic with code `PARSER-001`
+- Include the file path and approximate line number
+- Continue parsing the remainder of the file (best-effort recovery)
+- Do not panic or abort the entire test suite
+
+### Missing Files
+
+If a file referenced by the fixture does not exist:
+- Emit an **error-level** diagnostic
+- This is expected for LOOP.md files (they are the gaps the harness is designed to find)
+- For SKILL.md or HANDOFFS.md: this indicates a fixture error, not a repo error
+
+### Partial Parse Results
+
+If a file parses partially (some sections found, others not):
+- Report what was found
+- Report what was missing
+- Do not assume missing sections mean the file is completely invalid
+
+---
+
+## 11. Suppression / Waiver Mechanism
+
+Some failures may be temporarily acceptable (e.g., a skill is being actively developed and its LOOP.md is not yet written). The harness supports suppression via a `waivers.yaml` file:
+
+```yaml
+# waivers.yaml — suppress specific diagnostics
+waivers:
+  - code: LOOP-001
+    skill: loop-guardian
+    reason: "Skill is planned for Phase 4; directory will be created then"
+    expires: 2026-07-01
+  - code: LSTATE-001
+    file: docs/inception.loop.md
+    reason: "Planned for Phase 2; operational state files not yet created"
+    expires: 2026-07-15
+```
+
+**Rules:**
+- Every waiver must have a `reason` and an `expires` date
+- Expired waivers are treated as regular failures
+- Waivers are reviewed quarterly and should not be permanent
+- Waivers do not reduce the diagnostic count in output; they are annotated with `[waived]`
+
+---
+
+## 12. Adding a New Validator
+
+1. Pick an unused prefix from the registry (Section 7)
+2. Create `src/validators/{name}.rs`
+3. Implement the `Validator` trait:
+   ```rust
+   pub trait Validator {
+       fn name(&self) -> &str;
+       fn validate(&self, repo: &Repo) -> Vec<Diagnostic>;
+   }
+   ```
+4. Register in `src/validators/mod.rs`
+5. Add tests in `tests/integration.rs`
+6. Update Section 7 (Diagnostic Code Registry)
+
+---
+
+## 13. Deferrals (Layer 2)
 
 These are out of scope for the initial implementation but documented for future work:
 
@@ -851,7 +1042,7 @@ These are out of scope for the initial implementation but documented for future 
 
 ---
 
-## 11. Appendix: Relationship to Existing Evals
+## 14. Appendix: Relationship to Existing Evals
 
 The existing 7 evals are **behavioral** — they test whether an agent follows a skill correctly when given a prompt.
 
@@ -875,63 +1066,129 @@ The parser must find the section containing state definitions. Search for headin
 /^(#{1,3}\s+(The Loop|State Model|States|Loop States|Loop State))/i
 ```
 
-If no matching heading is found, the skill has no state model section → reported as SKILL failure.
+If no matching heading is found, scan the **entire file** for state references (see B.2 Method 1). This is because states often appear inline in prose sections without a dedicated state model heading.
 
 ### B.2 State Extraction Heuristics
 
-Within the matching section, extract state names using these heuristics (in order of priority):
+States are extracted from **all** SKILL.md content, not just the state model section. Methods are tried in order; results are merged and deduplicated.
 
-**Method 1: Explicit state declarations**
+**Method 1: Inline backtick references in prose (PRIMARY)**
+
+This is the most common format in actual files. Scan the entire document for backtick-quoted tokens matching state naming conventions:
+
+```markdown
+Move story to `ready-for-qa` in Linear.
+The story is now `in-dev`.
+When `in-analysis` passes all gates...
+```
+
+**Extraction regex:**
+```regex
+/`([a-z][a-z0-9_-]*)`/g
+```
+
+Filter candidates against state name patterns (see B.3). Tokens like `npm`, `test`, `Linear` are filtered out by the pattern matcher.
+
+**Method 2: Code blocks containing state mappings**
+
+Code blocks (triple backticks) may contain state transitions in ASCII art, YAML, or plain text:
+
+```
+in-analysis → ready-for-dev → in-dev → ready-for-qa → in-qa → done
+```
+
+Extract all kebab-case tokens from these blocks.
+
+**Method 3: Explicit state declarations (FALLBACK)**
+
+Within the state model section (if found), look for:
 ```
 - `state-name`          (bullet list with backtick-quoted state name)
 State: state-name       (explicit "State:" prefix)
 ```
 
-**Method 2: YAML frontmatter in code blocks**
+**Method 4: YAML frontmatter in code blocks (FALLBACK)**
 ```yaml
 state_model:
   states:
     - ready-for-dev
     - in-dev
-    - ready-for-qa
 ```
 
-**Method 3: ASCII art labels**
-```
-┌─────────────────────┐
-│  FE INNER LOOP      │
-│  1. Write test RED  │
-│  ready-for-dev      │  ← text after │ in box diagrams
-└─────────────────────┘
-```
-Extract tokens that match state naming conventions (kebab-case, known prefixes like `ready-for-`, `in-`).
-
-**Method 4: Table rows**
+**Method 5: Table rows (FALLBACK)**
 ```
 | State | Description |
 |---|---|
 | ready-for-dev | Developer can pull |
-| in-dev | Work in progress |
 ```
 
 ### B.3 State Name Validation
 
-Extracted tokens are validated as state names if they:
-- Contain only lowercase letters, numbers, hyphens, underscores
-- Do not contain spaces (unless explicitly quoted)
-- Match known state patterns: `ready-for-*`, `in-*`, `done`, `awaiting-*`
+Extracted tokens are validated as state names if they match **at least one** of these criteria:
+
+1. **Known state prefix:** Matches `^(ready-for|in|done|awaiting)-[a-z0-9]+(-[a-z0-9]+)*$`
+2. **Known terminal state:** Exactly `done`
+3. **Known entry point:** Appears in fixture `entry_points` list
+4. **Known terminal state:** Appears in fixture `terminal_states` list
+
+**Anti-patterns (filtered out):**
+- Single word without hyphen that is not `done` (e.g., `Linear`, `npm`, `test`)
+- Contains uppercase letters
+- Contains spaces
+- Matches common non-state terms: `README`, `SKILL`, `HANDOFFS`, `CONTEXT`
 
 ### B.4 Section Extraction
 
-For SKILL.md required section validation, extract top-level headings (`## Heading`) and match against `required_skill_sections` from the fixture.
+For SKILL.md required section validation, extract top-level headings (`## Heading`) and match against `required_skill_sections` from the fixture. The fixture defines aliases for section name variants (e.g., "The Loop" matches the required section "State Model").
 
 ---
 
 ## Appendix C — HANDOFFS.md Parsing Grammar
 
-### C.1 Transition Format
+HANDOFFS.md files use **two formats** that may appear in the same file:
+1. **Prose format** (PRIMARY — used by 17 of 18 files): `##` headings with bold labels and explicit transitions
+2. **ASCII tree format** (SECONDARY — used by `using-forge/HANDOFFS.md` only): Code blocks with `└→` arrows
 
-HANDOFFS.md files use an ASCII tree format inside triple-backtick code blocks. The parser must extract transitions from this format.
+The parser must detect which format(s) are present and extract from all of them.
+
+### C.1 Prose Format (Primary)
+
+Most HANDOFFS.md files use prose sections with explicit transition declarations.
+
+**Pattern 1: Bold-labeled transitions**
+```markdown
+## On desk check APPROVED:
+Return to `running-atdd-sessions`. Preserve developer assignment.
+
+## On desk check FAILED:
+Return to `running-atdd-sessions`. Story moves back to first pending AC.
+```
+
+**Extraction rules:**
+1. Scan for lines containing backtick-quoted skill names after transition words: `return to`, `move to`, `hand off to`, `trigger`, `call`, `routes to`
+2. Extract: `return to \`target-skill\`` → edge from current skill to target-skill
+3. Also extract state names from the same line: `story moves back to first pending AC` → state references
+
+**Pattern 2: Explicit state transitions**
+```markdown
+## Outbound
+- `ready-for-qa` → `running-regression-suite`
+```
+
+**Extraction:** Bullet list items with backtick states joined by arrows.
+
+**Pattern 3: Gate tables**
+```markdown
+| Gate | Condition | Next |
+|---|---|---|
+| Gate 2 | UX approves | Gate 3 |
+```
+
+**Extraction:** Table rows where the "Next" column contains a gate number or skill name.
+
+### C.2 ASCII Tree Format (Secondary)
+
+`using-forge/HANDOFFS.md` uses ASCII trees inside triple-backtick code blocks.
 
 **Tree syntax:**
 ```
@@ -941,8 +1198,8 @@ skill-name
 ```
 
 **Parsing rules:**
-1. Identify the skill owning the handoff (from the section heading or first non-indented line)
-2. Lines starting with `  └→` or `  ├→` are transition lines
+1. Identify code blocks (triple backticks) containing tree lines
+2. Lines starting with whitespace + `└→` or `├→` are transition lines
 3. Extract:
    - **Condition text**: text between `└→` and `→` (the arrow before target)
    - **Target skill**: text after `→` and before `(` or end of line
@@ -961,28 +1218,36 @@ Extracts:
 - agent: "po-agent + devops-agent"
 - state_transition: "story → ready-to-deploy"
 
-### C.2 State Node Extraction
+**Edge cases in tree format:**
+- **"STOP" transitions:** `→ STOP; post to Linear; await human` — no target skill. Record as terminal transition.
+- **Complex target lines:** `→ writing-stories back to in-analysis` — extract first kebab-case token as target skill (`writing-stories`); the rest (`back to in-analysis`) is state context.
+- **Variable indentation:** Trees may use 2, 4, or 7 spaces. Indentation depth is ignored; only the `└→`/`├→` marker matters.
+- **Agent labels as pseudo-skills:** Lines like `developer-agent:` and `qa-agent:` are not skills. They must be skipped (detected by `-agent` suffix).
 
-States referenced in `[]` brackets are added to the HandoffGraph as nodes. If a state appears as a target (`→ state`) but not as a source, it is still a valid node.
+### C.3 Mixed Format Files
 
-### C.3 Alternative Formats
+`using-forge/HANDOFFS.md` contains BOTH prose sections AND ASCII tree code blocks. The parser must:
+1. Extract from prose sections (Pattern 1–3)
+2. Extract from code blocks (Pattern C.2)
+3. Merge results, deduplicating edges
 
-Some HANDOFFS.md files use markdown tables for gate transitions:
-```
-| Gate | Condition | Next |
-|---|---|---|
-| Gate 2 | UX approves | Gate 3 |
-| Gate 2 | UX rejects | Gate 1 |
-```
-The parser must detect tables and extract transitions from table rows as fallback.
+### C.4 State Node Extraction
 
-### C.4 Edge Normalization
+States are added to the HandoffGraph as nodes from multiple sources:
+- States referenced in `[]` brackets in tree format
+- States mentioned in prose transition lines (e.g., "story moves to `ready-for-qa`")
+- State names that appear as standalone backtick tokens in prose
+
+If a state appears as a target but not as a source, it is still a valid node (it may be an entry point or terminal state).
+
+### C.5 Edge Normalization
 
 Extracted edges are normalized:
 - Skill names are normalized to kebab-case
 - State names are normalized to kebab-case
 - Duplicates are deduplicated
 - Self-loops (skill → same skill) are flagged as warnings
+- Edges with no target skill (e.g., `→ STOP`) are recorded as terminal edges
 
 ---
 

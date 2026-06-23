@@ -66,3 +66,21 @@ This skill is done when:
 - [ ] Iteration 0 Cycle is active
 - [ ] Dependency graph has no unresolved circular dependencies
 - [ ] Human has confirmed the iteration map
+
+## State Model
+
+This skill assigns refined stories to iterations using the dependency graph.
+
+- `in-analysis` — refined stories awaiting iteration assignment
+- Linear Project per iteration
+- Iteration 0 Cycle — active infrastructure cycle
+- `ready-for-dev` (future) — stories unlocked once iteration 0 is complete
+
+## Rules
+
+1. Use topological sort to assign stories to iterations based on dependencies.
+2. Flag circular dependencies as hotspots; do not assign them.
+3. Create one Linear Project per iteration and set story dependencies.
+4. Create the Iteration 0 Cycle with infrastructure stories.
+5. Split any story with more than five ACs before iteration starts.
+6. Obtain human confirmation on the iteration map before completion.

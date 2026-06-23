@@ -41,3 +41,20 @@ If smoke test fails after flag flip:
 2. Post incident note in Linear
 3. Return story to `ready-for-dev`
 4. Do not retry until human review
+
+## State Model
+
+This skill transitions an accepted story to shipped via controlled feature flag enablement.
+
+- `ready-to-deploy` — accepted story awaiting human release approval
+- `done` — shipped story after successful smoke test
+- `ready-for-dev` — story returned to development after failed smoke test
+
+## Rules
+
+1. Begin only after human explicitly approves release.
+2. Confirm production deployment contains the code before flipping the flag.
+3. Flip the feature flag ON only after go-live approval.
+4. Smoke test production through the UI immediately after flag flip.
+5. On smoke test failure, flip the flag OFF immediately, post an incident note, and return the story to `ready-for-dev`.
+6. Post a ship note with timestamp and flag name on success.

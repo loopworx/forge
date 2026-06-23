@@ -42,3 +42,20 @@ Do not run the entire universe unless risk warrants it.
 
 **Fail**
 > "Regression suite FAILED for [STORY-ID]. Returning to ready-for-dev. Failing flow: [flow]. Repro: [steps]."
+
+## State Model
+
+This skill moves an `in-qa` story to accepted or back to development.
+
+- `in-qa` — story assigned to qa-agent for regression
+- `ready-for-acceptance` — regression passed; awaiting PO acceptance
+- `ready-for-dev` — regression failed; returned to development
+
+## Rules
+
+1. Run the story's own Acceptance Tests on the test environment.
+2. Run selected adjacent regression tests for flows sharing pages, endpoints, or bounded contexts.
+3. Add security-sensitive adjacent tests if the story touches auth, money, PII, or permissions.
+4. Do not run the entire regression universe unless risk warrants it.
+5. Move the story to `ready-for-acceptance` only if all selected tests pass.
+6. On failure, move the story back to `ready-for-dev` with exact repro steps.

@@ -1,0 +1,99 @@
+metadata:
+  version: 1.0.0
+  last_updated: 2026-06-21
+  description: Test fixture for harness tests
+
+loops:
+  - skill: using-forge
+    category: meta
+    level: L1-RIGID
+    owner: [all-agents]
+    has_loop: true
+    description: Conductor loop
+  - skill: loop-guardian
+    category: meta
+    level: L1-RIGID
+    owner: [all-agents]
+    has_loop: true
+    description: Pre-flight guardian
+  - skill: running-atdd-sessions
+    category: development
+    level: L1-RIGID
+    owner: [developer-agent]
+    has_loop: true
+    description: ATDD delivery loop
+  - skill: running-desk-checks
+    category: quality
+    level: L2-GUIDED
+    owner: [qa-agent]
+    has_loop: true
+    description: Desk check loop
+
+canonical_states:
+  - in-analysis
+  - ready-for-dev
+  - in-dev
+  - in-deskcheck
+  - ready-for-qa
+  - done
+
+required_loop_sections:
+  - heading: "Entry Conditions"
+    machine_name: entry_conditions
+    required: true
+  - heading: "Loop State Schema"
+    machine_name: loop_state_schema
+    required: true
+  - heading: "Single Iteration Step"
+    machine_name: single_iteration_step
+    required: true
+  - heading: "Proof of Progress"
+    machine_name: proof_of_progress
+    required: true
+  - heading: "State Transition Rule"
+    machine_name: state_transition_rule
+    required: true
+  - heading: "Halt Conditions"
+    machine_name: halt_conditions
+    required: true
+  - heading: "Handoff Target"
+    machine_name: handoff_target
+    required: true
+
+required_skill_sections:
+  all_levels:
+    - heading: "Description"
+      machine_name: description
+      required: true
+    - heading: "State Model"
+      machine_name: state_model
+      required: true
+      aliases: ["The Loop", "Loop States", "Loop State", "States"]
+    - heading: "Rules"
+      machine_name: rules
+      required: true
+  l1_rigid_only:
+    - heading: "Entry Conditions"
+      machine_name: entry_conditions
+      required: true
+    - heading: "Halt Conditions"
+      machine_name: halt_conditions
+      required: true
+
+handoff_graph_invariants:
+  - name: "No dead-end states"
+    rule: "Every state must have ≥1 outbound edge unless it's in terminal_states"
+  - name: "All states reachable"
+    rule: "Every non-terminal state must be reachable from at least one entry point"
+  - name: "Terminal states are terminal"
+    rule: "States in terminal_states must have 0 outbound edges"
+
+terminal_states:
+  - done
+
+entry_points:
+  - in-analysis
+  - ready-for-dev
+
+entry_triggers:
+  - new-project

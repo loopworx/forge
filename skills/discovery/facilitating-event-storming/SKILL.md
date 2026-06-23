@@ -98,3 +98,20 @@ story_candidates:
 
 ### `CONTEXT.md`
 See `establishing-ubiquitous-language` skill for the full generation protocol.
+
+## State Model
+
+This skill produces the discovery artifacts that feed story writing.
+
+- Phase 1–5: `docs/event-storm.yaml` draft
+- Phase 6: `CONTEXT.md` draft
+- `in-analysis` — stories created after event storming completes
+
+## Rules
+
+1. Ask questions and capture human answers rather than invent the domain model.
+2. Map events (past tense), commands (imperative), policies, aggregates, and UI stickies by colour.
+3. Mark unclear items as red hotspots; do not gloss over ambiguities.
+4. Order events left-to-right on a timeline and identify parallel flows.
+5. Convert each pink sticky into a user story candidate after the session.
+6. Hand off to `establishing-ubiquitous-language` for Phase 6 before generating stories.

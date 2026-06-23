@@ -57,3 +57,30 @@ If a sub-slice is `in-progress`, treat it as incomplete — restart it from scra
 
 **Never assume a sub-slice is done because the plan file says so.**
 Only the test result determines done.
+
+## State Model
+
+This skill uses the story state during a resume check.
+
+- `in-dev` — story assigned to the agent when the session ended
+- `in-qa` / `in-acceptance` — other in-progress states that may be assigned
+- `ready-for-dev` — fallback destination if the story is no longer in progress
+
+## Rules
+
+1. Query Linear first; verify the story is still assigned and in `in-dev`.
+2. Run the outer Acceptance Test before reading plan files or conversation summaries.
+3. If the outer AT is GREEN, stop and post to Linear for human review.
+4. Resume from the next pending sub-slice after the last `done` one.
+5. Treat any `in-progress` sub-slice as incomplete and restart it.
+6. Only test results determine reality; never trust the plan file.
+
+## Entry Conditions
+
+- A new session starts and Linear shows a story currently assigned to the agent in an in-progress state (`in-dev`, `in-qa`, or `in-acceptance`).
+
+## Halt Conditions
+
+- Outer AT is unexpectedly GREEN; story paused awaiting human instruction.
+- The story is no longer assigned or no longer in progress; fall back to `using-forge` pull protocol.
+- Resume protocol completes and ATDD loop continues.

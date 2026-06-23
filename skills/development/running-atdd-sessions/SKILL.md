@@ -60,6 +60,27 @@ All ACs done + all desk checks approved:
   → check iteration completion (using-forge protocol)
 ```
 
+## Rules
+
+1. The outer Acceptance Test file is the first file created or edited for an AC.
+2. No implementation code may be written before the outer AT is RED and has been seen failing.
+3. Run the FE inner loop and BE inner loop sequentially per sub-slice.
+4. Complete one sub-slice fully before starting the next.
+5. Trigger and await a desk check after every AC, before starting the next AC.
+6. Stop and hand off to the architect-agent when an architecture decision is needed.
+7. Update the story snapshot after each completed sub-slice.
+
+## Entry Conditions
+
+- Story is in `in-dev` and assigned to the developer-agent, either on fresh pull or on resume with a RED outer AT.
+- The feature flag for the story exists and is OFF.
+
+## Halt Conditions
+
+- The outer AT is unexpectedly GREEN at the start of the session; stop and post to Linear.
+- An architecture decision blocks the story; pause for ADR.
+- All ACs are GREEN and all desk checks are approved; move story to `ready-for-qa` and hand off to `running-regression-suite`.
+
 ---
 
 ## Rules That Cannot Be Broken

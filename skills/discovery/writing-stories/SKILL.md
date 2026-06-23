@@ -88,3 +88,22 @@ Fail condition: any AC not UI-testable → back to Gate 1.
 
 The story snapshot in the repo is committed at `ready-for-dev` (when the story is locked).
 Before that, Linear is the source of truth.
+
+## State Model
+
+This skill moves story candidates through four human-gated reviews.
+
+- Story candidate — raw input from event storming
+- Gate 1 (PO Draft) → Gate 2 (UX) → Gate 3 (Developer) → Gate 4 (QA)
+- Gate failure → back to Gate 1
+- `in-analysis` — story created in Linear after all gates pass and threat modeling handled
+
+## Rules
+
+1. Every story must be INVEST-compliant before gate review.
+2. ACs must use Given / When / Then and be testable through the UI alone.
+3. Stories must trace to a Pain or Gain in the empathy map.
+4. Any gate failure returns the story to Gate 1 for rewrite.
+5. Split stories with more than five ACs.
+6. After gates pass, route to `threat-modeling` if the story touches auth, payments, PII, or permissions.
+7. Only create the story in Linear with status `in-analysis` after all gates and threat modeling are complete.

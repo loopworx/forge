@@ -98,3 +98,24 @@ Inception is complete when:
 - Linear Projects are created for all iterations
 - Iteration 0 Cycle is active
 - Human has confirmed the iteration map
+
+## State Model
+
+This skill progresses a new project through inception phases.
+
+- `in-analysis` — stories being refined in Phase 5
+- Iteration 0 Cycle — active after Phase 6
+- `docs/lean-canvas.md` — Phase 1 artifact
+- `docs/empathy-map.md` — Phase 2 artifact
+- `project.constraints.yaml` — Phase 3 artifact
+- `docs/event-storm.yaml` + `CONTEXT.md` — Phase 4 artifacts
+- Linear Projects per iteration — Phase 6 artifacts
+
+## Rules
+
+1. Do not skip phases and do not combine phases.
+2. Each phase requires human approval of its artifact before the next phase opens.
+3. Every user story written later must trace to a Pain or Gain in the empathy map.
+4. Trade-off sliders must be ranked with no ties and written to `project.constraints.yaml`.
+5. Event storming must be complete before generating stories.
+6. Inception ends when the iteration map is committed to Linear and `CONTEXT.md` is in the repo root.

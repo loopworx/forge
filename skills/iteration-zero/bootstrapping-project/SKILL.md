@@ -59,3 +59,20 @@ When complete, post to Linear iteration milestone:
 > "Iteration 0 platform bootstrap complete. Test environment live. Feature flags live. CI green."
 
 Iteration 1 may not start until `validating-test-harness` passes.
+
+## State Model
+
+This skill operates during Iteration 0 before the normal story board is active.
+
+- `in-analysis` — infrastructure stories for Iteration 0
+- Iteration 0 project — bootstrapping work in progress
+- Iteration 1+ projects — locked until Iteration 0 complete
+
+## Rules
+
+1. Execute the checklist mechanically; no architecture decisions here.
+2. CI must run unit/component tests, acceptance tests, contract tests, and fail fast.
+3. Test and production environments and URLs must be written to `project.constraints.yaml`.
+4. Feature flag platform must be live with default strategy configured.
+5. Security baseline (secret scanning, documented env vars) must be in place.
+6. Post the completion milestone comment before handing off to `validating-test-harness`.

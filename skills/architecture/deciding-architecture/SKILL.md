@@ -93,3 +93,20 @@ Post to Linear:
 2. One ADR = one decision. If you are deciding two things, write two ADRs.
 3. Developers may not continue blocked stories until the ADR exists and is accepted.
 4. If an ADR changes an already accepted story, that story must return to `in-analysis`.
+
+## State Model
+
+This skill moves a story through an architecture decision pause.
+
+- `ready-for-dev` / `in-dev` — story blocked awaiting ADR
+- `in-analysis` — story sent back when ADR changes its scope
+- `ready-for-dev` — story unblocked after ADR accepted
+
+## Rules
+
+1. Fire only for service boundaries, integrations, queues, storage patterns, or new bounded contexts.
+2. Do not run this skill for renaming, local refactoring, or small code structure choices.
+3. Write one ADR per decision with status, context, decision, consequences, alternatives, and story impact.
+4. Read `project.constraints.yaml` before choosing; weight priorities explicitly.
+5. Developers may not continue the blocked story until the ADR is accepted.
+6. If the ADR changes the story scope, move the story back to `in-analysis`.

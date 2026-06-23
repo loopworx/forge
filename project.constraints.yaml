@@ -25,3 +25,16 @@ feature_flags:
 environments:
   test_url: ""
   production_url: ""
+
+# Loop contracts — canonical commands and budgets for every loop-capable skill.
+# All loop-state files read these to determine proof commands and halt thresholds.
+loop:
+  outer_at_command: "npm run test:acceptance -- --story $STORY_ID --ac $AC_ID"
+  component_test_command: "npm test -- component"
+  cdc_test_command: "npm test -- contract"
+  regression_command: "npm run test:regression"
+  smoke_command: "npm run test:smoke"
+  max_iterations_per_subslice: 5
+  max_no_progress_retries: 2
+  max_story_loop_minutes: 45
+  max_story_loop_cost_usd: 2.00

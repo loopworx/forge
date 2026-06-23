@@ -217,9 +217,8 @@ An agent cannot rationalize "I'll just wire the handler first" — `running-atdd
 
 **Development (L1 Rigid)**
 - `running-atdd-sessions` — outer Acceptance Test RED → sub-slice loops → GREEN
-- `running-tdd-loops` — FE component loop and BE CDC contract loop
-- `writing-contract-tests` — CDC contract as backend vertical acceptance gate
-- `managing-feature-flags` — Unleash REST API integration
+- `running-tdd-loops` — FE component loop and BE CDC contract loop (CDC contracts live inside this loop)
+- `managing-feature-flags` — Unleash REST API integration (lifecycle protocol called from delivery loops)
 
 **Quality**
 - `running-desk-checks` — per-AC verification, generates desk-check artifact, pauses for human
@@ -277,16 +276,16 @@ Skills: ~/.agents/forge/skills
 Forge skills follow [Anthropic's agent skill best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices):
 - Description field is the primary selection mechanism — write it first
 - SKILL.md stays under 500 lines — use linked reference files for detail
-- Write evals before writing skill body content
+- Add deterministic contract tests for the skill's state machine and handoff routes
 - Skills are state machines with explicit gates, not knowledge documents
 
-See `skills/writing-skills/SKILL.md` for the full guide.
+See the Forge skill authoring guide for the full process.
 
 1. Fork the repository
-2. Write your eval first
-3. Draft the description field
-4. Write the skill body
-5. Submit a PR with eval results
+2. Draft the description field
+3. Write the skill body
+4. Add or update the contract test harness to cover new states/transitions
+5. Submit a PR with `cargo test` results from `tools/contract-tests`
 
 ---
 

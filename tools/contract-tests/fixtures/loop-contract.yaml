@@ -1,0 +1,251 @@
+# Forge Loop Contract
+# This file defines which skills MUST have LOOP.md and what a valid LOOP.md contains.
+# The test harness verifies the repo against this contract.
+
+metadata:
+  version: 1.0.0
+  last_updated: 2026-06-21
+  description: Canonical loop stack and contract definitions for Forge
+
+# Which skills MUST have a LOOP.md (these are the "loop-worthy" skills)
+loops:
+  - skill: using-forge
+    category: meta
+    level: L1-RIGID
+    owner: [all-agents]
+    has_loop: true
+    description: Conductor loop — session start, precedence, iteration governance
+
+  - skill: resuming-sessions
+    category: meta
+    level: L1-RIGID
+    owner: [all-agents]
+    has_loop: true
+    description: Session resume loop — crash recovery, proof-driven resume
+
+  - skill: loop-guardian
+    category: meta
+    level: L1-RIGID
+    owner: [all-agents]
+    has_loop: true
+    description: Pre-flight loop guardian — stall detection, budget brakes, human gates
+
+  - skill: facilitating-inception
+    category: discovery
+    level: L2-GUIDED
+    owner: [po-agent, ux-agent]
+    has_loop: true
+    description: Inception loop — Lean Canvas, Empathy Map, Trade-off Sliders
+
+  - skill: facilitating-event-storming
+    category: discovery
+    level: L2-GUIDED
+    owner: [po-agent, ux-agent]
+    has_loop: true
+    description: Event storming loop — domain event discovery, CONTEXT.md generation
+
+  - skill: establishing-ubiquitous-language
+    category: discovery
+    level: L2-GUIDED
+    owner: [po-agent]
+    has_loop: true
+    description: Ubiquitous language loop — CONTEXT.md maintenance
+
+  - skill: writing-stories
+    category: discovery
+    level: L2-GUIDED
+    owner: [po-agent]
+    has_loop: true
+    description: Story writing loop — four-gate review, INVEST validation
+
+  - skill: building-iteration-map
+    category: discovery
+    level: L3-MECH
+    owner: [po-agent]
+    has_loop: true
+    description: Iteration mapping loop — topological sort, dependency resolution
+
+  - skill: deciding-architecture
+    category: architecture
+    level: L2-GUIDED
+    owner: [architect-agent]
+    has_loop: true
+    description: Architecture loop — ADR lifecycle, scope pause/resume
+
+  - skill: bootstrapping-project
+    category: iteration-zero
+    level: L3-MECH
+    owner: [devops-agent]
+    has_loop: true
+    description: Iteration 0 bootstrap loop — CI/CD, environments, feature flags
+
+  - skill: validating-test-harness
+    category: iteration-zero
+    level: L2-GUIDED
+    owner: [qa-agent, devops-agent]
+    has_loop: true
+    description: Test harness validation loop — gate before Iteration 1
+
+  - skill: securing-pipeline
+    category: acceptance-delivery
+    level: L2-GUIDED
+    owner: [secops-agent, devops-agent]
+    has_loop: true
+    description: Pipeline security loop — SAST/DAST gates, continuous compliance
+
+  - skill: running-atdd-sessions
+    category: development
+    level: L1-RIGID
+    owner: [developer-agent]
+    has_loop: true
+    sub_loops:
+      - running-tdd-loops
+      - running-desk-checks
+    description: ATDD delivery loop — outer AT RED → sub-slices → GREEN
+
+  - skill: running-tdd-loops
+    category: development
+    level: L1-RIGID
+    owner: [developer-agent]
+    has_loop: true
+    description: TDD inner loop — FE component RED→GREEN→REFACTOR, BE CDC RED→GREEN→REFACTOR
+
+  - skill: writing-acceptance-tests
+    category: quality
+    level: L2-GUIDED
+    owner: [qa-agent]
+    has_loop: true
+    description: Acceptance test writing loop — outer AT creation per AC
+
+  - skill: running-desk-checks
+    category: quality
+    level: L2-GUIDED
+    owner: [qa-agent]
+    has_loop: true
+    description: Desk check loop — per-AC UI verification
+
+  - skill: running-regression-suite
+    category: quality
+    level: L2-GUIDED
+    owner: [qa-agent]
+    has_loop: true
+    description: Regression loop — full suite on test environment
+
+  - skill: approving-stories
+    category: acceptance-delivery
+    level: L3-MECH
+    owner: [po-agent]
+    has_loop: true
+    description: PO acceptance loop — UI smoke test per story
+
+  - skill: finishing-stories
+    category: acceptance-delivery
+    level: L3-MECH
+    owner: [po-agent, devops-agent]
+    has_loop: true
+    description: Release loop — flag flip, smoke test, Linear update
+
+  - skill: managing-feature-flags
+    category: acceptance-delivery
+    level: L3-MECH
+    owner: [devops-agent]
+    has_loop: false
+    description: Feature flag lifecycle protocol — create → off → on → retired
+
+  - skill: threat-modeling
+    category: acceptance-delivery
+    level: L2-GUIDED
+    owner: [secops-agent]
+    has_loop: true
+    description: Threat modeling loop — security AC injection or story rejection
+
+# Canonical delivery board states (single source of truth for graph validators)
+canonical_states:
+  - in-analysis
+  - ready-for-dev
+  - in-dev
+  - ready-for-deskcheck
+  - in-deskcheck
+  - ready-for-qa
+  - in-qa
+  - ready-for-acceptance
+  - in-acceptance
+  - ready-to-deploy
+  - done
+  # loop-guardian internal halt states
+  - halted-stall
+  - halted-ambiguous
+  - halted-human-gate
+  - halted-unsafe
+
+# Required sections for every LOOP.md (all 7 must be present)
+required_loop_sections:
+  - heading: "Entry Conditions"
+    machine_name: entry_conditions
+    required: true
+  - heading: "Loop State Schema"
+    machine_name: loop_state_schema
+    required: true
+  - heading: "Single Iteration Step"
+    machine_name: single_iteration_step
+    required: true
+  - heading: "Proof of Progress"
+    machine_name: proof_of_progress
+    required: true
+  - heading: "State Transition Rule"
+    machine_name: state_transition_rule
+    required: true
+  - heading: "Halt Conditions"
+    machine_name: halt_conditions
+    required: true
+  - heading: "Handoff Target"
+    machine_name: handoff_target
+    required: true
+
+# Required sections for every SKILL.md
+required_skill_sections:
+  all_levels:
+    - heading: "Description"
+      machine_name: description
+      required: true
+    - heading: "State Model"
+      machine_name: state_model
+      required: true
+      aliases: ["The Loop", "Loop States", "Loop State", "States"]
+    - heading: "Rules"
+      machine_name: rules
+      required: true
+  l1_rigid_only:
+    - heading: "Entry Conditions"
+      machine_name: entry_conditions
+      required: true
+    - heading: "Halt Conditions"
+      machine_name: halt_conditions
+      required: true
+
+# Handoff graph invariants
+handoff_graph_invariants:
+  - name: "No dead-end states"
+    rule: "Every state must have ≥1 outbound edge unless it's in terminal_states"
+  - name: "All states reachable"
+    rule: "Every non-terminal state must be reachable from at least one entry point"
+  - name: "Terminal states are terminal"
+    rule: "States in terminal_states must have 0 outbound edges"
+
+terminal_states:
+  - done
+  # loop-guardian halt states are also terminal — they end the loop iteration.
+  - halted-stall
+  - halted-ambiguous
+  - halted-human-gate
+  - halted-unsafe
+
+entry_points:
+  - in-analysis          # New story refinement entry
+  - ready-for-dev        # Developer-agent pull entry
+  - ready-for-qa         # QA-agent pull entry
+  - ready-for-acceptance # PO-agent pull entry
+
+entry_triggers:
+  - new-project          # Human event, not a graph node — triggers inception loop
+  - resume-session       # Human event, not a graph node — triggers resuming-sessions

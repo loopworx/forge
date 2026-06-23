@@ -34,3 +34,18 @@ Then add explicit ACs such as:
 
 Update the story in Linear with security ACs before it may enter `ready-for-dev`.
 If a story cannot be made safe within scope, return it to `in-analysis`.
+
+## State Model
+
+This skill injects security concerns into story acceptance criteria.
+
+- `in-analysis` — story being refined, gated, or returned for rework
+- `ready-for-dev` — destination after security ACs are injected and pass through `writing-stories` Gate 4
+- Security surface triggers — auth, payments, PII, permission boundaries
+
+## Rules
+
+1. Review every new or changed story for sensitive data, trust boundaries, and abuse paths.
+2. Add explicit, customer-visible security acceptance criteria before development begins.
+3. Return the story to `in-analysis` if it cannot be made safe within scope.
+4. Do not treat security as a separate hidden checklist.

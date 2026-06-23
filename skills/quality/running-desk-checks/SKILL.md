@@ -82,3 +82,22 @@ Developer agent must fix and re-trigger desk check — do not move to next AC
 - Not a regression test (that's running-regression-suite)
 
 A desk check is: does this AC work, right now, through the UI, as a customer would use it.
+
+## State Model
+
+This skill gates an AC before the developer proceeds to the next AC.
+
+Story states this skill owns:
+- `ready-for-deskcheck` — developer finished an AC; awaiting QA pull
+- `in-deskcheck` — QA pulled and is verifying the AC
+
+Per-AC state: `pending` → `in-progress` → `desk-check` → `approved`
+
+## Rules
+
+1. Verify the AC locally first, then on the test environment.
+2. Use only the UI; no database inspection, API calls, or internal state checks.
+3. Write or update the desk-check artifact in `stories/[STORY-ID].md` with status, time, and notes.
+4. On approval, notify the developer-agent to proceed to the next AC.
+5. On failure, post specific expected vs actual details and keep the story in `in-dev`.
+6. The developer may not move to the next AC until the current desk check is approved.

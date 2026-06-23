@@ -57,3 +57,32 @@ The inner TDD loop within an ATDD session. Runs RED-GREEN-REFACTOR for both the 
 - If you find yourself adding new behaviour during refactor: STOP
   That's a new sub-slice. Add it to the story snapshot and continue the loop.
 - DRY applies. YAGNI applies. "Clever" code does not.
+
+## State Model
+
+This skill operates on a single sub-slice while the story is `in-dev`.
+
+- `in-dev` — parent story state
+- Sub-slice status: `pending` → `in-progress` → `done`
+- Component test state: RED → GREEN → REFACTOR
+- CDC contract test state: RED → GREEN → REFACTOR
+
+## Rules
+
+1. Write the smallest possible test that fails (RED).
+2. Write the minimum production code needed to pass (GREEN).
+3. Refactor only while the test stays GREEN.
+4. FE loop runs before BE loop for each sub-slice.
+5. Stop refactoring if new behaviour appears and add it as a new sub-slice.
+6. Return control to `running-atdd-sessions` after each FE and BE loop completes.
+
+## Entry Conditions
+
+- Called by `running-atdd-sessions` for a sub-slice.
+- Parent outer Acceptance Test is RED.
+
+## Halt Conditions
+
+- FE inner loop (RED → GREEN → REFACTOR) is complete and control returns to caller.
+- BE inner loop (RED → GREEN → REFACTOR) is complete and control returns to caller.
+- New behaviour is discovered during refactor; new sub-slice is recorded and skill returns to caller.

@@ -69,3 +69,21 @@ See the CONTEXT.md template in the repo root.
 Sections: Domain Language, Bounded Context Boundaries, Agent Communication Protocol, Flagged Ambiguities.
 
 The Agent Communication Protocol section is pre-populated with Forge delivery terms (outer Acceptance Test, sub-slice, desk check, etc.) and must not be modified without a process reason.
+
+## State Model
+
+This skill maintains the shared vocabulary artifact used by all agents.
+
+- `in-analysis` (stories) — triggers vocabulary review when new terms appear
+- `docs/event-storm.yaml` — input aggregate, event, command, policy, and story candidates
+- `CONTEXT.md` — single source of truth for domain language
+- `Flagged Ambiguities` — unresolved or resolved ambiguities
+
+## Rules
+
+1. Maintain `CONTEXT.md` as the single source of truth for project terminology.
+2. After event storming, agree on canonical names for every aggregate and avoid all synonyms.
+3. Use past-tense verbs for domain events and imperative verbs for commands.
+4. Present ambiguities to the human and document resolutions.
+5. When an undefined term is encountered mid-project, stop using it until po-agent updates `CONTEXT.md`.
+6. Do not modify the Agent Communication Protocol section without a process reason.

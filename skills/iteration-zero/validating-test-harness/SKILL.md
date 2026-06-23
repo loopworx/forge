@@ -46,3 +46,20 @@ If any fail condition holds:
 > Post to Linear: "Acceptance test harness NOT validated. Iteration 1 blocked. Reason: [reason]"
 
 Iteration 1 is blocked until validation is green.
+
+## State Model
+
+This skill controls whether Iteration 1 may open.
+
+- Iteration 0 — harness validation in progress
+- Iteration 1 — blocked until validation green
+- `ready-for-dev` — unlocked after validation passes
+- `bootstrapping-project` — returned to on failure
+
+## Rules
+
+1. Create one deterministic, trivial end-to-end test that opens the app and checks a page element.
+2. The test must run locally, in CI, and against the test environment URL.
+3. Runtime must be acceptable for repeated use and failure output must be understandable.
+4. If any pass condition is missing, block Iteration 1 and route back to `bootstrapping-project`.
+5. Do not ask developer-agents to work around a harness failure.

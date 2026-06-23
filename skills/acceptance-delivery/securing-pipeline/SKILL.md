@@ -36,3 +36,24 @@ Adds and maintains security gates in the delivery pipeline: SAST, DAST where app
 
 Post pipeline security baseline to Linear iteration milestone:
 > "Security gates active: secret scanning, dependency scan, SAST[, DAST]. Blocking thresholds configured."
+
+## State Model
+
+This skill maintains the pipeline security configuration for all future pushes.
+
+- Iteration 0 — gates configured concurrently with `bootstrapping-project`
+- Pipeline state: gates active on every push
+- New language/runtime/tooling introduced — new scanner added
+- Recurring security failures — gate tuning required
+
+## Rules
+
+1. Configure secret scanning on every push.
+2. Configure dependency vulnerability scanning on lockfile changes.
+3. Configure SAST on application code.
+4. Configure container or image scanning if containers are used.
+5. Configure DAST against the test environment for externally exposed apps when practical.
+6. Critical vulnerabilities block the pipeline.
+7. High vulnerabilities require explicit human waiver if not fixed immediately.
+8. Secrets in git are an immediate stop-ship event.
+9. Tune noisy tools so the gate remains meaningful.

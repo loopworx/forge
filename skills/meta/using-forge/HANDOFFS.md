@@ -26,16 +26,16 @@ Read each skill's SKILL.md to see its phases defined.
 
 ```
 developer-agent:
-  └→ story claimed from ready-for-dev
+  └→ story claimed from ready-for-dev [ready-for-dev → in-dev]
        └→ managing-feature-flags (create flag; confirm OFF)
        └→ running-atdd-sessions (L1 RIGID)
 
 qa-agent:
-  └→ story claimed from ready-for-qa
+  └→ story claimed from ready-for-qa [ready-for-qa → in-qa]
        └→ running-regression-suite
 
 po-agent:
-  └→ story claimed from ready-for-acceptance
+  └→ story claimed from ready-for-acceptance [ready-for-acceptance → in-acceptance]
        └→ approving-stories
 ```
 
@@ -94,28 +94,28 @@ resuming-sessions
 
 running-atdd-sessions
   └→ each sub-slice               → running-tdd-loops (developer-agent) [returns to caller]
-  └→ each AC outer AT GREEN       → running-desk-checks (qa-agent)
+  └→ each AC outer AT GREEN       → running-desk-checks (qa-agent) [in-dev → ready-for-deskcheck]
   └→ desk check approved          → next AC (same skill, loop)
-  └→ all ACs + desk checks done   → running-regression-suite (qa-agent) [story → ready-for-qa]
+  └→ all ACs + desk checks done   → running-regression-suite (qa-agent) [story → ready-for-qa] [in-dev → ready-for-qa]
   └→ architecture decision needed → deciding-architecture (architect-agent) [pauses]
 
 running-tdd-loops
   [returns to running-atdd-sessions — never exits to a different pipeline skill]
 
 running-desk-checks
-  └→ APPROVED → running-atdd-sessions (developer-agent) [next AC]
+  └→ APPROVED → running-atdd-sessions (developer-agent) [ready-for-deskcheck → in-deskcheck → in-dev]
   └→ FAILED   → running-atdd-sessions (developer-agent) [fix + re-trigger same AC]
 
 running-regression-suite
-  └→ PASS → approving-stories (po-agent) [story → ready-for-acceptance]
+  └→ PASS → approving-stories (po-agent) [story → ready-for-acceptance] [in-qa → ready-for-acceptance]
   └→ FAIL → story → ready-for-dev; developer-agent pulls via using-forge Step 3
 
 approving-stories
-  └→ PASS → finishing-stories (po-agent + devops-agent) [story → ready-to-deploy; HUMAN gate]
+  └→ PASS → finishing-stories (po-agent + devops-agent) [story → ready-to-deploy; HUMAN gate] [in-acceptance → ready-to-deploy]
   └→ FAIL → story → ready-for-dev; developer-agent pulls via using-forge Step 3
 
 finishing-stories
-  └→ flag flip + smoke PASS → story → done; iteration completion check
+  └→ flag flip + smoke PASS → story → done; iteration completion check [ready-to-deploy → done]
   └→ smoke FAIL             → flag OFF; story → ready-for-dev; developer-agent pulls via using-forge Step 3
   └→ all stories done       → STOP; post iteration completion notice; await human
 

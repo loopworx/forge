@@ -1,0 +1,105 @@
+# running-atdd-sessions — Loop
+
+The L1-RIGID outer ATDD loop for the developer-agent. Runs
+Acceptance Test-Driven Development for a story: write the outer
+Acceptance Test first, drive it to RED, then run TDD inner loops
+(FE + BE) one sub-slice at a time until the outer test is GREEN.
+No implementation code before the outer test is RED. No skipping
+sub-slices. No batching FE then BE. This skill overrides everything.
+
+Before each iteration of this loop, `loop-guardian` pre-flight is
+REQUIRED.
+
+## Entry Conditions
+
+- A story is in `in-dev` and assigned to the developer-agent (claimed
+  via `using-forge` Step 3).
+- A feature flag has been created via `managing-feature-flags` and is
+  confirmed OFF in test and production.
+- The outer Acceptance Test file exists (even if as a skeleton) and is
+  RED. If GREEN unexpectedly → STOP, post to Linear, await human.
+- `loop-guardian` pre-flight has cleared
+  (`stories/[STORY-ID].loop.md` is readable and within budget).
+
+## Loop State Schema
+
+Per-story loop-state file at `stories/[STORY-ID].loop.md`:
+
+- `current_loop` — `delivery`.
+- `current_ac` — `AC-[N]` being worked on.
+- `current_subslice` — `SS-[M]` being worked on (or `null`).
+- `fe_status`, `be_status` — `pending` | `in-progress` | `done`.
+- `stall_counter`, `iteration_counter` — integers for budget tracking.
+- `last_proof_result` — `pass` | `fail` | `null`.
+- `guardian_check` — array of `{ ts, outcome, reason }`.
+
+Story snapshot at `stories/[STORY-ID].md` records sub-slice status
+per AC.
+
+## Single Iteration Step
+
+1. Run `loop-guardian` pre-flight (L1-RIGID prerequisite — do not skip).
+2. Read `stories/[STORY-ID].loop.md` and `stories/[STORY-ID].md`.
+3. For the next AC in order:
+   a. Write or update the outer Acceptance Test for this AC; confirm RED.
+   b. For each sub-slice in this AC, in order:
+      - **FE inner loop:** run `running-tdd-loops` for the FE component
+        (component test RED → minimum FE GREEN → refactor GREEN).
+      - **BE inner loop:** run `running-tdd-loops` for the BE CDC contract
+        (CDC test RED → minimum BE GREEN → refactor GREEN).
+      - Update `stories/[STORY-ID].md` sub-slice status to `done` only
+        after both FE and BE are GREEN.
+      - Do not start the next sub-slice until the current is fully GREEN.
+   c. When all sub-slices for this AC are GREEN → outer AT for this AC
+      is GREEN.
+   d. Trigger `running-desk-checks` (qa-agent); WAIT for desk-check
+      approval before the next AC.
+4. When all ACs and all desk checks are approved → move story to
+   `ready-for-qa` in Linear; commit story snapshot update.
+5. Run the iteration completion check from `using-forge`.
+
+## Proof of Progress
+
+- Each iteration produces a recorded outcome on the loop-state file:
+  - outer AT for the AC became GREEN, OR
+  - a sub-slice FE+BE both became GREEN, OR
+  - a desk-check signal was received and acted on, OR
+  - a `loop-guardian` `halted-*` was raised.
+- `stories/[STORY-ID].md` sub-slice statuses match the loop-state file.
+
+## State Transition Rule
+
+- Story remains `in-dev` while any AC has unfinished sub-slices or any
+  desk-check is pending.
+- `in-dev` → `ready-for-qa` when every AC is GREEN and every desk check
+  is approved.
+- Desk check FAILED → story stays `in-dev` (or returns to `in-dev`
+  from `in-deskcheck`); do NOT move to next AC.
+- `running-tdd-loops` is invoked from inside this loop and always
+  returns control here.
+
+## Halt Conditions
+
+- `loop-guardian` reports `halted-stall`, `halted-iteration-budget`,
+  `halted-wall-clock`, `halted-cost`, `halted-human-gate`, or
+  `halted-unsafe` → stop; do not advance state.
+- Outer AT is unexpectedly GREEN → stop; post to Linear for human
+  review; do not proceed.
+- An architecture decision is needed mid-sub-slice → stop; post
+  `"Architecture decision needed"`; pause the loop until ADR is
+  accepted.
+- Desk check fails twice on the same AC → halt; raise human gate.
+- Feature flag is not OFF → halt; the story is not safely shippable.
+
+## Handoff Target
+
+- Outer AT GREEN for an AC → `running-desk-checks` (qa-agent); returns
+  here on approval, routes to fix-and-redo on failure.
+- Sub-slice work → `running-tdd-loops` (developer-agent); always
+  returns to this loop.
+- Architecture decision needed → `deciding-architecture`
+  (architect-agent); returns to this loop on ADR accepted.
+- All ACs done + all desk checks approved → `running-regression-suite`
+  (qa-agent) when story is in `in-qa`.
+- Iteration complete → return to `using-forge` Step 3 (Pull next
+  story).

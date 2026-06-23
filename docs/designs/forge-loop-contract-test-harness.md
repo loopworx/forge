@@ -26,7 +26,7 @@ The harness answers: *"Is this skill library a coherent loop operating system, o
 |---|---|
 | **Failure report = TODO list** | Every failing test names a specific file/line to fix. You work through them systematically. |
 | **Static analysis first** | 80% of gaps are structural (missing files, missing sections, broken references). Static tests catch these instantly without running agents. |
-| **No LLM in the harness** | Evals already test agent behavior. This harness tests *skill definitions* — it must be deterministic, fast, and reproducible. |
+| **No LLM in the harness** | Behavioral agent tests require an LLM and are kept outside this harness. The simulator tests *skill graph execution* deterministically. |
 | **Rust for compiler-like work** | Parsing markdown into typed ASTs, building a handoff graph (CFG), detecting dead-end states, and cross-referencing symbols is compiler frontend work. Rust's type system and `petgraph` are the right tools. |
 | **Fixture as contract** | `fixtures/loop-contract.yaml` is the spec. The repo is the implementation. The test harness measures implementation against spec. |
 | **Auto-discover + fixture authority** | The harness auto-discovers all skills from `skills/*/*/`. It derives `has_loop` from heuristics (has state transitions, has HANDOFFS.md, L1/L2 level). The fixture is the authority for REQUIRED loops. Skills matching heuristics but not in fixture get warnings. |
@@ -46,15 +46,16 @@ The harness answers: *"Is this skill library a coherent loop operating system, o
 └─────────────────────────────────────────────────────────────────┘
                               │
 ┌─────────────────────────────────────────────────────────────────┐
-│  LAYER 2: Simulated Execution Tests (medium cost, mock env)   │
+│  LAYER 2: Simulated Execution Tests (fast, deterministic)       │
 │  ─────────────────────────────────────────────────────────────│
-│  Run skill logic against mocked Linear API + filesystem         │
-│  Verify: state transitions, handoff paths, resume behavior        │
-│  Target: <5s per test, runs on PR                               │
+│  Walk the skill handoff graph and project-constraints budgets   │
+│  Verify: every loop skill reaches a terminal skill, budgets     │
+│          are defined and positive, no infinite skill cycles     │
+│  Target: <100ms per test, runs in CI                            │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-**Layer 1 is the focus of this design.** Layer 2 is deferred to a future iteration.
+**Both layers are implemented.** Layer 2 is deterministic simulation of the skill graph, not a behavioral agent test.
 
 ---
 
@@ -96,6 +97,8 @@ tools/contract-tests/
 │   │   ├── loop_state.rs                # *.loop.md → LoopState { current_loop, last_proof, stall_counter }
 │   │   ├── readme.rs                    # README.md → skill name extractor (tables, lists)
 │   │   └── constraints.rs               # project.constraints.yaml → Constraints { loop_commands, budgets }
+│   ├── simulation/
+│   │   └── mod.rs                       # Deterministic skill-graph simulator
 │   └── validators/
 │       ├── mod.rs                       # Validator orchestration
 │       ├── loop_completeness.rs         # Every loop-worthy skill has LOOP.md
@@ -106,10 +109,11 @@ tools/contract-tests/
 │       ├── handoff_graph.rs             # No dead-end states, all reachable from entry, terminal states are terminal
 │       ├── cross_references.rs          # README skills → directory existence, HANDOFFS.md skill refs → existence
 │       ├── skill_completeness.rs        # Every skill has required SKILL.md sections
-│       ├── eval_completeness.rs         # Every skill has corresponding eval
+│       ├── simulation.rs                # Simulated execution: budgets, terminal reachability, cycles
 │       ├── loop_state_files.rs          # *.loop.md operational state files exist and are well-formed
 │       ├── constraints_loop_block.rs    # project.constraints.yaml has loop: block
 │       ├── fixture_drift.rs             # Repo skills match fixture; fixture skills exist in repo
+│       ├── handoff_completeness.rs      # Every loop skill has HANDOFFS.md
 │       └── fixture_category.rs          # Fixture category matches actual directory
 ├── fixtures/
 │   └── loop-contract.yaml               # Canonical loop stack (the spec)
@@ -298,12 +302,14 @@ pub struct FixtureMismatch {
 
 **Question:** Does every skill that the fixture REQUIRES to have a `LOOP.md` actually have one?
 
-**Definition:** A skill is "loop-required" if `fixtures/loop-contract.yaml` lists it with `has_loop: true`. This is the **authoritative** list — the fixture is the contract, not heuristics.
+**Definition:** A skill is "loop-required" if `fixtures/loop-contract.yaml` lists it with `has_loop: true`. This is the **authoritative** list — the fixture is the contract, not heuristics. Skills marked `has_loop: false` (e.g. `managing-feature-flags`) are lifecycle protocols called inside other loops and do not require a `LOOP.md`.
 
 **Algorithm:**
 1. Read `fixtures/loop-contract.yaml` → get list of skills where `has_loop: true`
 2. For each skill, check if `skills/{category}/{skill-name}/LOOP.md` exists
 3. Report missing LOOP.md files with skill path and owner
+
+State names are validated against the `canonical_states` list in `fixtures/loop-contract.yaml`. README Kanban states and perfect-loop-plan desk-check states (`ready-for-deskcheck`, `in-deskcheck`) are treated as canonical even if not every skill repeats them.
 
 **Relationship to auto-discovery:** `fixture_drift` (Section 6.12) handles the auto-discovery heuristic and warns when repo skills match heuristics but are not in the fixture. `loop_completeness` is the **hard requirement** — it only checks skills the fixture explicitly mandates.
 
@@ -343,11 +349,13 @@ LOOP-101: Missing required section in LOOP.md
 **Question:** Are all states mentioned in SKILL.md also present in the handoff graph?
 
 **Algorithm:**
-1. Parse each SKILL.md → find the section containing state definitions (see Appendix B for parsing grammar)
-2. Extract state names using the defined heuristic (bullet lists with backtick-quoted state names, or explicit `State: <name>` declarations)
-3. Parse corresponding HANDOFFS.md → build HandoffGraph (see Appendix C)
-4. For each state in SKILL.md, check if it exists as a node in HandoffGraph
-5. Report states that exist in SKILL.md but not in HANDOFFS.md
+1. Load `canonical_states` from `fixtures/loop-contract.yaml` as the authoritative state catalog.
+2. Parse each SKILL.md → find the section containing state definitions (see Appendix B for parsing grammar)
+3. Extract state names using the defined heuristic (bullet lists with backtick-quoted state names, or explicit `State: <name>` declarations)
+4. Validate extracted tokens against the canonical state catalog.
+5. Parse corresponding HANDOFFS.md → build HandoffGraph (see Appendix C)
+6. For each state in SKILL.md, check if it exists as a node in HandoffGraph
+7. Report states that exist in SKILL.md but not in HANDOFFS.md
 
 **Parsing heuristic (see Appendix B for full grammar):**
 - Search for section headings matching: `/^(##?\s+(The Loop|State Model|States|Loop States))/i`
@@ -469,34 +477,29 @@ ORDER-001: LOOP.md sections out of order
   → fix: reorder sections to match canonical order
 ```
 
-### 6.9 `eval_completeness` — EVAL-001 to EVAL-099
+### 6.9 `simulation` — SIM-001 to SIM-099
 
-**Question:** Does every skill have a corresponding eval?
+**Question:** Can the delivery loop actually execute deterministically without getting stuck?
 
 **Algorithm:**
-1. Read `fixtures/loop-contract.yaml` → get `eval_name` mapping for each skill (defaults to `skill-name` if not specified)
-2. Check if `evals/{eval_name}/` directory exists with `prompt.md` and `eval.md`
-3. Report skills missing evals
+1. Read `project.constraints.yaml` → verify the `loop:` block exists and contains:
+   - Required commands: `outer_at_command`, `component_test_command`, `cdc_test_command`, `regression_command`, `smoke_command`
+   - Required budgets: `max_iterations_per_subslice`, `max_no_progress_retries`, `max_story_loop_minutes`, `max_story_loop_cost_usd`
+2. Build the skill-to-skill handoff graph from `HANDOFFS.md` transitions.
+3. For each loop skill, walk the graph and verify it can reach a skill with no outbound skill handoffs (a terminal skill, e.g. `finishing-stories` or `loop-guardian` halted).
+4. Report infinite cycles and unreachable loop skills.
 
-**Note:** This is a warning-level diagnostic, not an error. The README says "Write evals before writing skill body content" but not all skills require evals. Eval names may differ from skill names (e.g., `no-implementation-before-red` tests `running-atdd-sessions`).
-
-**Eval name mapping (derived from repo):**
-| Eval Directory | Skill Tested |
-|---|---|
-| `using-forge` | `using-forge` |
-| `no-implementation-before-red` | `running-atdd-sessions` |
-| `session-resume` | `resuming-sessions` |
-| `story-gate-rejection` | `writing-stories` |
-| `pull-not-push` | `using-forge` |
-| `iteration-completion` | `using-forge` |
-| `desk-check-blocking` | `running-desk-checks` |
+**Note:** This is an error-level diagnostic. It is deterministic structural simulation, not a behavioral agent test.
 
 **Example:**
 ```
-EVAL-001: Skill missing eval
-  → skill: facilitating-inception
-  → expected: evals/facilitating-inception/prompt.md and eval.md
-  → fix: create eval directory with behavioral test
+SIM-001: Entry point `in-analysis` cannot reach any terminal or halted state
+  → skills/meta/using-forge/HANDOFFS.md
+  → fix: add outbound transitions from this entry to a terminal/halted state
+
+SIM-002: Loop skill `running-atdd-sessions` cannot reach a terminal skill
+  → project.constraints.yaml
+  → fix: add outbound handoffs that eventually lead to a terminal skill
 ```
 
 ### 6.10 `loop_state_files` — LSTATE-001 to LSTATE-099
@@ -599,8 +602,9 @@ Each validator has a unique prefix and numeric range. This table is the single s
 | `handoff_graph` | GRAPH | 001–099 | Dead-end states, unreachable states, terminal violations |
 | `cross_references` | REF | 001–099 | Broken skill references in HANDOFFS.md, README |
 | `skill_completeness` | SKILL | 001–099 | Missing required sections in SKILL.md |
-| `eval_completeness` | EVAL | 001–099 | Skills missing evals (warning level) |
+| `simulation` | SIM | 001–099 | Loop cannot execute deterministically (budgets, cycles, reachability) |
 | `loop_state_files` | LSTATE | 001–099 | Missing operational loop-state files (*.loop.md) |
+| `handoff_completeness` | HANDOFF | 001–099 | Loop skill missing HANDOFFS.md |
 | `constraints_loop_block` | CONS | 001–099 | Missing `loop:` block in project.constraints.yaml |
 | `fixture_drift` | DRIFT | 001–099 | Fixture/repo mismatch (missing skills, extra skills) |
 | `fixture_category` | CAT | 001–099 | Fixture category does not match actual directory |
@@ -630,7 +634,6 @@ loops:
     level: L1-RIGID
     owner: [all-agents]
     has_loop: true
-    eval_name: using-forge
     description: Conductor loop — session start, precedence, iteration governance
 
   - skill: resuming-sessions
@@ -638,7 +641,6 @@ loops:
     level: L1-RIGID
     owner: [all-agents]
     has_loop: true
-    eval_name: session-resume
     description: Session resume loop — crash recovery, proof-driven resume
 
   - skill: loop-guardian
@@ -674,7 +676,6 @@ loops:
     level: L2-GUIDED
     owner: [po-agent]
     has_loop: true
-    eval_name: story-gate-rejection
     description: Story writing loop — four-gate review, INVEST validation
 
   - skill: building-iteration-map
@@ -717,7 +718,6 @@ loops:
     level: L1-RIGID
     owner: [developer-agent]
     has_loop: true
-    eval_name: no-implementation-before-red
     sub_loops:
       - running-tdd-loops
       - running-desk-checks
@@ -742,7 +742,6 @@ loops:
     level: L2-GUIDED
     owner: [qa-agent]
     has_loop: true
-    eval_name: desk-check-blocking
     description: Desk check loop — per-AC UI verification
 
   - skill: running-regression-suite
@@ -853,7 +852,7 @@ entry_triggers:
 ## 9. Expected Output (Running Today)
 
 ```bash
-$ cd evals/contract-tests && cargo test
+$ cd tools/contract-tests && cargo test
 
 running 12 test suites
 
@@ -905,10 +904,7 @@ test tests::skill_completeness ... FAILED
 
 test tests::loop_section_order ... ok (0 failures)
 
-test tests::eval_completeness ... ok (14 warnings)
-  EVAL-001: Skill missing eval (warning)
-    → skill: facilitating-inception
-    → fix: create evals/facilitating-inception/ with prompt.md and eval.md
+test tests::simulation ... ok (0 failures)
 
 test tests::loop_state_files ... FAILED
   LSTATE-001: Missing loop-state file
@@ -937,7 +933,10 @@ test tests::fixture_category ... ok (0 failures)
 failures: 7, success: 5
 total diagnostics: 31 failures, 14 warnings
 ```
-```
+
+> The exact failure count depends on the current repo state. The first run is
+> expected to report many `LOOP-001`/`DRIFT-001`-class diagnostics, confirming
+> the harness detects the unimplemented perfect-loop plan.
 
 ---
 
@@ -1030,24 +1029,22 @@ These are out of scope for the initial implementation but documented for future 
 
 | Feature | Description | When |
 |---|---|---|
-| Simulated execution tests | Mock Linear API + filesystem, run agent logic through state transitions | After Layer 1 is green |
 | Property-based testing | Generate random handoff graphs and verify invariants hold | After initial release |
 | CI integration | Run `cargo test` in GitHub Actions on every PR | After test suite stabilizes |
-| Coverage report | Which skills/states/transitions are covered by evals vs contract tests | After evals are standardized |
+| Coverage report | Which skills/states/transitions are covered by the deterministic simulator | After test suite stabilizes |
 
 ---
 
-## 15. Appendix: Relationship to Existing Evals
+## 15. Appendix: Relationship to Behavioral Evals
 
-The existing 7 evals are **behavioral** — they test whether an agent follows a skill correctly when given a prompt.
+Behavioral evals test whether an agent follows a skill correctly when given a prompt. They require an LLM participant and are intentionally kept outside this harness so that `cargo test` stays fast and deterministic.
 
-The contract test harness is **structural** — it tests whether skill definitions are internally consistent.
+The contract test harness now includes **Layer 2 simulated execution**, which deterministically walks the skill handoff graph and validates that the loop mechanics are executable. It does not replace behavioral evals, but it removes the need for placeholder behavioral eval directories that are not automatically executable.
 
-They are complementary:
-- **Evals** catch: "The agent skipped the outer RED" (behavioral)
-- **Contract tests** catch: "The handoff graph has a dead-end state that would trap the agent" (structural)
-- **Evals** run with an LLM (slow, expensive, behavioral)
-- **Contract tests** run with `cargo test` (fast, cheap, deterministic)
+- **Simulator** catches: "`running-atdd-sessions` has no path to a terminal skill" (structural deadlock)
+- **Behavioral evals** catch: "The agent wrote implementation before seeing RED" (agent behavior)
+
+Behavioral evals are not required by this harness.
 
 ---
 

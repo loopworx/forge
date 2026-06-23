@@ -57,3 +57,20 @@ Then they see an order confirmation with an order number
 
 Commit the Acceptance Test and post to Linear:
 > "Outer Acceptance Test for AC-[N] written and confirmed RED."
+
+## State Model
+
+This skill produces the outer Acceptance Test for a story AC.
+
+- Story AC exists and is UI-testable
+- Test state: draft → RED
+- `in-dev` — developer-agent picks up the RED outer AT
+- `in-analysis` — return destination if an AC is not UI-testable
+
+## Rules
+
+1. One AC must map to at least one executable Acceptance Test.
+2. Assertions must be customer-visible through the UI or other customer-visible surfaces.
+3. If an AC is not testable through the UI, return the story to `in-analysis`.
+4. Acceptance Tests must be written before implementation begins.
+5. Use Given / When / Then language in test names and comments.

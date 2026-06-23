@@ -23,6 +23,8 @@ It is called at specific moments by other skills. It does not hand off to a next
 ## Flag naming
 
 `story-[story-id]-[capability-slug]`
-Example: `story-bs01-book-save`
+
+Example flag name: `story-bs01-book-save`. The format is `story-<id>-<slug>`:
+story- followed by the story ID followed by a hyphen and the capability slug.
 
 The flag name is defined in the story at `ready-for-dev` lock time and does not change.

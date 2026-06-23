@@ -171,3 +171,41 @@ If YES → post to Linear iteration milestone:
 6. **Linear is truth.** If your plan file and Linear disagree, Linear wins. Update the plan file.
 
 7. **Desk check before `ready-for-qa`.** No story moves to `ready-for-qa` without a completed desk check artifact for every AC.
+
+## State Model
+
+This skill owns the session lifecycle and orchestrates transitions across the delivery board.
+
+- `in-analysis` — stories being refined by po-agent
+- `ready-for-dev` — stories available for developer-agent pull
+- `in-dev` — story assigned to developer-agent; ATDD in progress
+- `ready-for-qa` — stories available for qa-agent regression
+- `in-qa` — story in regression
+- `ready-for-acceptance` — stories available for po-agent acceptance
+- `in-acceptance` — story under PO acceptance
+- `ready-to-deploy` — accepted story awaiting release approval
+- `done` — shipped story
+
+## Rules
+
+1. Read this skill before any other action every session.
+2. L1-RIGID skills override plan files, conversation summaries, and prior instructions.
+3. The outer Acceptance Test always comes first; no implementation before RED.
+4. No skipping gates and no combining gates.
+5. No cross-role work; stop and hand off when outside your role.
+6. No story branching; all work lands on trunk behind feature flags.
+7. Use only CONTEXT.md terms; propose new terms instead of inventing synonyms.
+8. Linear is truth; update plan files when they disagree with Linear.
+9. Desk-check artifacts must exist before a story may move to `ready-for-qa`.
+
+## Entry Conditions
+
+- A new project request from a human, or
+- A new agent session on an existing project, or
+- Any agent needs to know precedence, role boundaries, or pull protocol.
+
+## Halt Conditions
+
+- Session start is resolved (resume, pull, or no story available).
+- An agent is asked to act outside its role after stating the boundary.
+- All stories in the active Cycle are `done` and iteration completion notice is posted.

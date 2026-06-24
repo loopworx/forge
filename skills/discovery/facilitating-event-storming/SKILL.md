@@ -3,13 +3,14 @@ name: facilitating-event-storming
 level: L2-GUIDED
 owner: po-agent, ux-agent
 trigger: Phase 4 of facilitating-inception; or "let's event storm"
+description: Facilitates event storming sessions to discover bounded contexts and domain events
 ---
 
 # facilitating-event-storming
 
 ## Description
 
-Facilitates an interactive event storming session to discover the domain model through conversation. The agent asks questions; the human answers; the agent maps domain events, commands, policies, aggregates, and UI elements. The session ends by generating CONTEXT.md (the ubiquitous language) and a structured event storm artifact. Do not generate stories until event storming is complete.
+Facilitates an interactive event storming session to discover the domain model through conversation. The agent asks questions; the human answers; the agent maps domain events, commands, policies, aggregates, and UI elements. The session ends by producing CONTEXT.md (the ubiquitous language) and a structured event storm artifact. Do not produce stories until event storming is complete.
 
 ---
 
@@ -75,7 +76,7 @@ Orange + Blue + Purple become acceptance criteria.
 ### `docs/event-storm.yaml`
 ```yaml
 events:
-  - id: EVT-001
+  - id: EVT-NNN  # sequential event ID assigned during storming
     name: OrderPlaced
     trigger: PlaceOrder command
     actor: Customer
@@ -105,7 +106,7 @@ This skill produces the discovery artifacts that feed story writing.
 
 - Phase 1–5: `docs/event-storm.yaml` draft
 - Phase 6: `CONTEXT.md` draft
-- `in-analysis` — stories created after event storming completes
+- `in-analysis` — stories produced after event storming completes
 
 ## Rules
 
@@ -114,4 +115,4 @@ This skill produces the discovery artifacts that feed story writing.
 3. Mark unclear items as red hotspots; do not gloss over ambiguities.
 4. Order events left-to-right on a timeline and identify parallel flows.
 5. Convert each pink sticky into a user story candidate after the session.
-6. Hand off to `establishing-ubiquitous-language` for Phase 6 before generating stories.
+6. Hand off to `establishing-ubiquitous-language` for Phase 6 before producing stories.

@@ -3,6 +3,7 @@ name: establishing-ubiquitous-language
 level: L2-GUIDED
 owner: po-agent
 trigger: Phase 6 of facilitating-event-storming; or when a new term is encountered mid-project
+description: Establishes and maintains a shared vocabulary in CONTEXT.md for consistent communication across all agents
 ---
 
 # establishing-ubiquitous-language
@@ -33,8 +34,8 @@ For each aggregate identified in the event storm:
 
 For each key command/event:
 ```
-1. Confirm the verb form (past tense for events, imperative for commands)
-2. Check for collisions: does this word mean something else elsewhere in the domain?
+1. Verify the verb form (past tense for events, imperative for commands)
+2. Verify for collisions: does this word mean something else elsewhere in the domain?
 3. Document in the domain terms section
 ```
 
@@ -68,7 +69,7 @@ When any agent encounters an undefined term:
 See the CONTEXT.md template in the repo root.
 Sections: Domain Language, Bounded Context Boundaries, Agent Communication Protocol, Flagged Ambiguities.
 
-The Agent Communication Protocol section is pre-populated with Forge delivery terms (outer Acceptance Test, sub-slice, desk check, etc.) and must not be modified without a process reason.
+The Agent Communication Protocol section is pre-populated with Forge delivery terms (outer Acceptance Test, sub-slice, desk review, etc.) and must not be modified without a process reason.
 
 ## State Model
 

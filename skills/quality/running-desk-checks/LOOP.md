@@ -13,7 +13,7 @@ human-visible checkpoint, not a rubber stamp.
 - The story is in `in-dev`; the AC's outer Acceptance Test is GREEN.
 - The story is deployed to the test environment; feature flag is OFF
   in test.
-- `loop-guardian` pre-flight has cleared.
+- `guarding-loops` pre-flight has cleared.
 
 ## Loop State Schema
 
@@ -69,6 +69,10 @@ transition in-deskcheck → in-dev
   trigger desk check failed
   handoff running-atdd-sessions to developer-agent
 
+transition in-deskcheck → in-qa
+  trigger all ACs finalized
+  handoff running-regression-suite to qa-agent
+
 ## Halt Conditions
 
 - The outer Acceptance Test is RED during verification → halt; the
@@ -76,7 +80,7 @@ transition in-deskcheck → in-dev
   `running-atdd-sessions`.
 - Feature flag is not OFF on test environment → halt; the story is not
   safely verifiable.
-- A `loop-guardian` `halted-*` report → stop; do not commit the
+- A `guarding-loops` `halted-*` report → stop; do not commit the
   artifact.
 - Two consecutive FAILED desk checks on the same AC → halt; raise
   human gate.

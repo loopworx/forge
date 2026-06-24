@@ -12,7 +12,7 @@ backdoors, no database checks, no direct API assertions.
   (dummy harness test writing by qa-agent).
 - The AC exists and is UI-testable.
 - `CONTEXT.md` and `project.constraints.yaml` are readable.
-- `loop-guardian` pre-flight has cleared.
+- `guarding-loops` pre-flight has cleared.
 
 ## Loop State Schema
 
@@ -61,7 +61,7 @@ transition in-analysis → in-dev
   response codes directly) → halt; rewrite as UI-observable.
 - The outer AT is not RED (already passes) → halt; post to Linear for
   human review; the AC may already be done or miswritten.
-- A `loop-guardian` `halted-*` report → stop; do not commit the test.
+- A `guarding-loops` `halted-*` report → stop; do not commit the test.
 
 ## Handoff Target
 

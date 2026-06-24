@@ -3,7 +3,7 @@
 This is the L1-RIGID session-resume loop. It overrides plan files and
 conversation summaries. The rule: re-run the outer Acceptance Test before
 reading anything else; the test tells you where you are. Before each
-iteration of this loop, `loop-guardian` pre-flight is REQUIRED.
+iteration of this loop, `guarding-loops` pre-flight is REQUIRED.
 
 ## Entry Conditions
 
@@ -11,7 +11,7 @@ iteration of this loop, `loop-guardian` pre-flight is REQUIRED.
   an in-progress state (`in-dev`, `in-qa`, or `in-acceptance`).
 - The story snapshot at `stories/[STORY-ID].md` exists (or can be derived
   from Linear).
-- `loop-guardian` pre-flight has cleared the current iteration.
+- `guarding-loops` pre-flight has cleared the current iteration.
 
 ## Loop State Schema
 
@@ -32,7 +32,7 @@ Session-level fields:
 
 ## Single Iteration Step
 
-1. Run `loop-guardian` pre-flight (L1-RIGID prerequisite — do not skip).
+1. Run `guarding-loops` pre-flight (L1-RIGID prerequisite — do not skip).
 2. Query Linear: confirm the story is still assigned to this agent and
    still in an in-progress state. If not → fall back to `using-forge`
    Step 3 (Pull).
@@ -84,7 +84,7 @@ transition in-dev → halted-human-gate
 
 ## Halt Conditions
 
-- `loop-guardian` reports any `halted-*` → stop; do not resume.
+- `guarding-loops` reports any `halted-*` → stop; do not resume.
 - Outer AT is unexpectedly GREEN on resume → stop; raise human gate.
 - Story is no longer assigned or no longer in progress → fall back to
   `using-forge` pull protocol (do not auto-reassign).

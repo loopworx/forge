@@ -13,7 +13,7 @@ skill begins only after human approval.
 - Feature flag exists (created when the story entered `in-dev`).
 - Production deployment contains the story's code; flag is OFF in
   production.
-- `loop-guardian` pre-flight has cleared.
+- `guarding-loops` pre-flight has cleared.
 
 ## Loop State Schema
 
@@ -77,7 +77,7 @@ transition ready-to-deploy → ready-for-dev
   approval.
 - Smoke test FAILS → immediate flag OFF → halt; do not retry without
   human review.
-- A `loop-guardian` `halted-*` report → stop; do not flip the flag.
+- A `guarding-loops` `halted-*` report → stop; do not flip the flag.
 
 ## Handoff Target
 

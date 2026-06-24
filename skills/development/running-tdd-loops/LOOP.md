@@ -5,7 +5,7 @@ RED → GREEN → REFACTOR for both the FE component loop and the BE CDC
 contract loop for a single sub-slice. Called by
 `running-atdd-sessions` — do not call directly.
 
-Before each iteration of this loop, `loop-guardian` pre-flight is
+Before each iteration of this loop, `guarding-loops` pre-flight is
 REQUIRED.
 
 ## Entry Conditions
@@ -15,7 +15,7 @@ REQUIRED.
 - For FE loop: the smallest UI component change is identified.
 - For BE loop: the API contract (endpoint, request, response) for the
   sub-slice is identified.
-- `loop-guardian` pre-flight has cleared.
+- `guarding-loops` pre-flight has cleared.
 
 ## Loop State Schema
 
@@ -35,7 +35,7 @@ Per-story loop-state file at `stories/[STORY-ID].loop.md`:
 
 ## Single Iteration Step
 
-1. Run `loop-guardian` pre-flight (L1-RIGID prerequisite — do not skip).
+1. Run `guarding-loops` pre-flight (L1-RIGID prerequisite — do not skip).
 2. Identify which TDD phase to execute next (`loop_phase`):
    - `fe-red` (or `be-red`): write the failing test → run it → see RED.
    - `fe-green` (or `be-green`): write the minimum code to make it
@@ -84,7 +84,7 @@ transition in-dev → in-dev
   to `running-atdd-sessions` to fire `deciding-architecture`.
 - Refactor surfaces new behaviour → halt the refactor; add a new
   sub-slice; return control.
-- `loop-guardian` reports `halted-iteration-budget` or
+- `guarding-loops` reports `halted-iteration-budget` or
   `halted-wall-clock` → stop; do not modify code or tests.
 - A test becomes flaky across runs → halt; root-cause the flakiness
   before continuing.

@@ -14,7 +14,7 @@ not an architecture exercise.
 - Platform-shape ADRs (CI/CD, environments, feature flags) are accepted
   in `docs/adr/`.
 - Human has approved infrastructure access and credentials.
-- `loop-guardian` pre-flight has cleared.
+- `guarding-loops` pre-flight has cleared.
 
 ## Loop State Schema
 
@@ -79,7 +79,7 @@ transition in-analysis → in-analysis
 - Infrastructure access not approved by human → halt; raise human gate.
 - `securing-pipeline` has not signalled completion → halt; do not mark
   bootstrap complete.
-- A `loop-guardian` `halted-*` report → stop; do not modify the
+- A `guarding-loops` `halted-*` report → stop; do not modify the
   checklist state.
 
 ## Handoff Target

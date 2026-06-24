@@ -13,7 +13,7 @@ yes or no?
   (the pull moves it to `in-acceptance`).
 - The story snapshot at `stories/[STORY-ID].md` is locked.
 - Desk checks are approved; regression suite passed.
-- `loop-guardian` pre-flight has cleared.
+- `guarding-loops` pre-flight has cleared.
 
 ## Loop State Schema
 
@@ -64,6 +64,10 @@ transition in-acceptance → ready-to-deploy
 transition in-acceptance → ready-for-dev
   trigger any AC failed
   handoff running-atdd-sessions to developer-agent
+
+transition in-acceptance → in-dev
+  trigger PO or UX finds issues, returns bug report
+  handoff running-atdd-sessions to developer-agent
 ```
 
 ## Halt Conditions
@@ -74,7 +78,7 @@ transition in-acceptance → ready-for-dev
   verdict = FAIL; po-agent writes specific expected vs actual.
 - A desk check is not in `approved` state → halt; route back to
   `running-desk-checks`.
-- A `loop-guardian` `halted-*` report → stop; do not modify Linear.
+- A `guarding-loops` `halted-*` report → stop; do not modify Linear.
 
 ## Handoff Target
 

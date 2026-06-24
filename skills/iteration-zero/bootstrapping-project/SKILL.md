@@ -3,6 +3,7 @@ name: bootstrapping-project
 level: L3-MECH
 owner: devops-agent
 trigger: iteration zero starts
+description: Bootstraps project infrastructure — CI/CD pipeline, environments, repo structure, and security baseline
 ---
 
 # bootstrapping-project
@@ -47,7 +48,7 @@ Before running this skill:
 - [ ] No plaintext secrets committed
 
 ### Repo Ergonomics
-- [ ] README install path validated
+- [ ] README install path verified
 - [ ] Test commands documented
 - [ ] Acceptance test command documented
 

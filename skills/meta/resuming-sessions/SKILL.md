@@ -3,6 +3,7 @@ name: resuming-sessions
 level: L1-RIGID
 owner: all-agents
 trigger: any session where Linear shows an in-progress story assigned to you
+description: Restores context and resumes a story in progress by reading loop state and re-routing to the correct loop
 ---
 
 # resuming-sessions
@@ -28,7 +29,7 @@ The plan file and conversation summary reflect *intentions*, not *reality*. Only
 ## Resume Protocol
 
 ```
-1. Query Linear → confirm story is still assigned to you and in `in-dev`
+1. Query Linear → verify story is still assigned to you and in `in-dev`
 
 2. Run the outer Acceptance Test — do not read anything else first
    → RED:   note which ACs are still failing
@@ -49,7 +50,7 @@ The plan file and conversation summary reflect *intentions*, not *reality*. Only
 
 ## What "Last Completed Sub-slice" Means
 
-Check the story snapshot at `stories/[STORY-ID].md`.
+Verify the story snapshot at `stories/[STORY-ID].md`.
 Each AC has sub-slices. Each sub-slice has a status: `pending`, `in-progress`, `done`.
 
 The last `done` sub-slice is where you resume from — start the *next* `pending` sub-slice.
@@ -60,7 +61,7 @@ Only the test result determines done.
 
 ## State Model
 
-This skill uses the story state during a resume check.
+This skill uses the story state during a resume verification.
 
 - `in-dev` — story assigned to the agent when the session ended
 - `in-qa` / `in-acceptance` — other in-progress states that may be assigned

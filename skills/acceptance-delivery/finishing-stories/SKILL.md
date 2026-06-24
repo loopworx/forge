@@ -3,13 +3,14 @@ name: finishing-stories
 level: L3-MECH
 owner: po-agent, devops-agent
 trigger: story enters `ready-to-deploy` and human approves release
+description: Runs smoke tests against production, flips feature flags, and retires flags after the soak period
 ---
 
 # finishing-stories
 
 ## Description
 
-Completes the final mechanical steps to ship an accepted story: verify deployment state, flip the feature flag, confirm the feature is live, update Linear, and close the story. This skill begins only after human approval.
+Completes the final mechanical steps to ship an accepted story: verify deployment state, flip the feature flag, verify the feature is live, update Linear, and close the story. This skill begins only after human approval.
 
 ---
 
@@ -24,8 +25,8 @@ Completes the final mechanical steps to ship an accepted story: verify deploymen
 
 ## Protocol
 
-1. Confirm production deployment contains the code
-2. Confirm feature flag is OFF in production
+1. Verify production deployment contains the code
+2. Verify feature flag is OFF in production
 3. Human approves go-live
 4. Flip feature flag ON
 5. Smoke test production through the UI
@@ -53,7 +54,7 @@ This skill transitions an accepted story to shipped via controlled feature flag 
 ## Rules
 
 1. Begin only after human explicitly approves release.
-2. Confirm production deployment contains the code before flipping the flag.
+2. Verify production deployment contains the code before flipping the flag.
 3. Flip the feature flag ON only after go-live approval.
 4. Smoke test production through the UI immediately after flag flip.
 5. On smoke test failure, flip the flag OFF immediately, post an incident note, and return the story to `ready-for-dev`.

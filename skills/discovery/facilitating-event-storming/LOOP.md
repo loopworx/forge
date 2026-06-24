@@ -11,7 +11,7 @@ is committed.
 - Phase 4 of `facilitating-inception` is the current phase (or
   `facilitating-event-storming` is invoked directly).
 - po-agent and ux-agent are present.
-- `loop-guardian` pre-flight has cleared (read of
+- `guarding-loops` pre-flight has cleared (read of
   `docs/inception.loop.md` succeeded and `awaiting_human_gate` is `null`).
 
 ## Loop State Schema
@@ -77,7 +77,7 @@ transition in-analysis → in-analysis
   `establishing-ubiquitous-language` to resolve it.
 - Human declines the artifact → halt; do not advance phase until a
   corrected artifact is human-approved.
-- A `loop-guardian` `halted-*` report → stop; do not modify the loop
+- A `guarding-loops` `halted-*` report → stop; do not modify the loop
   state.
 - `awaiting_human_gate` is set → idle.
 - Two agents disagree on the canonical name for an aggregate → halt the

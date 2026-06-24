@@ -13,7 +13,7 @@ implementation detail.
   storming session revealing a new bounded context, or a story that would
   otherwise require speculative design during implementation.
 - `CONTEXT.md` and `project.constraints.yaml` are readable.
-- `loop-guardian` pre-flight has cleared.
+- `guarding-loops` pre-flight has cleared.
 
 ## Loop State Schema
 
@@ -67,7 +67,7 @@ transition in-dev → in-analysis
   problem is not yet crisp enough.
 - `project.constraints.yaml` priorities are missing or contradictory →
   halt; route back to `facilitating-inception` Phase 3.
-- A `loop-guardian` `halted-*` report → stop; do not modify ADRs.
+- A `guarding-loops` `halted-*` report → stop; do not modify ADRs.
 - Two options are equivalent under the priorities → halt; raise to
   human for the final word.
 

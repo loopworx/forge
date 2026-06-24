@@ -3,6 +3,7 @@ name: securing-pipeline
 level: L2-GUIDED
 owner: secops-agent, devops-agent
 trigger: iteration zero; new language/runtime/tooling introduced; recurring security failures
+description: Configures SAST, DAST, dependency scanning, and secret detection in CI/CD pipelines
 ---
 
 # securing-pipeline

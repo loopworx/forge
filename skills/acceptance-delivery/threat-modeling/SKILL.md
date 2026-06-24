@@ -1,11 +1,12 @@
 ---
-name: threat-modeling
+name: modeling-threats
 level: L2-GUIDED
 owner: secops-agent
 trigger: new story drafted; new integration; auth/payment/PII changes
+description: Analyzes a story for security threats, injects security ACs, and determines if the story can be made safe
 ---
 
-# threat-modeling
+# modeling-threats
 
 ## Description
 

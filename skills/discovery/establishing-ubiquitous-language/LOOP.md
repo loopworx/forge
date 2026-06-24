@@ -12,7 +12,7 @@ mid-project when any agent encounters an undefined term.
   comment (`"CONTEXT.md update needed: ..."`).
 - `docs/event-storm.yaml` exists and contains the aggregates, events,
   commands, and policies.
-- `loop-guardian` pre-flight has cleared (read of
+- `guarding-loops` pre-flight has cleared (read of
   `docs/inception.loop.md` succeeded and `awaiting_human_gate` is `null`).
 
 ## Loop State Schema
@@ -63,7 +63,7 @@ transition in-analysis → in-analysis
 
 - The human cannot agree on a canonical name → halt; route back to event
   storming to clarify the aggregate boundary.
-- A `loop-guardian` `halted-*` report → stop; do not modify
+- A `guarding-loops` `halted-*` report → stop; do not modify
   `CONTEXT.md`.
 - `awaiting_human_gate` is set → idle until cleared.
 - Two agents use the same word for different things (collision

@@ -11,7 +11,7 @@ combining.
 - Human triggers a new project (`"new project"`, `"let's start"`, etc.).
 - `docs/inception.loop.md` exists with `current_phase: lean-canvas` (or
   the resume target phase).
-- `loop-guardian` pre-flight has cleared (read of `docs/inception.loop.md`
+- `guarding-loops` pre-flight has cleared (read of `docs/inception.loop.md`
   succeeded and `awaiting_human_gate` is `null`).
 - po-agent is the owning role; ux-agent joins for Empathy Map and Event
   Storming phases.
@@ -79,7 +79,7 @@ transition in-analysis → in-analysis
 
 - Human declines an artifact → halt the loop; the agent does not advance
   the phase until the human re-approves a corrected artifact.
-- A `loop-guardian` `halted-*` report → stop; do not modify
+- A `guarding-loops` `halted-*` report → stop; do not modify
   `docs/inception.loop.md`.
 - `awaiting_human_gate` is set → idle until the human gate is cleared.
 - An ambiguity (red hotspot from event storming) remains unresolved

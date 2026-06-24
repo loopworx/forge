@@ -11,7 +11,7 @@ or non-reproducible, Iteration 1 stays closed.
 - `securing-pipeline` has posted its completion signal.
 - Test environment URL and CI pipeline URL are written to
   `project.constraints.yaml`.
-- `loop-guardian` pre-flight has cleared.
+- `guarding-loops` pre-flight has cleared.
 
 ## Loop State Schema
 
@@ -67,7 +67,7 @@ transition in-analysis → in-analysis
 - The dummy test flakes across repeated runs → halt; raise as a CI
   reliability issue.
 - Test environment is unreachable → halt; route to `bootstrapping-project`.
-- A `loop-guardian` `halted-*` report → stop; do not modify the verdict.
+- A `guarding-loops` `halted-*` report → stop; do not modify the verdict.
 
 ## Handoff Target
 

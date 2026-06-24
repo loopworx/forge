@@ -1,4 +1,4 @@
-# loop-guardian — Loop
+# guarding-loops — Loop
 
 ## Entry Conditions
 
@@ -47,6 +47,10 @@ transition in-dev → halted-human-gate
 
 transition in-dev → halted-unsafe
   trigger unsafe condition detected
+  handoff using-forge to all-agents
+
+transition in-dev → halted-ambiguous
+  trigger ambiguous state detected
   handoff using-forge to all-agents
 
 ## Halt Conditions

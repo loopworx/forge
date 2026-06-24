@@ -10,7 +10,7 @@ after the soak period.
 
 - A story has been claimed from `ready-for-dev` and is now `in-dev`.
 - The `project.constraints.yaml` feature-flag provider is configured.
-- `loop-guardian` pre-flight has cleared.
+- `guarding-loops` pre-flight has cleared.
 
 ## Loop State Schema
 

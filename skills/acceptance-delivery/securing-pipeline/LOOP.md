@@ -18,7 +18,7 @@ or when recurring security failures need tuning.
 - recurring security failures force threshold tuning (secops-agent
   decides).
 - `project.constraints.yaml` is readable (priority `security` is known).
-- `loop-guardian` pre-flight has cleared.
+- `guarding-loops` pre-flight has cleared.
 
 ## Loop State Schema
 
@@ -76,7 +76,7 @@ transition in-analysis → in-analysis
   fix the underlying issue; do not suppress.
 - A plaintext secret is found in git history → halt; stop-ship event;
   raise human gate 7 (`halted-unsafe`); follow the disclosure policy.
-- A `loop-guardian` `halted-*` report → stop; do not modify the
+- A `guarding-loops` `halted-*` report → stop; do not modify the
   pipeline.
 
 ## Handoff Target

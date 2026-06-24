@@ -3,6 +3,7 @@ name: running-regression-suite
 level: L2-GUIDED
 owner: qa-agent
 trigger: story moved to `in-qa`
+description: Runs regression tests for a story and adjacent flows, capturing failures with exact repro steps
 ---
 
 # running-regression-suite

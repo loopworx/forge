@@ -3,13 +3,14 @@ name: running-atdd-sessions
 level: L1-RIGID
 owner: developer-agent
 trigger: story is in `in-dev`; this is the ONLY thing a developer agent does when in-dev
+description: Runs the outer ATDD loop for a story as L1-RIGID — write outer acceptance test, drive sub-slices FE+BE TDD until all ACs are green
 ---
 
 # running-atdd-sessions
 
 ## Description
 
-The L1 RIGID skill for developer agents. Runs the ATDD (Acceptance Test-Driven Development) loop for a story: write the outer Acceptance Test first, drive it to RED, then run TDD inner loops (FE + BE) one sub-slice at a time until the outer test is GREEN. No implementation code before the outer test is RED. No skipping sub-slices. No batching FE then BE. This skill overrides everything.
+The L1 RIGID skill for developer agents. Runs the ATDD (Acceptance Test-Driven Development) loop for a story: write the outer Acceptance Test first, drive it to RED, then run TDD inner loops (FE + BE) one sub-slice at a time until the outer test is GREEN. No implementation code before the outer test is RED. No skipping sub-slices. No batching FE then BE. This skill overrides everything. The explicit feedback cycle is: make test RED → implement until GREEN → inspect → fix and refactor → repeat for each sub-slice.
 
 ---
 
@@ -27,7 +28,7 @@ PRECONDITION:
 
 FOR EACH AC in the story (in order):
 
-  Write/update outer Acceptance Test for this AC → confirm RED
+  Write/update outer Acceptance Test for this AC → ensure RED
 
   FOR EACH sub-slice in this AC:
 
@@ -57,12 +58,12 @@ FOR EACH AC in the story (in order):
 All ACs done + all desk checks approved:
   → move story to `ready-for-qa` in Linear
   → commit story snapshot update
-  → check iteration completion (using-forge protocol)
+  → inspect iteration completion (using-forge protocol)
 ```
 
 ## Rules
 
-1. The outer Acceptance Test file is the first file created or edited for an AC.
+1. The outer Acceptance Test file is the first file written or edited for an AC.
 2. No implementation code may be written before the outer AT is RED and has been seen failing.
 3. Run the FE inner loop and BE inner loop sequentially per sub-slice.
 4. Complete one sub-slice fully before starting the next.
@@ -85,7 +86,7 @@ All ACs done + all desk checks approved:
 
 ## Rules That Cannot Be Broken
 
-1. **The outer Acceptance Test file is the first file you create or edit. No exceptions.**
+1. **The outer Acceptance Test file is the first file you write or edit. No exceptions.**
 
 2. **No implementation code before outer AT is RED and you have seen it fail.**
    "I know it will be RED" is not sufficient. Run it. See it fail.
@@ -108,10 +109,10 @@ All ACs done + all desk checks approved:
 
 A sub-slice is the smallest vertical unit within an AC: one UI interaction + its backend response.
 
-Example AC: "Given a logged-in user, when they submit the checkout form, then they see an order confirmation with an order number."
+Example AC: "Given a logged-in user, when they submit the order form, then they see an order acknowledgment with an order number."
 
 Sub-slices:
-1. Render checkout form with submit button (FE only, no BE)
+1. Render order form with submit button (FE only, no BE)
 2. Submit calls POST /orders endpoint (FE calls BE, BE returns stub)
 3. Display order number from response (FE renders BE response)
 4. POST /orders persists to database (BE fully implemented)
@@ -130,10 +131,10 @@ ac:
     status: in-progress
     sub_slices:
       - id: SS-1
-        description: Render checkout form
+        description: Render order form
         fe_status: done
         be_status: done
-        completed_at: 2026-06-09T20:00:00Z
+        completed_at: YYYY-MM-DDTHH:MM:SSZ  # timestamp of sub-slice completion
       - id: SS-2
         description: Submit calls POST /orders
         fe_status: in-progress

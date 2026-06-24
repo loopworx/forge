@@ -3,6 +3,7 @@ name: facilitating-inception
 level: L2-GUIDED
 owner: po-agent, ux-agent
 trigger: new project start; human says "let's start" or "new project"
+description: Facilitates a new project inception from Lean Canvas through iteration mapping
 ---
 
 # facilitating-inception
@@ -46,7 +47,7 @@ For each customer segment identified in the Lean Canvas:
 - **Pains** — frustrations, obstacles, risks
 - **Gains** — wants, needs, success measures
 
-Every user story written later must trace to a Pain or Gain in this map.
+Every user story produced later must trace to a Pain or Gain in this map.
 Do not move to Phase 3 until the human has reviewed and approved `docs/empathy-map.md`.
 
 ---
@@ -65,7 +66,7 @@ Also ask:
 - Max concurrent developer agents (default: 2)
 - Feature flag platform (default: Unleash)
 
-Write `project.constraints.yaml` and commit to repo root.
+Produce `project.constraints.yaml` and commit to repo root.
 Do not move to Phase 4 until committed and human-confirmed.
 
 ---
@@ -84,7 +85,7 @@ This phase ends when both artifacts are committed and human-approved.
 **Output:** Stories in Linear (`in-analysis` status)
 
 See `writing-stories` skill.
-For each UI sticky from the event storm, write one user story.
+For each UI sticky from the event storm, produce one user story.
 All stories must pass the four-gate review before moving to `in-analysis`.
 
 ---
@@ -95,7 +96,7 @@ All stories must pass the four-gate review before moving to `in-analysis`.
 
 See `building-iteration-map` skill.
 Inception is complete when:
-- Linear Projects are created for all iterations
+- Linear Projects are produced for all iterations
 - Iteration 0 Cycle is active
 - Human has confirmed the iteration map
 
@@ -115,7 +116,7 @@ This skill progresses a new project through inception phases.
 
 1. Do not skip phases and do not combine phases.
 2. Each phase requires human approval of its artifact before the next phase opens.
-3. Every user story written later must trace to a Pain or Gain in the empathy map.
+3. Every user story produced later must trace to a Pain or Gain in the empathy map.
 4. Trade-off sliders must be ranked with no ties and written to `project.constraints.yaml`.
-5. Event storming must be complete before generating stories.
+5. Event storming must be complete before producing stories.
 6. Inception ends when the iteration map is committed to Linear and `CONTEXT.md` is in the repo root.

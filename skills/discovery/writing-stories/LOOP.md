@@ -12,7 +12,7 @@ not proceed.
 - `CONTEXT.md` is committed and human-approved.
 - po-agent owns the loop; ux-agent, developer-agent, and qa-agent join
   for Gates 2, 3, 4 respectively.
-- `loop-guardian` pre-flight has cleared (read of
+- `guarding-loops` pre-flight has cleared (read of
   `docs/inception.loop.md` succeeded and `awaiting_human_gate` is `null`).
 - `docs/inception.loop.md` `current_phase` is `story-writing`.
 
@@ -28,7 +28,7 @@ Read from `docs/inception.loop.md` and Linear:
 - `stories_failed_current_gate` — list of `[STORY-ID]` currently failing.
 - `stories_created_in_analysis` — Linear `in-analysis` count.
 - `pending_security_review` — list of stories routed to
-  `threat-modeling` before `ready-for-dev`.
+  `modeling-threats` before `ready-for-dev`.
 
 ## Single Iteration Step
 
@@ -48,7 +48,7 @@ Read from `docs/inception.loop.md` and Linear:
    UI alone? Given/When/Then specific enough for Playwright? Fail →
    back to Gate 1.
 6. If the story touches auth, payments, PII, or permissions → route to
-   `threat-modeling` (secops-agent) to inject security ACs before
+   `modeling-threats` (secops-agent) to inject security ACs before
    returning to Gate 4.
 7. On all four gates passing → create story in Linear as `in-analysis`,
    assign to current iteration's Project, add ACs as sub-issues, set
@@ -61,7 +61,7 @@ Read from `docs/inception.loop.md` and Linear:
 
 - One story was either (a) advanced to the next gate, (b) sent back to
   Gate 1 with the failing gate recorded, (c) routed to
-  `threat-modeling`, or (d) created in Linear as `in-analysis`.
+  `modeling-threats`, or (d) created in Linear as `in-analysis`.
 - `stories_created_in_analysis` incremented by one for each
   pass-through outcome.
 - Each created story has a `stories/[STORY-ID].md` snapshot committed.
@@ -71,7 +71,7 @@ Read from `docs/inception.loop.md` and Linear:
 ```
 transition in-analysis → in-analysis
   trigger story has security surface (auth/payments/PII/permissions)
-  handoff threat-modeling to secops-agent
+  handoff modeling-threats to secops-agent
 
 transition in-analysis → in-analysis
   trigger all four gates pass with no security surface
@@ -90,7 +90,7 @@ transition in-analysis → in-analysis
 
 - Any gate fails and Gate 1 cannot produce a fix → halt; route to
   po-agent for human review of the underlying ambiguity.
-- A `loop-guardian` `halted-*` report → stop; do not modify Linear.
+- A `guarding-loops` `halted-*` report → stop; do not modify Linear.
 - `awaiting_human_gate` is set → idle.
 - Story has >5 ACs and cannot be split → halt; route to po-agent.
 - Threat modeling returns "story cannot be made safe within scope" →
@@ -100,7 +100,7 @@ transition in-analysis → in-analysis
 
 - All four gates passed, no security surface → `building-iteration-map`
   (po-agent).
-- Security surface detected → `threat-modeling` (secops-agent) for
+- Security surface detected → `modeling-threats` (secops-agent) for
   security AC injection; returns to Gate 4.
 - Architecture decision needed → `deciding-architecture`
   (architect-agent) for ADR; returns to Gate 3.

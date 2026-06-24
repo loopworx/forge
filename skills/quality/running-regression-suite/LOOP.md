@@ -10,7 +10,7 @@ than a desk check and narrower than "test everything forever".
 - A story has been moved to `in-qa` (developer-agent hand-off complete).
 - The story is deployed to the test environment; feature flag is OFF.
 - `project.constraints.yaml` and `CONTEXT.md` are readable.
-- `loop-guardian` pre-flight has cleared.
+- `guarding-loops` pre-flight has cleared.
 
 ## Loop State Schema
 
@@ -65,6 +65,10 @@ transition ready-for-qa → ready-for-acceptance
 transition ready-for-qa → ready-for-dev
   trigger regression suite fails
   handoff running-atdd-sessions to developer-agent
+
+transition in-qa → in-dev
+  trigger bug found during full QA check
+  handoff running-atdd-sessions to developer-agent
 ```
 
 ## Halt Conditions
@@ -73,7 +77,7 @@ transition ready-for-qa → ready-for-dev
   with the failure log.
 - A failure is in a security-sensitive flow (auth, money, PII) → halt;
   treat as a stop-ship candidate; raise human gate.
-- A `loop-guardian` `halted-*` report → stop; do not modify Linear.
+- A `guarding-loops` `halted-*` report → stop; do not modify Linear.
 - The regression suite itself is flaky → halt; route to
   `validating-test-harness` to re-validate the harness.
 

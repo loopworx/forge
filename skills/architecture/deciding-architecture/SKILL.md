@@ -3,6 +3,7 @@ name: deciding-architecture
 level: L2-GUIDED
 owner: architect-agent
 trigger: iteration zero; developer blocked by missing architecture decision; new bounded context or integration point discovered
+description: Writes Architecture Decision Records for bounded contexts, service boundaries, and integration points
 ---
 
 # deciding-architecture

@@ -12,7 +12,7 @@ decisions, no creativity — just the algorithm.
 - `docs/inception.loop.md` `current_phase` is `iteration-mapping`.
 - `project.constraints.yaml` exists with `max_parallel_developer_agents`
   and feature flag platform configuration.
-- `loop-guardian` pre-flight has cleared.
+- `guarding-loops` pre-flight has cleared.
 
 ## Loop State Schema
 
@@ -74,7 +74,7 @@ transition in-analysis → in-analysis
   `writing-stories` for the affected stories to remove the cycle.
 - A story depends on a story that has not yet passed gate review → halt;
   wait for the prerequisite story.
-- A `loop-guardian` `halted-*` report → stop; do not modify Linear
+- A `guarding-loops` `halted-*` report → stop; do not modify Linear
   Project structure.
 - Human declines the iteration map → halt; re-run the algorithm with
   corrections.

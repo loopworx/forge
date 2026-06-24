@@ -3,13 +3,13 @@
 This is the L1-RIGID conductor loop. It runs every session start, before any
 other skill may fire, and governs session-wide precedence, agent role
 boundaries, the pull protocol, and the iteration completion check.
-Before each iteration of this loop, `loop-guardian` pre-flight is REQUIRED.
+Before each iteration of this loop, `guarding-loops` pre-flight is REQUIRED.
 
 ## Entry Conditions
 
 - A Forge session has started (new session, new project, or resumed session).
 - The agent has not yet read plan files or conversation summaries.
-- `loop-guardian` pre-flight has cleared the current iteration.
+- `guarding-loops` pre-flight has cleared the current iteration.
 
 ## Loop State Schema
 
@@ -30,7 +30,7 @@ Additional session-level fields:
 
 ## Single Iteration Step
 
-1. Run `loop-guardian` pre-flight (L1-RIGID prerequisite — do not skip).
+1. Run `guarding-loops` pre-flight (L1-RIGID prerequisite — do not skip).
 2. Determine entry point:
    - Human says "new project" → fire `facilitating-inception`.
    - Human says "resume" / session restarts with assigned story → fire
@@ -55,7 +55,7 @@ Proof that the loop has advanced this iteration:
 
 - Linear state changed (story claimed, moved, or remains in `none`) AND
 - A skill was fired (or an explicit no-op was logged) AND
-- `loop-guardian` recorded `guardian_check` with timestamp and outcome.
+- `guarding-loops` recorded `guardian_check` with timestamp and outcome.
 
 The story snapshot at `stories/[STORY-ID].md` (or the inception /
 iteration-board loop-state file) reflects the new state.
@@ -80,7 +80,7 @@ transition in-analysis → in-acceptance
 
 ## Halt Conditions
 
-- `loop-guardian` reports `halted-stall`, `halted-iteration-budget`,
+- `guarding-loops` reports `halted-stall`, `halted-iteration-budget`,
   `halted-wall-clock`, `halted-cost`, `halted-human-gate`, or
   `halted-unsafe` → stop; do not advance state.
 - An L1-RIGID skill is in effect and overrides the plan file (resuming,
@@ -92,7 +92,7 @@ transition in-analysis → in-acceptance
 
 ## Handoff Target
 
-- `loop-guardian` is invoked at the start of every iteration. On `cleared`
+- `guarding-loops` is invoked at the start of every iteration. On `cleared`
   control returns to `using-forge`. On `halted-*`, the session ends with a
   Linear post.
 - Once the role-appropriate entry step is complete, hand off to:

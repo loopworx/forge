@@ -3,13 +3,14 @@ name: writing-acceptance-tests
 level: L2-GUIDED
 owner: qa-agent
 trigger: story enters `in-dev`; AC exists and is UI-testable
+description: Writes the outer acceptance test for each AC so the developer can drive it to RED before implementation
 ---
 
 # writing-acceptance-tests
 
 ## Description
 
-Writes outer Acceptance Tests from acceptance criteria. These tests define done from the user's perspective and are the first executable artifact for a story. They use only the UI or other customer-visible surfaces. No backdoors, no database checks, no direct API assertions.
+Writes outer Acceptance Tests from acceptance criteria. These tests define done from the user's perspective and are the first executable artifact for a story. They use only the UI or other customer-visible surfaces. No backdoors, no database verification, no direct API assertions. The core feedback loop is: write test → verify it is RED → if not RED, fix test → repeat until RED.
 
 ---
 
@@ -22,8 +23,8 @@ Use Given / When / Then language in test names and comments.
 Example:
 ```text
 Given a logged-in customer
-When they submit the checkout form
-Then they see an order confirmation with an order number
+When they submit the order form
+Then they see an order acknowledgment with an order number
 ```
 
 ---
@@ -49,11 +50,11 @@ Then they see an order confirmation with an order number
 ## On Completion
 
 Commit the Acceptance Test and post to Linear:
-> "Outer Acceptance Test for AC-[N] written and confirmed RED."
+> "Outer Acceptance Test for AC-[N] written and verified RED."
 
 ## State Model
 
-This skill produces the outer Acceptance Test for a story AC.
+This skill writes the outer Acceptance Test for a story AC.
 
 - Story AC exists and is UI-testable
 - Test state: draft → RED

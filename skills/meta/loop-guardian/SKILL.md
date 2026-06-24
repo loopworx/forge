@@ -1,11 +1,12 @@
 ---
-name: loop-guardian
+name: guarding-loops
 level: L1-RIGID
 owner: all-agents
 trigger: before every loop iteration
+description: Guards every loop iteration against stalls, unsafe conditions, and budget overruns
 ---
 
-# loop-guardian
+# guarding-loops
 
 ## Description
 
@@ -13,7 +14,7 @@ L1-RIGID pre-flight guardian for every Forge loop. Runs *before* any loop
 iteration, not just at session start. Either clears the loop to proceed or
 halts it with an explicit reason.
 
-This skill overrides everything. If `loop-guardian` halts, the agent must
+This skill overrides everything. If `guarding-loops` halts, the agent must
 halt — no rationalization, no overrides.
 
 ## Responsibilities

@@ -3,13 +3,14 @@ name: approving-stories
 level: L3-MECH
 owner: po-agent
 trigger: story enters `in-acceptance`
+description: Verifies the delivered story matches the original story intent and every acceptance criterion
 ---
 
 # approving-stories
 
 ## Description
 
-The po-agent verifies that the delivered story matches the original story intent and every acceptance criterion. This is not exploratory testing and not a design discussion. The question is simple: does the shipped behavior satisfy the agreed story, yes or no?
+The po-agent verifies that the delivered story matches the original story intent and every acceptance criterion. This is not exploratory testing and not a design discussion. The question is simple: does the shipped behavior satisfy the agreed story, yes or no? The explicit feedback loop is: verify ACs → if fail, return to dev → re-verify after fix → repeat until all ACs pass.
 
 ---
 
@@ -18,7 +19,7 @@ The po-agent verifies that the delivered story matches the original story intent
 1. Read the story in Linear and the locked snapshot in `stories/[STORY-ID].md`
 2. Read linked empathy map reference
 3. Verify each AC through the UI on the test environment
-4. Confirm desk checks and regression suite already passed
+4. Verify the desk review and regression suite already passed
 5. Decide:
    - PASS → move to `ready-to-deploy`
    - FAIL → move to `ready-for-dev`
@@ -57,6 +58,6 @@ This skill moves the story through the final acceptance gate.
 
 1. Read the story snapshot, Lean Canvas, and empathy map before deciding.
 2. Verify every AC through the UI on the test environment.
-3. Confirm desk checks and regression suite passed before accepting.
+3. Verify the desk review and regression suite passed before accepting.
 4. Move to `ready-to-deploy` only if every AC behaves as written and customer value is present.
 5. On failure, move the story back to `ready-for-dev` with specific reasons.

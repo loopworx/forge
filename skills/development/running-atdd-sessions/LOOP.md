@@ -7,7 +7,7 @@ Acceptance Test first, drive it to RED, then run TDD inner loops
 No implementation code before the outer test is RED. No skipping
 sub-slices. No batching FE then BE. This skill overrides everything.
 
-Before each iteration of this loop, `loop-guardian` pre-flight is
+Before each iteration of this loop, `guarding-loops` pre-flight is
 REQUIRED.
 
 ## Entry Conditions
@@ -18,7 +18,7 @@ REQUIRED.
   confirmed OFF in test and production.
 - The outer Acceptance Test file exists (even if as a skeleton) and is
   RED. If GREEN unexpectedly → STOP, post to Linear, await human.
-- `loop-guardian` pre-flight has cleared
+- `guarding-loops` pre-flight has cleared
   (`stories/[STORY-ID].loop.md` is readable and within budget).
 
 ## Loop State Schema
@@ -38,7 +38,7 @@ per AC.
 
 ## Single Iteration Step
 
-1. Run `loop-guardian` pre-flight (L1-RIGID prerequisite — do not skip).
+1. Run `guarding-loops` pre-flight (L1-RIGID prerequisite — do not skip).
 2. Read `stories/[STORY-ID].loop.md` and `stories/[STORY-ID].md`.
 3. For the next AC in order:
    a. Write or update the outer Acceptance Test for this AC; confirm RED.
@@ -64,7 +64,7 @@ per AC.
   - outer AT for the AC became GREEN, OR
   - a sub-slice FE+BE both became GREEN, OR
   - a desk-check signal was received and acted on, OR
-  - a `loop-guardian` `halted-*` was raised.
+  - a `guarding-loops` `halted-*` was raised.
 - `stories/[STORY-ID].md` sub-slice statuses match the loop-state file.
 
 ## State Transition Rule
@@ -81,6 +81,10 @@ transition in-dev → ready-for-deskcheck
   trigger outer acceptance test green for current AC
   handoff running-desk-checks to qa-agent
 
+transition in-dev → in-deskcheck
+  trigger developer requests QA review per AC
+  handoff running-desk-checks to qa-agent
+
 transition in-dev → in-dev
   trigger architecture decision needed
   handoff deciding-architecture to architect-agent
@@ -91,7 +95,7 @@ transition ready-for-deskcheck → ready-for-qa
 
 ## Halt Conditions
 
-- `loop-guardian` reports `halted-stall`, `halted-iteration-budget`,
+- `guarding-loops` reports `halted-stall`, `halted-iteration-budget`,
   `halted-wall-clock`, `halted-cost`, `halted-human-gate`, or
   `halted-unsafe` → stop; do not advance state.
 - Outer AT is unexpectedly GREEN → stop; post to Linear for human

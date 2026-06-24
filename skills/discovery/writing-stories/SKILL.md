@@ -3,13 +3,14 @@ name: writing-stories
 level: L2-GUIDED
 owner: po-agent
 trigger: Phase 5 of facilitating-inception; or when po-agent is asked to write a story
+description: Writes and refines user stories through the four-gate review process before they enter the iteration
 ---
 
 # writing-stories
 
 ## Description
 
-Writes INVEST-compliant user stories from event storming story candidates, puts them through a four-gate review, and creates them in Linear. A story that fails any gate goes back to the PO — it does not proceed. A story that passes all four gates is created in Linear with status `in-analysis`.
+Writes INVEST-compliant user stories from event storming story candidates, puts them through a four-gate review, and writes them in Linear. A story that fails any gate goes back to the PO — it does not proceed. A story that passes all four gates is written in Linear with status `in-analysis`. The explicit feedback loop is: write story → gate review → if fail, fix → repeat until all gates pass.
 
 ---
 
@@ -75,10 +76,10 @@ Fail condition: any AC not UI-testable → back to Gate 1.
 
 ---
 
-## On Pass: Create in Linear
+## On Pass: Write in Linear
 
 ```
-1. Create story in Linear with status `in-analysis`
+1. Write story in Linear with status `in-analysis`
 2. Assign to current iteration's Project
 3. Add ACs as sub-issues (one per AC)
 4. Set feature flag name as a Linear property
@@ -96,7 +97,7 @@ This skill moves story candidates through four human-gated reviews.
 - Story candidate — raw input from event storming
 - Gate 1 (PO Draft) → Gate 2 (UX) → Gate 3 (Developer) → Gate 4 (QA)
 - Gate failure → back to Gate 1
-- `in-analysis` — story created in Linear after all gates pass and threat modeling handled
+- `in-analysis` — story written in Linear after all gates pass and threat modeling handled
 
 ## Rules
 
@@ -105,5 +106,5 @@ This skill moves story candidates through four human-gated reviews.
 3. Stories must trace to a Pain or Gain in the empathy map.
 4. Any gate failure returns the story to Gate 1 for rewrite.
 5. Split stories with more than five ACs.
-6. After gates pass, route to `threat-modeling` if the story touches auth, payments, PII, or permissions.
-7. Only create the story in Linear with status `in-analysis` after all gates and threat modeling are complete.
+6. After gates pass, route to `modeling-threats` if the story touches auth, payments, PII, or permissions.
+7. Only write the story in Linear with status `in-analysis` after all gates and threat modeling are complete.

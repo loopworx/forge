@@ -3,6 +3,7 @@ name: running-tdd-loops
 level: L1-RIGID
 owner: developer-agent
 trigger: within running-atdd-sessions, for each sub-slice
+description: Runs TDD inner loops for FE components and BE CDC contracts within an ATDD session
 ---
 
 # running-tdd-loops
@@ -63,7 +64,7 @@ The inner TDD loop within an ATDD session. Runs RED-GREEN-REFACTOR for both the 
 This skill operates on a single sub-slice while the story is `in-dev`.
 
 - `in-dev` — parent story state
-- Sub-slice status: `pending` → `in-progress` → `done`
+- Sub-slice status: pending, in-progress, `done`
 - Component test state: RED → GREEN → REFACTOR
 - CDC contract test state: RED → GREEN → REFACTOR
 
@@ -74,7 +75,7 @@ This skill operates on a single sub-slice while the story is `in-dev`.
 3. Refactor only while the test stays GREEN.
 4. FE loop runs before BE loop for each sub-slice.
 5. Stop refactoring if new behaviour appears and add it as a new sub-slice.
-6. Return control to `running-atdd-sessions` after each FE and BE loop completes.
+6. Return to `running-atdd-sessions` after each FE and BE loop completes.
 
 ## Entry Conditions
 
@@ -83,6 +84,6 @@ This skill operates on a single sub-slice while the story is `in-dev`.
 
 ## Halt Conditions
 
-- FE inner loop (RED → GREEN → REFACTOR) is complete and control returns to caller.
-- BE inner loop (RED → GREEN → REFACTOR) is complete and control returns to caller.
+- FE inner loop (RED → GREEN → REFACTOR) is complete and returns to caller.
+- BE inner loop (RED → GREEN → REFACTOR) is complete and returns to caller.
 - New behaviour is discovered during refactor; new sub-slice is recorded and skill returns to caller.

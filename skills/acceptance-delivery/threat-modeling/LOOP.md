@@ -1,6 +1,6 @@
-# threat-modeling — Loop
+# modeling-threats — Loop
 
-The L2-GUIDED threat-modeling loop. Injects security acceptance criteria
+The L2-GUIDED modeling-threats loop. Injects security acceptance criteria
 into stories before development begins. Reviews the story for abuse
 paths, trust boundaries, sensitive data handling, and misuse cases.
 Security is added as visible ACs, not hidden as a separate checklist
@@ -14,7 +14,7 @@ nobody reads.
 - The story exists in Linear with status `in-analysis`.
 - `project.constraints.yaml` is readable (priority `security` is
   known).
-- `loop-guardian` pre-flight has cleared.
+- `guarding-loops` pre-flight has cleared.
 
 ## Loop State Schema
 
@@ -75,7 +75,7 @@ transition in-analysis → in-analysis
   `deciding-architecture` for an ADR before continuing.
 - `project.constraints.yaml` priority `security` is missing → halt;
   route to `facilitating-inception` Phase 3 to set the slider.
-- A `loop-guardian` `halted-*` report → stop; do not modify the story.
+- A `guarding-loops` `halted-*` report → stop; do not modify the story.
 - Audit-trail requirement contradicts an existing AC → halt; raise
   conflict to po-agent.
 

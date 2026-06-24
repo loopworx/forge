@@ -3,7 +3,8 @@ name: validating-test-harness
 level: L2-GUIDED
 owner: qa-agent
 trigger: after bootstrapping-project completes; before Iteration 1 opens
-category: iteration-zero
+metadata:
+  category: iteration-zero
 description: Verifies that the test harness is operational, regression suite infrastructure works, and pipelines gate correctly
 ---
 

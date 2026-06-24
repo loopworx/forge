@@ -3,7 +3,8 @@ name: facilitating-inception
 level: L2-GUIDED
 owner: po-agent, ux-agent
 trigger: new project start; human says "let's start" or "new project"
-category: discovery
+metadata:
+  category: discovery
 description: Facilitates a new project inception from Lean Canvas through iteration mapping
 ---
 

@@ -3,7 +3,8 @@ name: guarding-loops
 level: L1-RIGID
 owner: all-agents
 trigger: before every loop iteration
-category: meta
+metadata:
+  category: meta
 description: Guards every loop iteration against stalls, unsafe conditions, and budget overruns
 ---
 

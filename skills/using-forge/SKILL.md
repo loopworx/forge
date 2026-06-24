@@ -3,7 +3,8 @@ name: using-forge
 level: L1-RIGID
 owner: all-agents
 trigger: every session start, before any other action
-category: meta
+metadata:
+  category: meta
 description: Orchestrates the Forge delivery framework, pulling stories and routing agents based on Kanban state
 ---
 

@@ -3,7 +3,8 @@ name: running-tdd-loops
 level: L1-RIGID
 owner: developer-agent
 trigger: within running-atdd-sessions, for each sub-slice
-category: development
+metadata:
+  category: development
 description: Runs TDD inner loops for FE components and BE CDC contracts within an ATDD session
 ---
 

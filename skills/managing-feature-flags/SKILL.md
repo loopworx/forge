@@ -3,7 +3,8 @@ name: managing-feature-flags
 level: L3-MECH
 owner: developer-agent, devops-agent
 trigger: story creation; story completion; production release
-category: acceptance-delivery
+metadata:
+  category: acceptance-delivery
 description: Manages feature flags throughout the story lifecycle — creation, toggling, and retirement
 ---
 

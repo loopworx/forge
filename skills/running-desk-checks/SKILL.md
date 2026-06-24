@@ -3,7 +3,8 @@ name: running-desk-checks
 level: L2-GUIDED
 owner: qa-agent
 trigger: developer-agent completes all sub-slices for an AC and signals desk check ready
-category: quality
+metadata:
+  category: quality
 description: Inspects a completed AC against its acceptance criteria through the UI exactly as a customer would
 ---
 

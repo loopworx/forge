@@ -3,7 +3,8 @@ name: running-atdd-sessions
 level: L1-RIGID
 owner: developer-agent
 trigger: story is in `in-dev`; this is the ONLY thing a developer agent does when in-dev
-category: development
+metadata:
+  category: development
 description: Runs the outer ATDD loop for a story as L1-RIGID — write outer acceptance test, drive sub-slices FE+BE TDD until all ACs are green
 ---
 

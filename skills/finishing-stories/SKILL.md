@@ -3,7 +3,8 @@ name: finishing-stories
 level: L3-MECH
 owner: po-agent, devops-agent
 trigger: story enters `ready-to-deploy` and human approves release
-category: acceptance-delivery
+metadata:
+  category: acceptance-delivery
 description: Runs smoke tests against production, flips feature flags, and retires flags after the soak period
 ---
 

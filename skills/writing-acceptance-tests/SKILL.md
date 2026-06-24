@@ -3,7 +3,8 @@ name: writing-acceptance-tests
 level: L2-GUIDED
 owner: qa-agent
 trigger: story enters `in-dev`; AC exists and is UI-testable
-category: quality
+metadata:
+  category: quality
 description: Writes the outer acceptance test for each AC so the developer can drive it to RED before implementation
 ---
 

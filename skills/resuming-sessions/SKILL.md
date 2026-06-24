@@ -3,7 +3,8 @@ name: resuming-sessions
 level: L1-RIGID
 owner: all-agents
 trigger: any session where Linear shows an in-progress story assigned to you
-category: meta
+metadata:
+  category: meta
 description: Restores context and resumes a story in progress by reading loop state and re-routing to the correct loop
 ---
 

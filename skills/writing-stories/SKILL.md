@@ -3,7 +3,8 @@ name: writing-stories
 level: L2-GUIDED
 owner: po-agent
 trigger: Phase 5 of facilitating-inception; or when po-agent is asked to write a story
-category: discovery
+metadata:
+  category: discovery
 description: Writes and refines user stories through the four-gate review process before they enter the iteration
 ---
 

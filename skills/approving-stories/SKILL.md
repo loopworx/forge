@@ -3,7 +3,8 @@ name: approving-stories
 level: L3-MECH
 owner: po-agent
 trigger: story enters `in-acceptance`
-category: acceptance-delivery
+metadata:
+  category: acceptance-delivery
 description: Verifies the delivered story matches the original story intent and every acceptance criterion
 ---
 

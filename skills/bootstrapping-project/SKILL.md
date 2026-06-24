@@ -3,7 +3,8 @@ name: bootstrapping-project
 level: L3-MECH
 owner: devops-agent
 trigger: iteration zero starts
-category: iteration-zero
+metadata:
+  category: iteration-zero
 description: Bootstraps project infrastructure — CI/CD pipeline, environments, repo structure, and security baseline
 ---
 

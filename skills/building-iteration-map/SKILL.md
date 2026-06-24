@@ -3,7 +3,8 @@ name: building-iteration-map
 level: L3-MECH
 owner: po-agent
 trigger: Phase 6 of facilitating-inception; all stories have passed four-gate review
-category: discovery
+metadata:
+  category: discovery
 description: Topologically sorts stories by dependency, creates Linear Projects per iteration, and sets parallel tracks
 ---
 

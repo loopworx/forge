@@ -3,7 +3,8 @@ name: establishing-ubiquitous-language
 level: L2-GUIDED
 owner: po-agent
 trigger: Phase 6 of facilitating-event-storming; or when a new term is encountered mid-project
-category: discovery
+metadata:
+  category: discovery
 description: Establishes and maintains a shared vocabulary in CONTEXT.md for consistent communication across all agents
 ---
 

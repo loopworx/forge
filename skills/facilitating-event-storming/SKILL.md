@@ -3,7 +3,8 @@ name: facilitating-event-storming
 level: L2-GUIDED
 owner: po-agent, ux-agent
 trigger: Phase 4 of facilitating-inception; or "let's event storm"
-category: discovery
+metadata:
+  category: discovery
 description: Facilitates event storming sessions to discover bounded contexts and domain events
 ---
 
@@ -80,6 +81,8 @@ events:
   - id: EVT-NNN  # sequential event ID assigned during storming
     name: OrderPlaced
     trigger: PlaceOrder command
+metadata:
+  category: discovery
     actor: Customer
     aggregate: Order
     policies:

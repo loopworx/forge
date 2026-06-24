@@ -111,3 +111,14 @@ enforced_states:
   - name: halted-unsafe
     agent: ""
     description: Unsafe condition detected
+
+deskcheck_enabled: true
+deskcheck_state: in-deskcheck
+deskcheck_entry_from: in-dev
+deskcheck_feedback_to: in-dev
+deskcheck_forward_to: in-qa
+
+bug_feedback_enabled: true
+bug_feedback_qa_state: in-qa
+bug_feedback_acceptance_state: in-acceptance
+bug_feedback_return_to: in-dev

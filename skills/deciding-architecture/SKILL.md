@@ -98,6 +98,9 @@ This skill moves a story through an architecture decision pause.
 - `in-analysis` — story sent back when ADR changes its scope
 - `ready-for-dev` — story unblocked after ADR accepted
 
+
+For the full state machine contract (transitions, halt conditions, handoff targets), see [LOOP.md](LOOP.md).
+
 ## Rules
 
 1. Fire only for service boundaries, integrations, queues, storage patterns, or new bounded contexts.

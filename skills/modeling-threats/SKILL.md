@@ -46,6 +46,9 @@ This skill injects security concerns into story acceptance criteria.
 - `ready-for-dev` — destination after security ACs are injected and pass through `writing-stories` Gate 4
 - Security surface triggers — auth, payments, PII, permission boundaries
 
+
+For the full state machine contract (transitions, halt conditions, handoff targets), see [LOOP.md](LOOP.md).
+
 ## Rules
 
 1. Review every new or changed story for sensitive data, trust boundaries, and abuse paths.

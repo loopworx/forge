@@ -69,6 +69,9 @@ This skill uses the story state during a resume verification.
 - `in-qa` / `in-acceptance` — other in-progress states that may be assigned
 - `ready-for-dev` — fallback destination if the story is no longer in progress
 
+
+For the full state machine contract (transitions, halt conditions, handoff targets), see [LOOP.md](LOOP.md).
+
 ## Rules
 
 1. Query Linear first; verify the story is still assigned and in `in-dev`.

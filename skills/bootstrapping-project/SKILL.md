@@ -71,6 +71,9 @@ This skill operates during Iteration 0 before the normal story board is active.
 - Iteration 0 project — bootstrapping work in progress
 - Iteration 1+ projects — locked until Iteration 0 complete
 
+
+For the full state machine contract (transitions, halt conditions, handoff targets), see [LOOP.md](LOOP.md).
+
 ## Rules
 
 1. Execute the checklist mechanically; no architecture decisions here.

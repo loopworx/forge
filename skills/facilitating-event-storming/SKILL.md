@@ -112,6 +112,9 @@ This skill produces the discovery artifacts that feed story writing.
 - Phase 6: `CONTEXT.md` draft
 - `in-analysis` — stories produced after event storming completes
 
+
+For the full state machine contract (transitions, halt conditions, handoff targets), see [LOOP.md](LOOP.md).
+
 ## Rules
 
 1. Ask questions and capture human answers rather than invent the domain model.

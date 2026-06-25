@@ -53,6 +53,9 @@ This skill transitions an accepted story to shipped via controlled feature flag 
 - `done` — shipped story after successful smoke test
 - `ready-for-dev` — story returned to development after failed smoke test
 
+
+For the full state machine contract (transitions, halt conditions, handoff targets), see [LOOP.md](LOOP.md).
+
 ## Rules
 
 1. Begin only after human explicitly approves release.

@@ -63,6 +63,9 @@ All ACs done + all desk checks approved:
   → inspect iteration completion (using-forge protocol)
 ```
 
+
+For the full state machine contract (transitions, halt conditions, handoff targets), see [LOOP.md](LOOP.md).
+
 ## Rules
 
 1. The outer Acceptance Test file is the first file written or edited for an AC.

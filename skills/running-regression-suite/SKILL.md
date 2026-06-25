@@ -54,6 +54,9 @@ This skill moves an `in-qa` story to accepted or back to development.
 - `ready-for-acceptance` — regression passed; awaiting PO acceptance
 - `ready-for-dev` — regression failed; returned to development
 
+
+For the full state machine contract (transitions, halt conditions, handoff targets), see [LOOP.md](LOOP.md).
+
 ## Rules
 
 1. Run the story's own Acceptance Tests on the test environment.

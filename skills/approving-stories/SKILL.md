@@ -56,6 +56,9 @@ This skill moves the story through the final acceptance gate.
 - `ready-to-deploy` — accepted story awaiting human release approval
 - `ready-for-dev` — failed story returned to development
 
+
+For the full state machine contract (transitions, halt conditions, handoff targets), see [LOOP.md](LOOP.md).
+
 ## Rules
 
 1. Read the story snapshot, Lean Canvas, and empathy map before deciding.

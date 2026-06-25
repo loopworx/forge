@@ -37,6 +37,9 @@ halt — no rationalization, no overrides.
 - `halted-human-gate` — required human approval missing
 - `halted-unsafe` — feature is unsafe; raise human gate 7
 
+
+For the full state machine contract (transitions, halt conditions, handoff targets), see [LOOP.md](LOOP.md).
+
 ## Rules
 
 1. Always run before any loop iteration step.

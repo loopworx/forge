@@ -55,3 +55,5 @@ This skill manages the lifecycle state of each story's feature flag.
 - Human approves go-live → flag flipped ON in production
 - After soak period → flag retired via cleanup story
 
+
+For the full state machine contract (transitions, halt conditions, handoff targets), see [LOOP.md](LOOP.md).

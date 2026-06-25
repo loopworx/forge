@@ -79,6 +79,9 @@ This skill assigns refined stories to iterations using the dependency graph.
 - Iteration 0 Cycle — active infrastructure cycle
 - `ready-for-dev` (future) — stories unlocked once iteration 0 is complete
 
+
+For the full state machine contract (transitions, halt conditions, handoff targets), see [LOOP.md](LOOP.md).
+
 ## Rules
 
 1. Use topological sort to assign stories to iterations based on dependencies.

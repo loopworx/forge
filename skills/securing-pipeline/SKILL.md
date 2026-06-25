@@ -40,6 +40,9 @@ This skill maintains the pipeline security configuration for all future pushes.
 - New language/runtime/tooling introduced — new scanner added
 - Recurring security failures — gate tuning required
 
+
+For the full state machine contract (transitions, halt conditions, handoff targets), see [LOOP.md](LOOP.md).
+
 ## Rules
 
 1. Configure secret scanning on every push.

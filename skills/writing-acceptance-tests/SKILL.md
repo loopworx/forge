@@ -63,6 +63,9 @@ This skill writes the outer Acceptance Test for a story AC.
 - `in-dev` — developer-agent picks up the RED outer AT
 - `in-analysis` — return destination if an AC is not UI-testable
 
+
+For the full state machine contract (transitions, halt conditions, handoff targets), see [LOOP.md](LOOP.md).
+
 ## Rules
 
 1. One AC must map to at least one executable Acceptance Test.

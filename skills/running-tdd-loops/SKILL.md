@@ -70,6 +70,9 @@ This skill operates on a single sub-slice while the story is `in-dev`.
 - Component test state: RED → GREEN → REFACTOR
 - CDC contract test state: RED → GREEN → REFACTOR
 
+
+For the full state machine contract (transitions, halt conditions, handoff targets), see [LOOP.md](LOOP.md).
+
 ## Rules
 
 1. Write the smallest possible test that fails (RED).

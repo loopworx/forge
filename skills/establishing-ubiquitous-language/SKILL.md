@@ -82,6 +82,9 @@ This skill maintains the shared vocabulary artifact used by all agents.
 - `CONTEXT.md` — single source of truth for domain language
 - `Flagged Ambiguities` — unresolved or resolved ambiguities
 
+
+For the full state machine contract (transitions, halt conditions, handoff targets), see [LOOP.md](LOOP.md).
+
 ## Rules
 
 1. Maintain `CONTEXT.md` as the single source of truth for project terminology.

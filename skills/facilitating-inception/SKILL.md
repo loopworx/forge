@@ -114,6 +114,9 @@ This skill progresses a new project through inception phases.
 - `docs/event-storm.yaml` + `CONTEXT.md` — Phase 4 artifacts
 - Linear Projects per iteration — Phase 6 artifacts
 
+
+For the full state machine contract (transitions, halt conditions, handoff targets), see [LOOP.md](LOOP.md).
+
 ## Rules
 
 1. Do not skip phases and do not combine phases.

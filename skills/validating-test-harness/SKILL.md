@@ -59,6 +59,9 @@ This skill determines whether Iteration 1 may open.
 - `ready-for-dev` — unlocked after validation passes
 - `bootstrapping-project` — returned to on failure
 
+
+For the full state machine contract (transitions, halt conditions, handoff targets), see [LOOP.md](LOOP.md).
+
 ## Rules
 
 1. Create one deterministic, trivial end-to-end test that opens the app and verifies a page element.

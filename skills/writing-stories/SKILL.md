@@ -101,6 +101,9 @@ This skill moves story candidates through four human-gated reviews.
 - Gate failure → back to Gate 1
 - `in-analysis` — story written in Linear after all gates pass and threat modeling handled
 
+
+For the full state machine contract (transitions, halt conditions, handoff targets), see [LOOP.md](LOOP.md).
+
 ## Rules
 
 1. Every story must be INVEST-compliant before gate review.

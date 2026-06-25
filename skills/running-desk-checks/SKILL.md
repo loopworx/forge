@@ -96,6 +96,9 @@ Story states this skill owns:
 
 Per-AC state: pending, in-progress, `in-deskcheck`, `approved`
 
+
+For the full state machine contract (transitions, halt conditions, handoff targets), see [LOOP.md](LOOP.md).
+
 ## Rules
 
 1. Inspect the AC locally first, then on the test environment.

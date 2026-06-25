@@ -2,7 +2,7 @@
 # Install forge skills into ~/.agents/skills/ for OpenCode / Claude Code / Hermes discovery.
 #
 # Usage:
-#   git clone https://github.com/yaman/forge ~/.agents/forge
+#   git clone https://github.com/loopworx/forge ~/.agents/forge
 #   bash ~/.agents/forge/install.sh
 #
 # Or from any forge checkout:

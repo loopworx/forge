@@ -252,7 +252,7 @@ Loopkit validates state transitions, enforced states, handoff references, desk c
 ## Installation
 
 ```bash
-git clone https://github.com/yaman/forge ~/.agents/forge
+git clone https://github.com/loopworx/forge ~/.agents/forge
 bash ~/.agents/forge/install.sh
 ```
 

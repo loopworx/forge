@@ -5,7 +5,7 @@ owner: ux-agent
 trigger: inception Phase 5; after event storming produces UI stickies
 metadata:
   category: discovery
-  description: Generates the design system from event storming output — colors, typography, patterns, components
+description: Generates the design system from event storming output — colors, typography, patterns, components
 ---
 
 # designing-ux
@@ -92,7 +92,7 @@ Read `docs/empathy-map.md`. Choose colors and typography that match the user's e
 ### Step 3 — Check constraints
 Read `project.constraints.yaml`. If `ux` is ranked highest, invest in rich interactions and animations. If `cost` is highest, keep it simple — fewer assets, standard components.
 
-### Step 4 — Write the design system
+### Step 4 — Produce the design system
 Produce `design-system/MASTER.md` with all sections above. Every value must be concrete (hex codes, pixel values, font names) — no vague descriptors like "blue-ish" or "medium large".
 
 ### Step 5 — Post summary to Linear
@@ -119,5 +119,5 @@ If LOOP.md is not in your context, read it before starting any loop iteration. I
 2. Every size must be in pixels or rem — no vague descriptors.
 3. Accessibility is non-negotiable — WCAG AA minimum contrast on all text.
 4. The design system must cover all UI stickies from the event storm.
-5. If `ui-ux-pro-max` integration is enabled, use it to generate component scaffolding.
+5. If `ui-ux-pro-max` integration is enabled, use it to produce component scaffolding.
 6. If `project.constraints.yaml` ranks `cost` above `ux`, keep the system minimal.

@@ -54,6 +54,7 @@ FOR EACH AC in the story (in order):
 
   All sub-slices for this AC done:
     → outer Acceptance Test for this AC → GREEN
+    → git add -A && git commit -m "feat({STORY-ID}): AC{n} — {summary}" && git push
     → trigger running-desk-checks skill
     → WAIT for desk check approval before next AC
 
@@ -76,8 +77,9 @@ If LOOP.md is not in your context, read it before starting any loop iteration. I
 3. Run the FE inner loop and BE inner loop sequentially per sub-slice.
 4. Complete one sub-slice fully before starting the next.
 5. Trigger and await a desk check after every AC, before starting the next AC.
-6. Stop and hand off to the architect-agent when an architecture decision is needed.
-7. Update the story snapshot after each completed sub-slice.
+6. Commit and push after every AC GREEN, before the desk check. Commit message: `feat({STORY-ID}): AC{n} — {summary}`.
+7. Stop and hand off to the architect-agent when an architecture decision is needed.
+8. Update the story snapshot after each completed sub-slice.
 
 ## Entry Conditions
 

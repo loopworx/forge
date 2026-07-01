@@ -27,9 +27,9 @@ Local file state:
 
 ## Single Iteration Step
 
-1. Extract UI stickies from `docs/event-storm.yaml`. Each sticky is a
+1. Read UI stickies from `docs/event-storm.yaml`. Each sticky is a
    screen or component requirement.
-2. Read `docs/empathy-map.md`. Choose a visual language that matches
+2. Read `docs/empathy-map.md`. Select a visual language that matches
    the user's emotional context (frustrated → calm, excited → vibrant,
    professional → conservative).
 3. Read `project.constraints.yaml`. If `ux` outranks `cost`, invest in

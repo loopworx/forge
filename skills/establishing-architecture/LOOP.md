@@ -32,14 +32,14 @@ Local file state:
 2. Read `docs/event-storm.yaml`. Extract all bounded contexts. Each
    context becomes a module (monolith) or service (microservices).
 3. Decide monolith vs microservices. Default: modular monolith.
-   Choose microservices only with explicit justification (3+ contexts
+   Define microservices only with explicit justification (3+ contexts
    with different scalability needs, multiple teams, async patterns).
 4. For each bounded context, design the module:
    - Entry point (controller/resolver)
    - Domain logic (aggregates, entities, value objects)
    - Infrastructure (repository implementations, external clients)
    - Public API (what other modules can import)
-5. Choose integration patterns for each external integration:
+5. Define integration patterns for each external integration:
    HTTP client with retry+circuit breaker, or message queue, or webhook.
 6. Define database strategy: migration approach, read model strategy.
 7. Define frontend architecture (if UI project): state management, API

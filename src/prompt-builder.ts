@@ -100,6 +100,20 @@ export function buildPrompt(params: BuildPromptParams): string {
   lines.push("--- END LOOP RUN LOG ---");
   lines.push("");
 
+  lines.push("--- COMMIT PROTOCOL ---");
+  lines.push("After each AC's outer Acceptance Test is GREEN (before desk check):");
+  lines.push("1. git add -A");
+  lines.push("2. git commit -m \"feat(" + story.id + "): AC{n} — {ac summary}\"");
+  lines.push("3. git push");
+  lines.push("4. Then trigger the desk check for this AC");
+  lines.push("");
+  lines.push("Commit message format: feat(" + story.id + ": AC{n} — {short description}");
+  lines.push("Example: feat(" + story.id + ": AC1 — user can select product from dropdown");
+  lines.push("");
+  lines.push("If git commit or push fails, halt and fix the issue before continuing.");
+  lines.push("--- END COMMIT PROTOCOL ---");
+  lines.push("");
+
   lines.push("--- HANDOFF PROTOCOL ---");
   lines.push("When your work is complete:");
   lines.push("1. Update the story state in Linear using linear_save_issue (e.g. move to ready-for-qa)");

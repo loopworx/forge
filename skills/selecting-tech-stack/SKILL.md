@@ -5,7 +5,7 @@ owner: architect-agent
 trigger: inception Phase 7; after story writing, before iteration mapping
 metadata:
   category: architecture
-  description: Decides the platform — cloud provider, CI/CD, languages, frameworks, databases, observability
+description: Decides the platform — cloud provider, CI/CD, languages, frameworks, databases, observability
 ---
 
 # selecting-tech-stack
@@ -25,7 +25,7 @@ Run this skill when:
 
 Do NOT run this skill for:
 - Adding a library to an existing stack (use `deciding-architecture` instead)
-- Changing one component in an established platform (write a specific ADR)
+- Changing one component in an established platform (produce a specific ADR)
 - Frontend component choices (those belong in the design system)
 
 ---
@@ -104,7 +104,7 @@ Read `docs/event-storm.yaml`. Identify:
 - Command/query split → may need CQRS or read replicas
 - External integrations → need HTTP client, retry, circuit breaker
 
-### Step 4 — Write ADR-001
+### Step 4 — Produce ADR-001
 Produce `docs/adr/ADR-001-platform.md` with all sections above. Each choice must include:
 - What was chosen (concrete name + version if relevant)
 - Why (tied to constraints, stories, or event storm)

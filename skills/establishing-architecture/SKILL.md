@@ -5,7 +5,7 @@ owner: architect-agent
 trigger: inception Phase 7 (after selecting-tech-stack); new bounded context discovered; service boundary needs defining
 metadata:
   category: architecture
-  description: Decides code architecture — service boundaries, module structure, integration patterns, folder layout
+description: Decides code architecture — service boundaries, module structure, integration patterns, folder layout
 ---
 
 # establishing-architecture
@@ -26,7 +26,7 @@ Run this skill when:
 
 Do NOT run this skill for:
 - Individual component decisions (use `deciding-architecture` instead)
-- Choosing a library (write a specific ADR)
+- Choosing a library (produce a specific ADR)
 - Refactoring within an established architecture
 
 ---
@@ -104,16 +104,19 @@ For each bounded context, define:
 - Infrastructure (repository implementations, external clients)
 - Public API (what other modules can import)
 
-### Step 4 — Choose integration patterns
+### Step 4 — Select integration patterns
 For each external integration in the event storm:
 - HTTP client with retry + circuit breaker
 - Or message queue consumer/producer
 - Or webhook handler
 
-### Step 5 — Write ADR-002
+### Step 5 — Produce ADR-002
 Produce `docs/adr/ADR-002-code-architecture.md` with all sections. Each decision must reference ADR-001 for technology choices.
 
-### Step 6 — Post to Linear
+### Step 6 — Verify
+Verify each module boundary traces to a bounded context in the event storm. If a boundary cannot be traced, return to Step 3 and refine. If a choice conflicts with ADR-001, return to Step 1 and re-read constraints.
+
+### Step 7 — Post to Linear
 Post a comment on the inception story:
 > "Code architecture ADR accepted: ADR-002. [Monolith/microservices]. [N] modules defined. Folder layout committed. Testing strategy: [unit/integration/E2E]."
 
@@ -136,6 +139,6 @@ If LOOP.md is not in your context, read it before starting any loop iteration. I
 1. Default to modular monolith — microservices only with explicit justification.
 2. Every module boundary must trace to a bounded context in the event storm.
 3. Folder layout must be concrete — actual paths, not "src/modules/...".
-4. Testing strategy must define WHAT to test at each level, not just "write tests".
+4. Testing strategy must define WHAT to test at each level, not just "produce tests".
 5. All choices must be compatible with ADR-001 (platform).
 6. If `graphify` integration is enabled, use it to visualize the module structure.

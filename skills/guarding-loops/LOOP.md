@@ -24,7 +24,10 @@ Required fields:
 4. Check stall counter against `max_no_progress_retries`.
 5. Check iteration counter against `max_iterations_per_subslice`.
 6. Check wall-clock against `max_story_loop_minutes`.
-7. Decide: cleared or halted.
+7. If in `in-dev` and an AC was marked GREEN: verify a git commit
+   exists for that AC (`git log --oneline | grep "AC{n}"`). If missing,
+   halt as `halted-stall` (no proof of progress).
+8. Decide: cleared or halted.
 
 ## Proof of Progress
 
@@ -61,6 +64,8 @@ transition in-dev → halted-ambiguous
 - Linear state contradicts loop-state file
 - Human gate is pending
 - Unsafe feature detected
+- Git commit missing for a completed AC (guardian verifies `git log`
+  contains a commit referencing the current AC number)
 
 ## Handoff Target
 

@@ -52,7 +52,8 @@ per AC.
       - Do not start the next sub-slice until the current is fully GREEN.
    c. When all sub-slices for this AC are GREEN → outer AT for this AC
       is GREEN.
-   d. Trigger `running-desk-checks` (qa-agent); WAIT for desk-check
+   d. Commit and push: `git add -A && git commit -m "feat({STORY-ID}): AC{n} — {summary}" && git push`
+   e. Trigger `running-desk-checks` (qa-agent); WAIT for desk-check
       approval before the next AC.
 4. When all ACs and all desk checks are approved → move story to
    `ready-for-qa` in Linear; commit story snapshot update.
@@ -63,9 +64,11 @@ per AC.
 - Each iteration produces a recorded outcome on the loop-state file:
   - outer AT for the AC became GREEN, OR
   - a sub-slice FE+BE both became GREEN, OR
+  - a git commit was produced for the completed AC, OR
   - a desk-check signal was received and acted on, OR
   - a `guarding-loops` `halted-*` was raised.
 - `stories/[STORY-ID].md` sub-slice statuses match the loop-state file.
+- `git log --oneline` shows a commit for the current AC.
 
 ## State Transition Rule
 
@@ -98,6 +101,8 @@ transition ready-for-deskcheck → ready-for-qa
 - `guarding-loops` reports `halted-stall`, `halted-iteration-budget`,
   `halted-wall-clock`, `halted-cost`, `halted-human-gate`, or
   `halted-unsafe` → stop; do not advance state.
+- Git commit or push fails (e.g., pre-commit hook rejects, network
+  error) → halt; fix the issue before continuing.
 - Outer AT is unexpectedly GREEN → stop; post to Linear for human
   review; do not proceed.
 - An architecture decision is needed mid-sub-slice → stop; post

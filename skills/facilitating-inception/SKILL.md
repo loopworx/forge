@@ -5,7 +5,7 @@ owner: po-agent, ux-agent, architect-agent
 trigger: new project start; human says "let's start" or "new project"; /forge new project
 metadata:
   category: discovery
-  description: Facilitates a new project inception from Lean Canvas through iteration mapping (8 phases)
+description: Facilitates a new project inception from Lean Canvas through iteration mapping (8 phases)
 ---
 
 # facilitating-inception
@@ -133,17 +133,15 @@ Inception is complete when:
 
 This skill progresses a new project through 8 inception phases.
 
-- `in-analysis` — stories being refined in Phase 6
-- Iteration 0 Cycle — active after Phase 8
-- `docs/lean-canvas.md` — Phase 1 artifact
-- `docs/empathy-map.md` — Phase 2 artifact
-- `project.constraints.yaml` — Phase 3 artifact
-- `docs/event-storm.yaml` + `CONTEXT.md` — Phase 4 artifacts
-- `design-system/MASTER.md` — Phase 5 artifact (skipped if API-only)
-- Stories in Linear — Phase 6 artifacts
-- `docs/adr/ADR-001-platform.md` + `docs/adr/ADR-002-code-architecture.md` — Phase 7 artifacts
-- Linear Projects per iteration — Phase 8 artifacts
-
+- `inception-phase-1` — Lean Canvas (po-agent) → `docs/lean-canvas.md`
+- `inception-phase-2` — Empathy Mapping (ux-agent) → `docs/empathy-map.md`
+- `inception-phase-3` — Trade-off Sliders (po-agent) → `project.constraints.yaml`
+- `inception-phase-4` — Event Storming (po-agent, ux-agent) → `docs/event-storm.yaml` + `CONTEXT.md`
+- `inception-phase-5` — UX/UI Design (ux-agent) → `design-system/MASTER.md`
+- `inception-phase-6` — Story Writing (po-agent) → Stories in Linear (`ready-for-dev`)
+- `inception-phase-7` — Tech Stack + Architecture (architect-agent) → `docs/adr/ADR-001-platform.md` + `docs/adr/ADR-002-code-architecture.md`
+- `inception-phase-8` — Iteration Mapping (po-agent) → Linear Projects + Cycles
+- `development` — inception complete, plugin transitions to polling mode
 
 For the full state machine contract (transitions, halt conditions, handoff targets), see [LOOP.md](LOOP.md).
 

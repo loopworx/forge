@@ -103,6 +103,9 @@ For the full state machine contract (transitions, halt conditions, handoff targe
 
 ## Rules
 
+If LOOP.md is not in your context, read it before starting any loop iteration. It contains the entry conditions, loop state schema, proof of progress, and halt conditions for this skill.
+
+
 1. Fire only for service boundaries, integrations, queues, storage patterns, or new bounded contexts.
 2. Do not run this skill for renaming, local refactoring, or small code structure choices.
 3. Write one ADR per decision with status, context, decision, consequences, alternatives, and story impact.

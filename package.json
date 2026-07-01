@@ -1,0 +1,17 @@
+{
+  "name": "@loopworx/forge",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "forge": "./bin/forge.ts"
+  },
+  "scripts": {
+    "dev": "bun run src/cli.ts",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@opencode-ai/sdk": "latest",
+    "commander": "^12.0.0",
+    "yaml": "^2.4.0"
+  }
+}

@@ -64,6 +64,9 @@ For the full state machine contract (transitions, halt conditions, handoff targe
 
 ## Rules
 
+If LOOP.md is not in your context, read it before starting any loop iteration. It contains the entry conditions, loop state schema, proof of progress, and halt conditions for this skill.
+
+
 1. Create one deterministic, trivial end-to-end test that opens the app and verifies a page element.
 2. The test must run locally, in CI, and against the test environment URL.
 3. Runtime must be acceptable for repeated use and failure output must be understandable.

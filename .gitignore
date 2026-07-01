@@ -6,3 +6,10 @@ opencode.jsonc
 .claude
 .opencode/
 .cursor/
+.forge/
+forge.yaml
+node_modules/
+bun.lockb
+*.log
+scripts/simulate-*.ts
+graphify-out/

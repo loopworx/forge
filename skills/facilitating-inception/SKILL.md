@@ -1,18 +1,18 @@
 ---
 name: facilitating-inception
 level: L2-GUIDED
-owner: po-agent, ux-agent
-trigger: new project start; human says "let's start" or "new project"
+owner: po-agent, ux-agent, architect-agent
+trigger: new project start; human says "let's start" or "new project"; /forge new project
 metadata:
   category: discovery
-description: Facilitates a new project inception from Lean Canvas through iteration mapping
+  description: Facilitates a new project inception from Lean Canvas through iteration mapping (8 phases)
 ---
 
 # facilitating-inception
 
 ## Description
 
-Facilitates the full inception process for a new project: Lean Canvas, Empathy Mapping, Trade-off Sliders, Event Storming, and Iteration Mapping. Each phase produces a mandatory artifact before the next phase opens. Do not skip phases. Do not combine phases. Inception ends when the iteration map is committed to Linear and CONTEXT.md is in the repo root.
+Facilitates the full inception process for a new project across 8 sequential phases: Lean Canvas, Empathy Mapping, Trade-off Sliders, Event Storming, UX/UI Design, Story Writing, Tech Stack + Architecture, and Iteration Mapping. Each phase produces a mandatory artifact before the next phase opens. Do not skip phases. Do not combine phases. Inception ends when the iteration map is committed to Linear and CONTEXT.md is in the repo root.
 
 ---
 
@@ -82,17 +82,42 @@ This phase ends when both artifacts are committed and human-approved.
 
 ---
 
-### Phase 5 — Story Writing
-**Owner:** po-agent  
-**Output:** Stories in Linear (`in-analysis` status)
+### Phase 5 — UX/UI Design
+**Owner:** ux-agent  
+**Output:** `design-system/MASTER.md`
 
-See `writing-stories` skill.
-For each UI sticky from the event storm, produce one user story.
-All stories must pass the four-gate review before moving to `in-analysis`.
+See `designing-ux` skill. Transforms event storm UI stickies and empathy map emotions into a concrete design system: colors, typography, spacing, component patterns, interaction states, and accessibility rules.
+
+If the project has no UI (API-only), skip this phase and note it in the inception log.
+
+Do not move to Phase 6 until `design-system/MASTER.md` is committed (or the project is confirmed API-only).
 
 ---
 
-### Phase 6 — Iteration Mapping
+### Phase 6 — Story Writing
+**Owner:** po-agent  
+**Output:** Stories in Linear (`ready-for-dev` status)
+
+See `writing-stories` skill.
+For each UI sticky from the event storm, produce one user story.
+All stories must pass the four-gate review before moving to `ready-for-dev`.
+
+---
+
+### Phase 7 — Tech Stack + Architecture
+**Owner:** architect-agent  
+**Output:** `docs/adr/ADR-001-platform.md`, `docs/adr/ADR-002-code-architecture.md`
+
+Two ADRs produced in sequence in the same session:
+
+1. **`selecting-tech-stack`** — Produces ADR-001: cloud provider, backend language/framework, frontend framework, database, CI/CD, observability, secret management.
+2. **`establishing-architecture`** — Produces ADR-002: service boundaries, module structure, folder layout, integration patterns, data flow, testing strategy.
+
+Both ADRs must be committed before Phase 8 begins.
+
+---
+
+### Phase 8 — Iteration Mapping
 **Owner:** po-agent  
 **Output:** Linear Projects (one per iteration) + active Cycle for Iteration 0
 
@@ -102,26 +127,36 @@ Inception is complete when:
 - Iteration 0 Cycle is active
 - Human has confirmed the iteration map
 
+---
+
 ## State Model
 
-This skill progresses a new project through inception phases.
+This skill progresses a new project through 8 inception phases.
 
-- `in-analysis` — stories being refined in Phase 5
-- Iteration 0 Cycle — active after Phase 6
+- `in-analysis` — stories being refined in Phase 6
+- Iteration 0 Cycle — active after Phase 8
 - `docs/lean-canvas.md` — Phase 1 artifact
 - `docs/empathy-map.md` — Phase 2 artifact
 - `project.constraints.yaml` — Phase 3 artifact
 - `docs/event-storm.yaml` + `CONTEXT.md` — Phase 4 artifacts
-- Linear Projects per iteration — Phase 6 artifacts
+- `design-system/MASTER.md` — Phase 5 artifact (skipped if API-only)
+- Stories in Linear — Phase 6 artifacts
+- `docs/adr/ADR-001-platform.md` + `docs/adr/ADR-002-code-architecture.md` — Phase 7 artifacts
+- Linear Projects per iteration — Phase 8 artifacts
 
 
 For the full state machine contract (transitions, halt conditions, handoff targets), see [LOOP.md](LOOP.md).
 
 ## Rules
 
+If LOOP.md is not in your context, read it before starting any loop iteration. It contains the entry conditions, loop state schema, proof of progress, and halt conditions for this skill.
+
+
 1. Do not skip phases and do not combine phases.
-2. Each phase requires human approval of its artifact before the next phase opens.
+2. Each phase requires human approval of its artifact before the next phase opens (except Phase 7 which is architect-driven).
 3. Every user story produced later must trace to a Pain or Gain in the empathy map.
 4. Trade-off sliders must be ranked with no ties and written to `project.constraints.yaml`.
-5. Event storming must be complete before producing stories.
-6. Inception ends when the iteration map is committed to Linear and `CONTEXT.md` is in the repo root.
+5. Event storming must be complete before producing stories or design systems.
+6. The design system (Phase 5) must exist before stories are written (Phase 6) — every UI story references it.
+7. The tech stack ADR (ADR-001) must be accepted before the code architecture ADR (ADR-002).
+8. Inception ends when the iteration map is committed to Linear and `CONTEXT.md` is in the repo root.

@@ -76,6 +76,9 @@ For the full state machine contract (transitions, halt conditions, handoff targe
 
 ## Rules
 
+If LOOP.md is not in your context, read it before starting any loop iteration. It contains the entry conditions, loop state schema, proof of progress, and halt conditions for this skill.
+
+
 1. Execute the checklist mechanically; no architecture decisions here.
 2. CI must run unit/component tests, acceptance tests, contract tests, and fail fast.
 3. Test and production environments and URLs must be written to `project.constraints.yaml`.

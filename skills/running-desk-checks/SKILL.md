@@ -101,6 +101,9 @@ For the full state machine contract (transitions, halt conditions, handoff targe
 
 ## Rules
 
+If LOOP.md is not in your context, read it before starting any loop iteration. It contains the entry conditions, loop state schema, proof of progress, and halt conditions for this skill.
+
+
 1. Inspect the AC locally first, then on the test environment.
 2. Use only the UI; no database inspection, API calls, or internal state inspection.
 3. Write or update the desk-check artifact in `stories/[STORY-ID].md` with status, time, and notes.

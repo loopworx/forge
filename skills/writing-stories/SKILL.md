@@ -106,6 +106,9 @@ For the full state machine contract (transitions, halt conditions, handoff targe
 
 ## Rules
 
+If LOOP.md is not in your context, read it before starting any loop iteration. It contains the entry conditions, loop state schema, proof of progress, and halt conditions for this skill.
+
+
 1. Every story must be INVEST-compliant before gate review.
 2. ACs must use Given / When / Then and be testable through the UI alone.
 3. Stories must trace to a Pain or Gain in the empathy map.

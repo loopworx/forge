@@ -58,6 +58,9 @@ For the full state machine contract (transitions, halt conditions, handoff targe
 
 ## Rules
 
+If LOOP.md is not in your context, read it before starting any loop iteration. It contains the entry conditions, loop state schema, proof of progress, and halt conditions for this skill.
+
+
 1. Begin only after human explicitly approves release.
 2. Verify production deployment contains the code before flipping the flag.
 3. Flip the feature flag ON only after go-live approval.

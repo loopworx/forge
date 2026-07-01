@@ -68,6 +68,9 @@ For the full state machine contract (transitions, halt conditions, handoff targe
 
 ## Rules
 
+If LOOP.md is not in your context, read it before starting any loop iteration. It contains the entry conditions, loop state schema, proof of progress, and halt conditions for this skill.
+
+
 1. One AC must map to at least one executable Acceptance Test.
 2. Assertions must be customer-visible through the UI or other customer-visible surfaces.
 3. If an AC is not testable through the UI, return the story to `in-analysis`.

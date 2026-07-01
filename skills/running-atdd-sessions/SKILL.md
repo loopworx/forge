@@ -68,6 +68,9 @@ For the full state machine contract (transitions, halt conditions, handoff targe
 
 ## Rules
 
+If LOOP.md is not in your context, read it before starting any loop iteration. It contains the entry conditions, loop state schema, proof of progress, and halt conditions for this skill.
+
+
 1. The outer Acceptance Test file is the first file written or edited for an AC.
 2. No implementation code may be written before the outer AT is RED and has been seen failing.
 3. Run the FE inner loop and BE inner loop sequentially per sub-slice.

@@ -39,6 +39,9 @@ Example:
 
 ## Rules
 
+If LOOP.md is not in your context, read it before starting any loop iteration. It contains the entry conditions, loop state schema, proof of progress, and halt conditions for this skill.
+
+
 - No unfinished behavior exposed without a flag
 - Flag defaults OFF unless explicitly approved otherwise
 - Flags are temporary delivery mechanisms, not permanent product configuration

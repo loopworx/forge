@@ -61,6 +61,9 @@ For the full state machine contract (transitions, halt conditions, handoff targe
 
 ## Rules
 
+If LOOP.md is not in your context, read it before starting any loop iteration. It contains the entry conditions, loop state schema, proof of progress, and halt conditions for this skill.
+
+
 1. Read the story snapshot, Lean Canvas, and empathy map before deciding.
 2. Verify every AC through the UI on the test environment.
 3. Verify the desk review and regression suite passed before accepting.

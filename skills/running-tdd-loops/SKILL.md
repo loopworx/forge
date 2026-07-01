@@ -75,6 +75,9 @@ For the full state machine contract (transitions, halt conditions, handoff targe
 
 ## Rules
 
+If LOOP.md is not in your context, read it before starting any loop iteration. It contains the entry conditions, loop state schema, proof of progress, and halt conditions for this skill.
+
+
 1. Write the smallest possible test that fails (RED).
 2. Write the minimum production code needed to pass (GREEN).
 3. Refactor only while the test stays GREEN.

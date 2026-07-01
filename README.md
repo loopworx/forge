@@ -39,12 +39,15 @@ Each agent has a defined role, a default skill set, and a strict boundary. The d
 ## The Delivery Lifecycle
 
 ### 1. Inception
-The po-agent and ux-agent facilitate a structured discovery process:
-- **Lean Canvas** — problem, solution, unique value proposition
-- **Empathy Mapping** — understand the customer before writing a single requirement
-- **Trade-off Sliders** — team-wide prioritization: quality vs. cost vs. UX vs. security (no ties allowed)
-- **Event Storming** — interactive back-and-forth conversation mapping domain events, commands, policies, and UI elements. UI stickies become user stories. Policies and commands become acceptance criteria. The final phase produces `CONTEXT.md` — the project's ubiquitous language.
-- **Iteration Mapping** — dependency graph → topological sort → iteration layers → Linear Projects + Cycles, automatically
+The po-agent, ux-agent, and architect-agent facilitate an 8-phase structured discovery process:
+1. **Lean Canvas** — problem, solution, unique value proposition
+2. **Empathy Mapping** — understand the customer before writing a single requirement
+3. **Trade-off Sliders** — team-wide prioritization: quality vs. cost vs. UX vs. security (no ties allowed)
+4. **Event Storming** — interactive back-and-forth conversation mapping domain events, commands, policies, and UI elements. UI stickies become user stories. Policies and commands become acceptance criteria. The final phase produces `CONTEXT.md` — the project's ubiquitous language.
+5. **UX/UI Design** — transforms event storm UI stickies and empathy map into a concrete design system (`design-system/MASTER.md`)
+6. **Story Writing** — INVEST-compliant stories written to Linear as `ready-for-dev`
+7. **Tech Stack + Architecture** — architect-agent produces ADR-001 (platform) and ADR-002 (code architecture) in sequence
+8. **Iteration Mapping** — dependency graph → topological sort → iteration layers → Linear Projects + Cycles
 
 ### 2. Story Refinement
 Every story passes a four-gate review before it's playable:
@@ -110,7 +113,7 @@ ready-to-deploy      → HUMAN approves flag flip
 
 Bug cards found in `in-qa` or `in-acceptance` go directly to `ready-for-dev` — no refinement needed.
 
-**Stories are pulled, not assigned.** When a developer agent starts a session with no active story, it queries Linear for the oldest story in `ready-for-dev` and atomically moves it to `in-dev` with self-assignment in a single API call. If two agents race, only one wins — the other pulls the next available story. No orchestrator needed.
+**Stories are pulled, not assigned.** The Forge plugin coordinator polls Linear for stories in pull states. When it finds one, it claims the story (moves it to the active state) and creates an agent session. Agents move stories forward when done and post handoff comments via Linear MCP for the next agent's context. If an agent forgets to update Linear state, the plugin's failsafe checks for a recent handoff comment — if one exists, it auto-advances with a warning; if not, it halts as `halted-ambiguous`.
 
 **Iteration completion.** After completing a story, every agent checks: *"are all stories in this iteration done?"* If yes, the po-agent posts a completion notice on the Linear milestone and idles. A human PO reviews, then triggers the next iteration by activating the next Cycle. Iterations are variable duration — they end when done, not on a fixed date.
 
@@ -155,15 +158,40 @@ Agents dropped into a project with no shared vocabulary use 20 words where 1 wil
 Every agent, every session, in this order:
 
 ```
-1. Query Linear → do I have an active story in-progress?
-   If yes  → resume it (re-run outer Acceptance Test first)
-   If no   → pull oldest story from ready-for-dev (atomic claim)
-2. Read CONTEXT.md → speak the project's language
-3. Read project.constraints.yaml → know the priorities
-4. Begin — the Linear stage determines what happens next
+1. The Forge plugin coordinator polls Linear for stories in pull states
+   (ready-for-dev, ready-for-qa, ready-for-acceptance, ready-to-deploy)
+2. When a story is found, the plugin:
+   a. Claims it (moves to active state: in-dev, in-qa, in-acceptance)
+   b. Reads the last handoff comment from Linear
+   c. Creates an agent session with a prompt that includes:
+      - Story details + Linear state
+      - Handoff comment from previous agent (if any)
+      - Skill to load
+      - Loop contract (LOOP.md content)
+      - Cost tracking budget
+      - Handoff protocol instructions
+3. Agent works, then:
+   a. Updates Linear state via MCP (linear_save_issue)
+   b. Posts a compact handoff comment via MCP (linear_save_comment)
+   c. Session ends → plugin reads new state → creates next agent session
 ```
 
 No handoff notes. No plan files. No conversation summaries. State lives in Linear and the repo — not in context windows.
+
+### Failsafe
+
+If an agent ends its session without updating the Linear state:
+1. Plugin checks for a recent handoff comment (posted during the session)
+2. If comment exists → auto-advance story to next pull state with a warning
+3. If no comment → halt story as `halted-ambiguous`
+
+### Crash Recovery
+
+If opencode crashes while sessions are active:
+1. Plugin reads `.forge/sessions.json` on restart
+2. Calls `client.session.list()` to find dead sessions
+3. Checks Linear state for orphaned stories
+4. Creates recovery sessions for stories still in active states
 
 ---
 
@@ -199,12 +227,12 @@ An agent cannot rationalize "I'll just wire the handler first" — `running-atdd
 
 ## Verified by Loopkit
 
-All 21 Forge skills are continuously verified by [loopkit](https://github.com/loopworx/loopkit) — a static analysis tool for agent skill contracts. Every SKILL.md, LOOP.md, and `.loopkit.yaml` passes **0 errors, 0 warnings** across all validators:
+All 24 Forge skills are continuously verified by [loopkit](https://github.com/loopworx/loopkit) — a static analysis tool for agent skill contracts. Every SKILL.md, LOOP.md, and `.loopkit.yaml` passes **0 errors, 0 warnings** across all validators:
 
 ```bash
 cargo install loopkit
 loopkit . --verbose
-# 21 skills checked. 0 error(s), 0 warning(s).
+# 24 skills checked. 0 error(s), 0 warning(s).
 ```
 
 Loopkit validates state transitions, enforced states, handoff references, desk check patterns, bug feedback loops, progressive disclosure, naming conventions, terminology, and 10 other dimensions of skill quality.
@@ -218,14 +246,17 @@ Loopkit validates state transitions, enforced states, handoff references, desk c
 - `resuming-sessions` — query Linear + read CONTEXT.md before anything else
 
 **Discovery**
-- `facilitating-inception` — lean canvas, empathy map, trade-off sliders, event storming, iteration map
+- `facilitating-inception` — 8-phase inception: lean canvas → empathy map → trade-off sliders → event storming → UX design → story writing → tech stack + architecture → iteration map
 - `facilitating-event-storming` — interactive domain event discovery; final phase produces `CONTEXT.md`
 - `establishing-ubiquitous-language` — generates and maintains `CONTEXT.md` from event storming output
+- `designing-ux` — transforms event storm UI stickies + empathy map into a design system (`design-system/MASTER.md`)
 - `writing-stories` — INVEST-compliant story writing with four-gate review
 - `building-iteration-map` — topological sort of dependencies → Linear Projects + Cycles via MCP
 
 **Architecture**
-- `deciding-architecture` — ADR authoring, service boundary definition
+- `selecting-tech-stack` — decides platform (cloud, language, framework, database, CI/CD, observability) → ADR-001
+- `establishing-architecture` — decides code structure (service boundaries, modules, folder layout, testing strategy) → ADR-002
+- `deciding-architecture` — ADR authoring for individual decisions during development
 
 **Iteration Zero**
 - `bootstrapping-project` — CI/CD, repos, environments, Unleash setup
@@ -244,7 +275,7 @@ Loopkit validates state transitions, enforced states, handoff references, desk c
 **Acceptance & Delivery**
 - `approving-stories` — PO smoke test against ACs
 - `finishing-stories` — flag flip + Linear update + post-deploy security check
-- `threat-modeling` — security ACs injected per story from project.constraints.yaml
+- `modeling-threats` — security ACs injected per story from project.constraints.yaml
 - `securing-pipeline` — SAST/DAST/secret scanning gates
 
 ---
@@ -252,19 +283,32 @@ Loopkit validates state transitions, enforced states, handoff references, desk c
 ## Installation
 
 ```bash
-git clone https://github.com/loopworx/forge ~/.agents/forge
-bash ~/.agents/forge/install.sh
+# Clone the repo
+git clone https://github.com/loopworx/forge ~/projects/forge
+cd ~/projects/forge
+
+# Install dependencies
+bun install
+
+# Initialize Forge in your project
+bun run bin/forge.ts init
+
+# Configure Linear
+# 1. Edit forge.yaml — add your Linear team_key and api_key
+# 2. Authenticate with Linear MCP:
+opencode mcp auth linear
+
+# 3. Open opencode and run:
+/forge new project
 ```
 
-This symlinks all 21 skills into `~/.agents/skills/` where OpenCode, Claude Code, and Hermes discover them automatically.
-
-To verify:
-
-```bash
-cargo install loopkit
-loopkit ~/.agents/forge --verbose
-# 21 skills checked. 0 error(s), 0 warning(s).
-```
+This installs:
+- `.opencode/plugins/forge.ts` — the Forge plugin (coordinator)
+- `.opencode/agents/` — 7 agent definitions with skill permissions
+- `.opencode/skills/` — 24 skills (SKILL.md + LOOP.md)
+- `.opencode/commands/forge/` — slash commands (`/forge new project`, `/forge.stop`, `/forge.status`, `/forge.approve`)
+- `forge.yaml` — PM configuration (active flag, Linear credentials, agent config, inception phases)
+- `opencode.json` — Linear MCP server config + plugin registration
 
 ---
 

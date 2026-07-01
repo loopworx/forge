@@ -47,7 +47,7 @@ The po-agent, ux-agent, and architect-agent facilitate an 8-phase structured dis
 3. **Trade-off Sliders** — team-wide prioritization: quality vs. cost vs. UX vs. security (no ties allowed)
 4. **Event Storming** — interactive back-and-forth conversation mapping domain events, commands, policies, and UI elements. UI stickies become user stories. Policies and commands become acceptance criteria. The final phase produces `CONTEXT.md` — the project's ubiquitous language.
 5. **UX/UI Design** — transforms event storm UI stickies and empathy map into a concrete design system (`design-system/MASTER.md`)
-6. **Story Writing** — INVEST-compliant stories written to Linear as `ready-for-dev`
+6. **Story Writing** — INVEST-compliant stories written to Linear as ready-for-dev
 7. **Tech Stack + Architecture** — architect-agent produces ADR-001 (platform) and ADR-002 (code architecture) in sequence
 8. **Iteration Mapping** — dependency graph → topological sort → iteration layers → Linear Projects + Cycles
 
@@ -58,7 +58,7 @@ Every story passes a four-gate review before it's playable:
 3. **Developer gate** — is this technically feasible? cost signal? estimable?
 4. **QA gate** — is every AC testable through the UI alone, as an outside customer would test it?
 
-Stories that fail any gate go back to the PO. Stories that pass land in their iteration's Linear Project as `ready-for-dev`.
+Stories that fail any gate go back to the PO. Stories that pass land in their iteration's Linear Project as ready-for-dev.
 
 All stories follow the **INVEST principle** and Mike Cohn's *User Stories Applied* — no technical detail in stories. Backend shape, API design, database schema all live in ADRs, not stories.
 
@@ -113,7 +113,7 @@ ready-to-deploy      → HUMAN approves flag flip
 (done)               → feature flag on, Linear card closed
 ```
 
-Bug cards found in `in-qa` or `in-acceptance` go directly to `ready-for-dev` — no refinement needed.
+Bug cards found in in-qa or in-acceptance go directly to ready-for-dev — no refinement needed.
 
 **Stories are pulled, not assigned.** The Forge plugin coordinator polls Linear for stories in pull states. When it finds one, it claims the story (moves it to the active state) and creates an agent session. Agents move stories forward when done and post handoff comments via Linear MCP for the next agent's context. If an agent forgets to update Linear state, the plugin's failsafe checks for a recent handoff comment — if one exists, it auto-advances with a warning; if not, it halts as `halted-ambiguous`.
 
@@ -206,7 +206,7 @@ CONTEXT.md                  # ubiquitous language — generated from event storm
 project.constraints.yaml    # trade-off slider output — team priorities
 ```
 
-Story content lives in Linear. A snapshot is committed to `stories/` when a story moves to `ready-for-dev` — at that point the story is locked and the snapshot never drifts.
+Story content lives in Linear. A snapshot is committed to `stories/` when a story moves to ready-for-dev — at that point the story is locked and the snapshot never drifts.
 
 ---
 

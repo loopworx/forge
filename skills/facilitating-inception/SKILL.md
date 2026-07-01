@@ -141,7 +141,7 @@ This skill progresses a new project through 8 inception phases.
 - `inception-phase-6` — Story Writing (po-agent) → Stories in Linear (`ready-for-dev`)
 - `inception-phase-7` — Tech Stack + Architecture (architect-agent) → `docs/adr/ADR-001-platform.md` + `docs/adr/ADR-002-code-architecture.md`
 - `inception-phase-8` — Iteration Mapping (po-agent) → Linear Projects + Cycles
-- `development` — inception complete, plugin transitions to polling mode
+- `development-mode` — inception complete, plugin transitions to polling mode
 
 For the full state machine contract (transitions, halt conditions, handoff targets), see [LOOP.md](LOOP.md).
 

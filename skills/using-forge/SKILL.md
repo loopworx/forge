@@ -179,6 +179,8 @@ If YES → post to Linear iteration milestone:
 
 This skill owns the session lifecycle and orchestrates transitions across the delivery board.
 
+- `inception` — plugin mode: 8-phase inception flow is running (see facilitating-inception)
+- `development-mode` — plugin mode: inception complete, plugin polls Linear for stories
 - `in-analysis` — stories being refined by po-agent
 - `ready-for-dev` — stories available for developer-agent pull
 - `in-dev` — story assigned to developer-agent; ATDD in progress

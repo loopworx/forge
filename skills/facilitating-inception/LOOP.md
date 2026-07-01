@@ -81,7 +81,7 @@ transition inception-phase-7 → inception-phase-8
   trigger ADR-001 and ADR-002 committed
   handoff building-iteration-map to po-agent
 
-transition inception-phase-8 → development
+transition inception-phase-8 → development-mode
   trigger iteration map committed to Linear + Iteration 0 Cycle active
   handoff bootstrapping-project to devops-agent
 ```

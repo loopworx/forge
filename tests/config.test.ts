@@ -1,8 +1,7 @@
-import { describe, test, expect, beforeEach, afterEach, mock } from "bun:test";
+import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { writeFileSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { loadConfig, validateConfig, saveConfig } from "../src/config";
-import type { ForgeConfig } from "../src/types";
 
 const TMP_DIR = join(import.meta.dir, ".tmp-config-test");
 const VALID_CONFIG = `

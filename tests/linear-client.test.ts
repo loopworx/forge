@@ -1,13 +1,12 @@
 import { describe, test, expect, beforeEach, afterEach, mock } from "bun:test";
-import { writeFileSync, mkdirSync, rmSync } from "node:fs";
+import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { LinearClient } from "../src/linear-client";
-import type { Story } from "../src/types";
 
 const TMP_DIR = join(import.meta.dir, ".tmp-linear-test");
 
 const mockFetch = (response: { status: number; body: unknown }) => {
-  return mock(async (input: string | URL | Request, init?: RequestInit) => {
+  return mock(async (_input: string | URL | Request, _init?: RequestInit) => {
     return {
       ok: response.status >= 200 && response.status < 300,
       status: response.status,
@@ -20,7 +19,7 @@ const mockFetch = (response: { status: number; body: unknown }) => {
 
 const mockFetchMulti = (responses: { status: number; body: unknown }[]) => {
   let callIndex = 0;
-  return mock(async (input: string | URL | Request, init?: RequestInit) => {
+  return mock(async (_input: string | URL | Request, _init?: RequestInit) => {
     const response = responses[Math.min(callIndex, responses.length - 1)];
     callIndex++;
     return {

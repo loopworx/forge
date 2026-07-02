@@ -1,343 +1,392 @@
 # Forge Architecture
 
-> 24 skills, 7 agents, 1 opencode plugin, 2 delivery modes (inception + development).
+> Generated from the GitNexus knowledge graph: 77 files, 798 symbols, 28 execution flows, 8 functional areas.
 
 ## Overview
 
-Forge is a lean software delivery framework for AI agents. It runs as an
-[opencode](https://opencode.ai) plugin that coordinates 7 specialized agents
-through a lean software delivery pipeline — from project inception to
-production deployment.
+Forge is an opencode plugin that orchestrates 7 AI agents through a lean
+software delivery pipeline. It uses Linear as its state spine — stories move
+through workflow states, and the plugin polls, claims, and dispatches them to
+the right agent at the right time.
 
-The plugin is the **coordinator**. It does NOT write code, make decisions, or
-interact with humans beyond toasts. It:
-1. Polls Linear for stories in pull states
-2. Claims stories by moving them to active states
-3. Creates agent sessions with prompts that include handoff comments
-4. Detects session completion and creates the next agent session
-5. Recovers from crashes by checking session liveness and Linear state
+The plugin runs in two modes:
 
-### Two Modes
+1. **Inception** — 8 sequential phases that take a project from idea to
+   iteration-ready (lean canvas → event storm → stories → UX → tech stack →
+   architecture → iteration map).
+2. **Development** — polls Linear for stories in `ready-for-dev`,
+   `ready-for-qa`, and `ready-for-acceptance` states, creates opencode
+   sessions, and dispatches the appropriate agent.
 
-| Mode | Trigger | Flow |
-|------|---------|------|
-| **Inception** | `/forge new project` | 8 sequential phases, driven by `session.idle` |
-| **Development** | After Phase 8, or when `forge.yaml` has `active: true` and inception artifacts exist | Polls Linear, creates agent sessions, handles handoffs |
+The plugin is dormant by default. `/forge new project` activates inception
+mode; after Phase 8 completes, the plugin transitions to development mode.
+`/forge stop` deactivates everything.
 
----
+## System Diagram
 
-## System Architecture
+```mermaid
+graph TB
+    subgraph Entry["Entry Points"]
+        CMD["Slash Commands<br/>/forge new project, stop, status, approve"]
+        IDLE["session.idle hook"]
+        ERR["session.error hook"]
+        COMPACT["session.compacting hook"]
+        BOOT["Plugin startup"]
+    end
 
+    subgraph Core["Plugin Core (src/plugin.ts)"]
+        FP["ForgePlugin<br/>entry point, config load, hook registration"]
+        HSI["handleSessionIdle<br/>routes idle events by mode"]
+        HII["handleInceptionIdle<br/>inception phase transitions"]
+        HDI["handleDevIdle<br/>development story dispatch"]
+        HF["handleFailsafe<br/>auto-advance or halt"]
+        HC["handleCompaction<br/>loop state injection"]
+        ROS["recoverOrphanedSessions<br/>crash recovery on startup"]
+        SP["startPolling<br/>Linear poll loop"]
+        PAC["pollAndCreate<br/>claim story → create session"]
+        CSFS["createSessionForStory<br/>build prompt → session.create"]
+        FAS["findActiveSession<br/>dedup active sessions"]
+        PST["parseSessionTitle<br/>extract storyId + agent from title"]
+    end
+
+    subgraph Linear["Linear Client (src/linear-client.ts)"]
+        PS["pollStories<br/>fetch ready stories"]
+        USS["updateStoryState<br/>transition state"]
+        GSS["getStoryState<br/>read current state"]
+        GLC["getLastComment<br/>read handoff comment"]
+        GLCD["getLastCommentWithDate<br/>timestamped comment"]
+        PC["postComment<br/>write handoff comment"]
+        EWS["ensureWorkflowStates<br/>create 14 Forge states"]
+        HFS["hasForgeStates<br/>check team readiness"]
+        IFT["isFreshTeam<br/>detect unconfigured team"]
+        GQL["graphql<br/>HTTP transport"]
+    end
+
+    subgraph Prompts["Prompt Builder (src/prompt-builder.ts)"]
+        BP["buildPrompt<br/>story + handoff + commit protocol"]
+        BIP["buildInceptionPrompt<br/>phase-specific inception prompt"]
+        BLP["buildLoopPrompt<br/>autonomous recovery prompt"]
+        RLM["readLoopMd<br/>read skill loop state file"]
+    end
+
+    subgraph Config["Config (src/config.ts)"]
+        LC["loadConfig<br/>read forge.yaml"]
+        NC["normalizeConfig<br/>defaults + validation"]
+        VC["validateConfig<br/>required fields check"]
+        SC["saveConfig<br/>write forge.yaml"]
+    end
+
+    subgraph Persist["Persistence"]
+        SESSIONS[".forge/sessions.json"]
+        PROJECT[".forge/project-state.json"]
+    end
+
+    subgraph External["External"]
+        LINEAR["Linear API<br/>GraphQL"]
+        OCODE["opencode SDK<br/>session.create, promptAsync, showToast"]
+        AGENTS["7 Agent Definitions<br/>po, architect, dev, qa, etc."]
+        SKILLS["24 Skills<br/>SKILL.md + LOOP.md"]
+    end
+
+    %% Entry → Core
+    CMD --> FP
+    IDLE --> HSI
+    ERR --> HSI
+    COMPACT --> HC
+    BOOT --> FP
+
+    %% Core internal routing
+    FP --> LC
+    HSI --> HII
+    HSI --> HDI
+    HII --> SP
+    SP --> PAC
+    PAC --> CSFS
+    PAC --> FAS
+    HDI --> HF
+    HF --> CSFS
+    ROS --> CSFS
+    CSFS --> BP
+
+    %% Core → Linear
+    PAC --> PS
+    CSFS --> USS
+    HF --> GLC
+    HF --> USS
+    ROS --> GSS
+
+    %% Core → Prompts
+    HII --> BIP
+    HDI --> BLP
+    BP --> RLM
+
+    %% Core → Persistence
+    CSFS --> SESSIONS
+    HII --> PROJECT
+    ROS --> SESSIONS
+
+    %% Linear internal
+    PS --> GQL
+    USS --> GQL
+    GSS --> GQL
+    GLC --> GQL
+    EWS --> GQL
+
+    %% Config internal
+    LC --> NC
+    NC --> VC
+
+    %% Core → Config
+    FP --> NC
+    CMD --> SC
+
+    %% Linear → External
+    GQL --> LINEAR
+
+    %% Core → External
+    CSFS --> OCODE
+    BP --> AGENTS
+    BP --> SKILLS
+    BIP --> SKILLS
+    BLP --> SKILLS
+    CMD --> OCODE
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                     opencode (TUI + Server)                   │
-│                                                               │
-│  ┌─────────────────────────────────────────────────────────┐ │
-│  │              Forge Plugin (coordinator)                   │ │
-│  │                                                           │ │
-│  │  ┌─────────────┐  ┌──────────────┐  ┌────────────────┐ │ │
-│  │  │ Inception    │  │ Development   │  │ Crash Recovery  │ │ │
-│  │  │ Mode         │  │ Mode          │  │                 │ │ │
-│  │  │              │  │               │  │                 │ │ │
-│  │  │ • 8 phases   │  │ • Poll Linear │  │ • session.list()│ │ │
-│  │  │ • session.idle│ │ • Claim story │  │ • Check state   │ │ │
-│  │  │ • Artifacts  │  │ • Create sess│  │ • Recover/Halt  │ │ │
-│  │  │              │  │ • Handoff     │  │                 │ │ │
-│  │  └─────────────┘  └──────────────┘  └────────────────┘ │ │
-│  │                                                           │ │
-│  │  Hooks: session.idle, session.error,                     │ │
-│  │         experimental.session.compacting,                  │ │
-│  │         tui.command.execute                              │ │
-│  │                                                           │ │
-│  │  Persistence: .forge/sessions.json, .forge/project-state.json │ │
-│  └─────────────────────────────────────────────────────────┘ │
-│                                                               │
-│  ┌─────────────────────────────────────────────────────────┐ │
-│  │              Linear MCP Server                           │ │
-│  │  (agents use this for writes: save_issue, save_comment,  │ │
-│  │   list_issues, get_issue, etc.)                          │ │
-│  └─────────────────────────────────────────────────────────┘ │
-│                                                               │
-│  ┌────────────┐  ┌────────────┐  ┌────────────────────────┐ │
-│  │ Agent Sessions (LLM-powered)                              │ │
-│  │                                                            │ │
-│  │  po-agent   ux-agent   architect-agent   developer-agent  │ │
-│  │  qa-agent   devops-agent   secops-agent                   │ │
-│  └──────────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────┘
-         │
-         ▼
-┌─────────────────┐
-│   Linear (API)   │
-│                  │
-│  Workflow States │
-│  Stories         │
-│  Comments        │
-│  Projects/Cycles │
-└─────────────────┘
-```
-
----
 
 ## Functional Areas
 
-### 1. Plugin Coordinator (`src/plugin.ts`)
+The knowledge graph detected 8 functional areas (communities) via the Leiden
+algorithm. Each has a distinct responsibility:
 
-The core orchestrator. Runs inside opencode as a plugin.
+| Area | Symbols | Cohesion | Responsibility |
+|------|---------|----------|---------------|
+| **Plugin Bootstrap & Config** | 7 | 86% | Plugin entry point, config loading/validation, session/project state persistence |
+| **Command Layer** | 6 | 77% | Slash command handlers (`/forge new project`, `stop`, `status`, `approve`) |
+| **Linear GraphQL Transport** | 8 | 69% | Low-level Linear API: graphql(), workflow state CRUD, comment read/write |
+| **Polling & Story Claim** | 3 | — | Story polling, active session dedup, `pollAndCreate` orchestration |
+| **Recovery & Dev Idle** | 9 | 72% | Crash recovery, dev idle handling, session error handling, session persistence, `parseSessionTitle` |
+| **Inception Flow** | 8 | 69% | Inception phase management, new project kickoff, fresh team detection, project state save |
+| **Prompt & Failsafe** | 6 | 60% | Prompt building (story/inception/loop), `readLoopMd`, failsafe auto-advance |
+| **Session Lifecycle** | 6 | 77% | `session.idle`/`session.error` hooks, `handleCompaction`, `isForgeSession`/`isInceptionSession` guards |
 
-**Inception Mode:**
-- Triggered by `/forge new project`
-- Creates 8 sequential sessions (one per phase)
-- Each phase: create session with inception prompt → wait for idle → check artifact exists → next phase
-- After Phase 8: transition to development mode, start polling
+### Inter-Area Connections
 
-**Development Mode:**
-- `setInterval` polls Linear every N seconds
-- Finds stories in pull states (ready-for-dev, ready-for-qa, etc.)
-- Claims story: `updateStoryState(storyId, activeState)` in Linear
-- Reads last handoff comment from Linear
-- Creates agent session with prompt (includes handoff comment)
-- On `session.idle`: check Linear state → create next agent or toast for human gate
+```mermaid
+graph LR
+    C0["Bootstrap & Config"]
+    C1["Command Layer"]
+    C2["Linear GraphQL"]
+    C3["Polling & Claim"]
+    C4["Recovery & Dev Idle"]
+    C5["Inception Flow"]
+    C6["Prompt & Failsafe"]
+    C7["Session Lifecycle"]
 
-**Failsafe (on session.idle):**
-- If story state unchanged (agent forgot to move it):
-  - Check for recent handoff comment (posted during this session)
-  - If comment exists → auto-advance to next pull state with warning
-  - If no comment → halt as `halted-ambiguous`
-
-**Crash Recovery (on plugin startup):**
-- Read `.forge/sessions.json`
-- Call `client.session.list()` to find dead sessions
-- Check Linear state for orphaned stories
-- Create recovery sessions for stories still in active states
-
-### 2. Linear Client (`src/linear-client.ts`)
-
-Read-only polling + state claim + comment read. ~350 lines.
-
-| Method | Purpose |
-|--------|---------|
-| `pollStories(states)` | Find stories in pull states |
-| `getStoryState(id)` | Check current story state |
-| `updateStoryState(id, state)` | Claim story (move to active state) |
-| `getLastComment(id)` | Read handoff comment for next agent's prompt |
-| `getLastCommentWithDate(id)` | Read comment with timestamp (for failsafe) |
-| `postComment(id, body)` | Post handoff comment (used in simulation) |
-| `ensureWorkflowStates()` | Create 14 Forge workflow states in Linear |
-| `hasForgeStates()` | Check if Forge states exist |
-| `isFreshTeam()` | Check if team has no issues (fresh) |
-
-### 3. Prompt Builder (`src/prompt-builder.ts`)
-
-Generates agent prompts. Three prompt types:
-
-| Function | When | Contains |
-|----------|------|----------|
-| `buildPrompt()` | Development sessions | Story details, handoff comment, skill instructions, loop contract, cost budget, handoff protocol |
-| `buildInceptionPrompt()` | Inception phases | Phase name, skill, expected output artifact, special instructions (Phase 6/8) |
-| `buildLoopPrompt()` | Recovery sessions | Resume protocol: run AT first, read loop state file, continue from last sub-slice |
-
-### 4. Config (`src/config.ts`)
-
-Loads/saves/validates `forge.yaml`.
-
-- `loadConfig()` — parse YAML to typed config
-- `saveConfig()` — write partial updates (active flag, max_concurrent_stories)
-- `validateConfig()` — check required fields
-
-### 5. Skills (`skills/` — 24 skills)
-
-Each skill is a pair: `SKILL.md` (instructions) + `LOOP.md` (state machine contract).
-
-| Category | Skills |
-|----------|--------|
-| Meta | using-forge, resuming-sessions, guarding-loops |
-| Discovery | facilitating-inception, facilitating-event-storming, establishing-ubiquitous-language, designing-ux, writing-stories, building-iteration-map |
-| Architecture | selecting-tech-stack, establishing-architecture, deciding-architecture |
-| Iteration Zero | bootstrapping-project, validating-test-harness, securing-pipeline |
-| Development | running-atdd-sessions, running-tdd-loops, managing-feature-flags |
-| Quality | running-desk-checks, writing-acceptance-tests, running-regression-suite |
-| Acceptance | approving-stories, finishing-stories, modeling-threats |
-
-### 6. Agent Definitions (`agents/` — 7 agents)
-
-Each agent has a `.md` file with:
-- Model selection
-- Skill permission boundaries (explicit allow/deny)
-- Role description
-- Session start protocol
-
-| Agent | Skills Allowed |
-|-------|---------------|
-| po-agent | using-forge, facilitating-inception, facilitating-event-storming, establishing-ubiquitous-language, writing-stories, building-iteration-map, approving-stories |
-| ux-agent | using-forge, facilitating-inception, facilitating-event-storming, designing-ux |
-| architect-agent | using-forge, deciding-architecture, selecting-tech-stack, establishing-architecture |
-| developer-agent | using-forge, resuming-sessions, guarding-loops, running-atdd-sessions, running-tdd-loops, managing-feature-flags |
-| qa-agent | using-forge, resuming-sessions, guarding-loops, writing-acceptance-tests, running-desk-checks, running-regression-suite, validating-test-harness |
-| devops-agent | using-forge, bootstrapping-project, managing-feature-flags, securing-pipeline, finishing-stories |
-| secops-agent | using-forge, modeling-threats, securing-pipeline |
-
----
-
-## Delivery State Machine
-
-Linear is the single source of truth for story state. The plugin coordinator
-owns pull→active transitions (claiming). Agents own active→next-pull transitions
-(completion).
-
-```
-                        ┌──────────────────┐
-                        │  in-analysis     │
-                        │  (PO refines)    │
-                        └────────┬─────────┘
-                                 │
-                    ┌────────────▼────────────┐
-                    │  ready-for-dev           │
-                    │  (plugin polls, claims)  │
-                    └────────────┬────────────┘
-                                 │ plugin claims
-                    ┌────────────▼────────────┐
-                    │  in-dev                  │
-                    │  (developer-agent ATDD)  │
-                    └────────────┬────────────┘
-                                 │ agent moves
-                    ┌────────────▼────────────┐
-                    │  ready-for-qa            │
-                    │  (plugin polls, claims)  │
-                    └────────────┬────────────┘
-                                 │ plugin claims
-                    ┌────────────▼────────────┐
-                    │  in-qa                   │
-                    │  (qa-agent regression)   │
-                    └────────────┬────────────┘
-                                 │ agent moves
-                    ┌────────────▼────────────┐
-                    │  ready-for-acceptance    │
-                    │  (plugin polls, claims)  │
-                    └────────────┬────────────┘
-                                 │ plugin claims
-                    ┌────────────▼────────────┐
-                    │  in-acceptance           │
-                    │  (po-agent smoke test)   │
-                    └────────────┬────────────┘
-                                 │ agent moves
-                    ┌────────────▼────────────┐
-                    │  ready-to-deploy         │
-                    │  (HUMAN GATE)            │
-                    └────────────┬────────────┘
-                                 │ /forge.approve
-                    ┌────────────▼────────────┐
-                    │  done                    │
-                    │  (devops deploys)        │
-                    └─────────────────────────┘
-
-          Failsafe (state unchanged + no comment):
-          ┌─────────────────────────────┐
-          │  halted-ambiguous            │
-          │  halted-stall                │
-          │  halted-human-gate            │
-          │  halted-unsafe               │
-          └─────────────────────────────┘
+    C0 --> C4
+    C0 --> C5
+    C1 --> C5
+    C1 --> C6
+    C7 --> C4
+    C7 --> C5
+    C4 --> C2
+    C4 --> C3
+    C4 --> C5
+    C4 --> C6
+    C4 --> C7
+    C5 --> C1
+    C5 --> C2
+    C5 --> C3
+    C3 --> C2
+    C3 --> C6
+    C6 --> C2
+    C6 --> C4
 ```
 
----
+Key observations:
+- **Session Lifecycle (C7)** is the event hub — `session.idle` routes to both
+  inception (C5) and dev/recovery (C4) based on plugin mode.
+- **Linear GraphQL (C2)** is the data layer — 6 of 8 areas call into it.
+- **Prompt & Failsafe (C6)** is called by both inception and dev flows to
+  build agent prompts with handoff context.
+- **Recovery & Dev Idle (C4)** has the most outgoing edges (4) — it handles
+  crash recovery, dev-mode dispatch, session errors, and failsafe.
 
-## Inception Flow (8 Phases)
+## Key Execution Flows
+
+The knowledge graph traced 28 execution flows. The 8 most architecturally
+significant are documented below.
+
+### 1. Inception Idle → Linear API (6 steps)
+
+Triggered when an inception session goes idle. Checks if the current phase's
+artifact exists; if so, advances to the next phase. After Phase 8, transitions
+from inception mode to development mode and starts polling Linear.
 
 ```
-Phase 1: Lean Canvas (po-agent)        → docs/lean-canvas.md
-    │
-Phase 2: Empathy Mapping (ux-agent)    → docs/empathy-map.md
-    │
-Phase 3: Trade-off Sliders (po-agent)  → project.constraints.yaml
-    │
-Phase 4: Event Storming (po-agent)     → docs/event-storm.yaml + CONTEXT.md
-    │
-Phase 5: UX/UI Design (ux-agent)       → design-system/MASTER.md
-    │
-Phase 6: Story Writing (po-agent)      → Stories in Linear (ready-for-dev)
-    │
-Phase 7: Tech Stack + Architecture     → docs/adr/ADR-001-platform.md
-    │      (architect-agent)             docs/adr/ADR-002-code-architecture.md
-    │
-Phase 8: Iteration Mapping (po-agent)   → Linear Projects + Cycles
-    │
-    ▼
-Development Mode (polling starts)
+session.idle → handleSessionIdle → handleInceptionIdle
+  → startPolling → pollAndCreate → createSessionForStory
+  → updateStoryState → graphql
 ```
 
----
+### 2. Inception Idle → Loop State Read (6 steps)
+
+Same trigger as above, but the flow through prompt building — reads the
+relevant `LOOP.md` skill file to construct the next agent's prompt with
+autonomous recovery instructions.
+
+```
+handleInceptionIdle → startPolling → pollAndCreate
+  → createSessionForStory → buildPrompt → readLoopMd
+```
+
+### 3. Session Idle → Active Session Search (6 steps)
+
+The core routing path. Every `session.idle` event enters `handleSessionIdle`,
+which checks `isForgeSession` / `isInceptionSession`, then routes to either
+`handleInceptionIdle` or `handleDevIdle`.
+
+```
+session.idle → handleSessionIdle → handleInceptionIdle
+  → startPolling → pollAndCreate → findActiveSession
+```
+
+### 4. Dev Idle → Linear API (5 steps)
+
+Triggered when a development-mode session goes idle. Calls `handleFailsafe`
+to check for a recent handoff comment. If found, auto-advances the story to
+the next Linear state and creates a new session for the next agent.
+
+```
+handleDevIdle → handleFailsafe → createSessionForStory
+  → updateStoryState → graphql
+```
+
+### 5. Failsafe → Linear API (4 steps)
+
+The failsafe mechanism. When a dev session goes idle but the agent forgot
+to advance the story state, the plugin reads the last comment. If it's a
+handoff comment (within 2 minutes), the plugin auto-advances the story.
+If no comment exists, the story is halted as `halted-ambiguous`.
+
+```
+handleFailsafe → createSessionForStory → getLastComment → graphql
+```
+
+### 6. Slash Command → Linear API (5 steps)
+
+Triggered by `/forge new project`. Checks if the Linear team already has
+Forge workflow states; if not, creates all 14 states. Then transitions to
+inception mode and starts Phase 1.
+
+```
+tui.command.execute → startNewProject → hasForgeStates
+  → getWorkflowStates → graphql
+```
+
+### 7. Crash Recovery → Linear API (3 steps)
+
+On plugin startup, `recoverOrphanedSessions` runs. It reads `.forge/sessions.json`,
+lists all opencode sessions, and for each Forge session that no longer exists
+in opencode, checks the story's Linear state to determine if it should be
+re-claimed or marked as done.
+
+```
+ForgePlugin → recoverOrphanedSessions → getStoryState → graphql
+```
+
+### 8. Compaction → Loop Injection (3 steps)
+
+When `experimental.session.compacting` fires, `handleCompaction` checks if
+the session is a Forge session. If it's an inception session, it injects the
+current loop state into the compaction context to preserve phase progress
+across context window resets.
+
+```
+experimental.session.compacting → handleCompaction → isInceptionSession
+```
 
 ## File Layout
 
 ```
 forge/
 ├── src/
-│   ├── plugin.ts          # Forge plugin (coordinator) — ~900 lines
-│   ├── linear-client.ts   # Read-only polling + claim + comment read — ~350 lines
-│   ├── prompt-builder.ts  # Prompt generation (dev, inception, recovery) — ~220 lines
-│   ├── config.ts          # forge.yaml load/save/validate — ~142 lines
-│   └── types.ts           # Shared types — ~150 lines
+│   ├── plugin.ts          # Plugin entry + all hooks + session management (~900 lines)
+│   ├── linear-client.ts   # Linear GraphQL client: poll, claim, comment, workflow states (~350 lines)
+│   ├── prompt-builder.ts  # Agent prompt construction: story + inception + loop prompts (~225 lines)
+│   ├── config.ts          # forge.yaml load/validate/save (142 lines)
+│   └── types.ts           # TypeScript types: ForgeConfig, Story, AgentRole, ForgeSessionInfo (~150 lines)
 ├── bin/
-│   └── forge.ts           # forge init CLI — ~100 lines
-├── tests/
-│   ├── plugin.test.ts     # 41 tests (prompts, failsafe, recovery, types)
-│   ├── config.test.ts     # 18 tests (load, validate, save)
-│   ├── linear-client.test.ts # 15 tests (poll, state, workflow)
-│   └── prompt-builder.test.ts # 14 tests (buildPrompt, buildLoopPrompt)
-├── agents/                # 7 agent definitions (.md with skill permissions)
+│   └── forge.ts           # CLI: `forge init` (installs plugin + agents + skills + commands)
+├── agents/                # 7 agent definitions with per-role skill permissions
 ├── skills/                # 24 skills (SKILL.md + LOOP.md each)
-├── integrations/          # 4 external tool installers (.sh)
-├── .opencode/
-│   ├── commands/forge/    # 4 slash commands
-│   ├── plugins/           # forge.ts (copied by forge init)
-│   ├── opencode.json      # Plugin registration + Linear MCP
-│   └── agents/            # Installed by forge init
-├── forge.yaml             # PM config (gitignored — has Linear API key)
-├── opencode.json          # MCP config + plugin registration
-├── package.json           # @loopworx/forge npm package
-├── tsconfig.json          # TypeScript config (strict, ESNext)
-├── .github/workflows/
-│   ├── ci.yml             # typecheck + test + build + verify init
-│   └── release.yml        # publish to npm on tag
-└── README.md
+├── .opencode/commands/forge/  # 4 slash commands (new-project, stop, status, approve)
+├── integrations/           # External tool installers (graphify, headroom, browser-use, ui-ux-pro-max)
+├── tests/                  # 87 tests across 4 files (198 expect calls)
+└── docs/                   # Loop state file templates (inception.loop.md, iteration-board.loop.md)
 ```
 
----
+## Design Decisions
 
-## Testing
+### 1. Plugin over Daemon
 
-87 tests across 4 files, all passing.
+The coordinator is an opencode plugin, not a separate PM daemon. This
+eliminates a process boundary, avoids IPC, and gives the plugin direct access
+to the opencode SDK (`client.session.create`, `client.session.promptAsync`,
+`client.tui.showToast`). The trade-off: the plugin only runs while opencode
+is running.
 
-```bash
-bun test          # run all tests
-bun run typecheck # tsc --noEmit (src/ + bin/)
-bun run build     # compile plugin to dist/plugin.js
-```
+### 2. Linear as State Spine
 
-| Test File | Tests | Coverage |
-|-----------|-------|----------|
-| plugin.test.ts | 41 | Prompt building, handoff comments, inception prompts, failsafe logic, crash recovery, session persistence, command routing |
-| config.test.ts | 18 | Config loading, validation, saving, defaults |
-| linear-client.test.ts | 15 | Poll stories, get state, workflow states, freshness check |
-| prompt-builder.test.ts | 14 | Dev prompts, QA prompts, PO prompts, recovery prompts, LOOP.md reading |
+All story state lives in Linear. The plugin polls Linear's GraphQL API on an
+interval, claims stories by transitioning their workflow state, and posts
+handoff comments that the next agent reads. This makes the state visible to
+humans in the Linear UI and eliminates the need for a separate database.
 
----
+### 3. session.idle as the Event Bus
 
-## Key Design Decisions
+opencode fires `session.idle` when an agent completes its work. The plugin
+uses this as the primary event to drive state transitions: idle in inception
+mode → check artifact → advance phase; idle in dev mode → check failsafe →
+advance story state → create next agent session.
 
-1. **Plugin, not daemon** — The coordinator runs inside opencode as a plugin. No separate process, no SQLite, no separate TUI.
+### 4. Failsafe Auto-Advance
 
-2. **Linear as state spine** — All delivery state lives in Linear. The plugin polls it. Agents write to it via Linear MCP.
+When a dev-mode session goes idle, the plugin reads the last comment on the
+story. If it was posted within 2 minutes (indicating a handoff), the plugin
+auto-advances the story to the next workflow state and creates a session for
+the next agent. If no recent comment exists, the story is halted as
+`halted-ambiguous` to prevent silent drift.
 
-3. **Coordinator owns claims** — The plugin moves stories from pull states to active states (e.g., ready-for-dev → in-dev). Agents move stories from active states to next pull states (e.g., in-dev → ready-for-qa).
+### 5. Crash Recovery on Startup
 
-4. **Handoff comments** — Agents post compact comments on Linear before ending. The plugin reads the last comment and includes it in the next agent's prompt. This gives instant context without plan files or conversation summaries.
+On plugin initialization, `recoverOrphanedSessions` checks
+`.forge/sessions.json` for sessions that no longer exist in opencode (crashed
+or closed). For each orphaned session, it reads the story's current Linear
+state and either re-claims it (creates a new session for the appropriate
+agent) or marks it as done if Linear already shows completion.
 
-5. **Failsafe via comment check** — If an agent ends its session without moving the Linear state, the plugin checks for a recent handoff comment. If one exists, it auto-advances. If not, it halts.
+### 6. Coordinator Owns Pull→Active, Agents Own Active→Next-Pull
 
-6. **Crash recovery via session.list()** — On plugin startup, the plugin reads `.forge/sessions.json`, calls `client.session.list()` to find dead sessions, checks Linear state, and creates recovery sessions for orphaned stories.
+The plugin (coordinator) is responsible for the `pull → active` transition —
+it polls Linear, claims a story, and creates a session. The agents are
+responsible for the `active → next-pull` transition — they post a handoff
+comment and the next `session.idle` triggers the failsafe to advance the
+story. This separation prevents race conditions where the coordinator and
+agent both try to transition state simultaneously.
 
-7. **Inception is sequential** — 8 phases, one at a time. Each phase produces an artifact. `session.idle` triggers the next phase. No polling during inception.
+### 7. Commit per AC Before Desk Check
 
-8. **Development is parallel** — Up to `max_concurrent_stories` can be active. Polling catches new stories. Session idle triggers handoffs.
+After each acceptance criterion turns GREEN, the developer agent must
+`git commit` and `git push` with the format
+`feat({STORY-ID}): AC{n} — {summary}` before proceeding to desk check. The
+Guardian skill verifies this commit exists via `git log`. This ensures
+working code is always in the repo before a story moves to QA.
+
+### 8. 8-Phase Inception with session.idle Transitions
+
+Inception has 8 sequential phases. The plugin doesn't time them — instead it
+hooks `session.idle`. When an inception session goes idle, it checks if the
+expected artifact for the current phase exists (e.g., `CONTEXT.md` for Phase
+2, `lean-canvas.md` for Phase 3). If the artifact exists, the phase advances
+and the next agent session is created with a phase-specific prompt. This
+makes inception self-pacing: slow phases get more time, fast phases move
+quickly.

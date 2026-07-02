@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 import { Command } from "commander";
-import { existsSync, copyFileSync, mkdirSync, cpSync, writeFileSync, readFileSync } from "node:fs";
+import { existsSync, copyFileSync, mkdirSync, cpSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const program = new Command();
@@ -14,7 +14,7 @@ program
   .command("init")
   .description("Initialize Forge in the current project")
   .option("--no-integrations", "Skip interactive integration selection")
-  .action(async (opts) => {
+  .action(async (_opts) => {
     const cwd = process.cwd();
     const packageRoot = join(import.meta.dir, "..");
 

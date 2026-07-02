@@ -5,14 +5,12 @@ import { loadConfig, saveConfig, validateConfig } from "./config";
 import { LinearClient } from "./linear-client";
 import { buildPrompt, buildLoopPrompt, buildInceptionPrompt } from "./prompt-builder";
 import type {
-  ForgeConfig,
   Story,
   AgentRole,
   LinearState,
   ForgeSessionInfo,
   InceptionPhase,
   ProjectState,
-  ForgeProjectMode,
   CommentWithDate,
 } from "./types";
 
@@ -312,7 +310,7 @@ export const ForgePlugin: Plugin = async ({ client, directory }) => {
     await handleDevIdle(sessionId);
   }
 
-  async function handleInceptionIdle(sessionId: string) {
+  async function handleInceptionIdle(_sessionId: string) {
     const currentPhase = projectState.inception.currentPhase;
     const phase = config.inception.phases.find((p) => p.phase === currentPhase);
 
@@ -761,7 +759,7 @@ export const ForgePlugin: Plugin = async ({ client, directory }) => {
       // non-fatal — treat all as unknown
     }
 
-    for (const [sessionId, info] of [...activeSessions]) {
+    for (const [sessionId, info] of activeSessions) {
       if (!liveSessionIds.has(sessionId)) {
         console.log(`[Forge] Orphaned session ${sessionId} (story ${info.storyId}). Checking Linear state...`);
 

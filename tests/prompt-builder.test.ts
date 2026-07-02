@@ -1,8 +1,8 @@
-import { describe, test, expect, beforeEach, afterEach, mock } from "bun:test";
-import { writeFileSync, mkdirSync, rmSync, readFileSync } from "node:fs";
+import { describe, test, expect, beforeEach, afterEach } from "bun:test";
+import { writeFileSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { buildPrompt, buildLoopPrompt, readLoopMd } from "../src/prompt-builder";
-import type { AgentRole, LinearState, Story } from "../src/types";
+import type { Story } from "../src/types";
 
 const TMP_DIR = join(import.meta.dir, ".tmp-prompt-test");
 

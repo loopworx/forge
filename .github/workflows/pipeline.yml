@@ -90,12 +90,15 @@ jobs:
           key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
       - name: Build
         run: bun run build
-      - name: Configure npm auth
-        run: echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
       - name: Publish to npm
         run: bun publish --access public
         env:
           NPM_CONFIG_PROVENANCE: true
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:

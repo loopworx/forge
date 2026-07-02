@@ -137,7 +137,7 @@ export interface BuildLoopPromptParams {
 }
 
 export function buildLoopPrompt(params: BuildLoopPromptParams): string {
-  const { agentName, story, linearState, workdir } = params;
+  const { agentName, story, linearState } = params;
 
   const lines: string[] = [];
 

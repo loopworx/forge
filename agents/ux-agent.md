@@ -1,7 +1,7 @@
 ---
 description: UX agent — empathy mapping, UX specs, frontend ACs, design systems
 mode: primary
-model: anthropic/claude-sonnet-4-20250514
+model: opencode/glm-5.2
 permission:
   skill:
     "using-forge": allow

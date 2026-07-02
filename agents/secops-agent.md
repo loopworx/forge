@@ -1,7 +1,7 @@
 ---
 description: SecOps agent — threat modeling, security ACs, pipeline gates
 mode: primary
-model: anthropic/claude-sonnet-4-20250514
+model: opencode/deepseek-v4-pro
 permission:
   skill:
     "using-forge": allow

@@ -1,7 +1,7 @@
 ---
 description: Architect agent — ADRs, service boundaries, tech debt, tech stack selection
 mode: primary
-model: anthropic/claude-sonnet-4-20250514
+model: opencode/glm-5.2
 permission:
   skill:
     "using-forge": allow

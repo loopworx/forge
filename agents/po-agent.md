@@ -1,7 +1,7 @@
 ---
 description: PO agent — inception, story writing, story acceptance, CONTEXT.md
 mode: primary
-model: anthropic/claude-sonnet-4-20250514
+model: opencode/glm-5.2
 permission:
   skill:
     "using-forge": allow

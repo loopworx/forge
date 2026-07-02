@@ -1,7 +1,7 @@
 ---
 description: DevOps agent — CI/CD, environments, Unleash, deployments
 mode: primary
-model: anthropic/claude-sonnet-4-20250514
+model: opencode/deepseek-v4-pro
 permission:
   skill:
     "using-forge": allow

@@ -1,7 +1,7 @@
 ---
 description: Developer agent — runs ATDD/TDD loops, writes contract tests, manages feature flags
 mode: primary
-model: anthropic/claude-sonnet-4-20250514
+model: opencode/deepseek-v4-pro
 permission:
   skill:
     "using-forge": allow

@@ -80,6 +80,8 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
@@ -94,13 +96,29 @@ jobs:
         with:
           node-version: "24"
           registry-url: "https://registry.npmjs.org"
+      - name: Determine next version
+        id: version
+        run: |
+          LATEST=$(npm view @loopworx/forge version 2>/dev/null || echo "0.0.0")
+          NEXT=$(node -e "const v='$LATEST'.split('.');v[2]=parseInt(v[2])+1;console.log(v.join('.'))")
+          echo "latest=$LATEST" >> $GITHUB_OUTPUT
+          echo "next=$NEXT" >> $GITHUB_OUTPUT
+          echo "Latest published: $LATEST → publishing: $NEXT"
+      - name: Bump version
+        run: npm version ${{ steps.version.outputs.next }} --git-tag-version false --allow-same-version
       - name: Publish to npm
         run: npm publish --access public
         env:
           NPM_CONFIG_PROVENANCE: true
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Tag and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag v${{ steps.version.outputs.next }}
+          git push origin v${{ steps.version.outputs.next }}
       - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ steps.version.outputs.next }}
           generate_release_notes: true

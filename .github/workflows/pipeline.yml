@@ -61,12 +61,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - name: Install loopkit
-        run: cargo install loopkit
-      - name: Verify skills
-        run: loopkit . --verbose
+      - uses: loopworx/loopkit@v1
 
   test:
     needs: [typecheck, lint, loopkit]

@@ -135,11 +135,13 @@ in-analysis → ready-for-dev → in-dev → ready-for-qa → in-qa
 All 24 skills are verified on every push by [loopkit](https://github.com/loopworx/loopkit) — a static analyzer for agent skill contracts. It validates state transitions, enforced states, handoff references, desk check patterns, bug feedback loops, progressive disclosure, naming conventions, and terminology across every SKILL.md and LOOP.md file.
 
 ```bash
-# Run locally (requires Rust)
+# Run locally
 cargo install loopkit
 loopkit .
 # 24 skills checked. 0 error(s), 0 warning(s). 205 verification(s) ran.
 ```
+
+The pipeline uses the [loopworx/loopkit](https://github.com/marketplace/actions/loopkit) GitHub Action for CI verification.
 
 ---
 

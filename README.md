@@ -141,7 +141,7 @@ loopkit .
 # 24 skills checked. 0 error(s), 0 warning(s). 205 verification(s) ran.
 ```
 
-The pipeline uses the [loopworx/loopkit](https://github.com/marketplace/actions/loopkit) GitHub Action for CI verification.
+The pipeline uses the [loopworx/loopkit](https://github.com/loopworx/loopkit) GitHub Action for CI verification.
 
 ---
 

@@ -1,5 +1,9 @@
 # Forge
 
+<p align="center">
+  <img src="docs/logo.jpeg" alt="Forge logo" width="320" />
+</p>
+
 [![Pipeline](https://github.com/loopworx/forge/actions/workflows/pipeline.yml/badge.svg)](https://github.com/loopworx/forge/actions/workflows/pipeline.yml)
 [![npm version](https://img.shields.io/npm/v/@loopworx/forge.svg)](https://www.npmjs.com/package/@loopworx/forge)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)

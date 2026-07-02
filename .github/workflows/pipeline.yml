@@ -61,7 +61,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: loopworx/loopkit@v0.3.3
+      - uses: loopworx/loopkit@main
 
   test:
     needs: [typecheck, lint, loopkit]

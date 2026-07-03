@@ -12,7 +12,29 @@ description: Facilitates a new project inception from Lean Canvas through iterat
 
 ## Description
 
-Facilitates the full inception process for a new project across 8 sequential phases: Lean Canvas, Empathy Mapping, Trade-off Sliders, Event Storming, UX/UI Design, Story Writing, Tech Stack + Architecture, and Iteration Mapping. Each phase produces a mandatory artifact before the next phase opens. Do not skip phases. Do not combine phases. Inception ends when the iteration map is committed to Linear and CONTEXT.md is in the repo root.
+Facilitates the full inception process for a new project across 8 sequential phases: Lean Canvas, Empathy Mapping, Trade-off Sliders, Event Storming, UX/UI Design, Story Writing, Tech Stack + Architecture, and Iteration Mapping. Each phase produces a mandatory artifact before the next phase opens. Do not skip phases. Do not combine phases.
+
+## CRITICAL: Plugin–Agent Boundary
+
+**The Forge plugin handles ALL infrastructure. Your session was created by the plugin.** Before your session started, the plugin already:
+- Discovered and selected the correct Linear team
+- Created or verified all 14 Forge workflow states in Linear
+- Created this session with the correct agent role
+- Routed you to the correct inception phase
+
+**Your job is ONE phase.** Read the phase matching your session title (e.g., "Inception Phase 1 — Lean Canvas"). Execute only that phase. Produce its one artifact. Seek human approval. End your session. The plugin creates the next session.
+
+**Never do any of the following** — these are the plugin's job, not yours:
+- Discover or select a Linear team
+- Create or verify Linear workflow states (in-analysis, ready-for-dev, in-dev, ready-for-qa, in-qa, ready-for-acceptance, in-acceptance, ready-to-deploy, done, halted-*)
+- Create new sessions for subsequent phases
+- Chain multiple inception phases in one session
+- Read or modify `.forge/` directory files (sessions.json, project-state.json)
+- Read plugin source code (forge.ts, plugin.ts, mcp-client.ts) to understand infrastructure
+
+If you need a Linear operation that the plugin doesn't expose (e.g., creating issues during Phase 6), use the Linear MCP tools directly — but ONLY for content operations, never infrastructure.
+
+Inception ends when the iteration map is committed to Linear and CONTEXT.md is in the repo root. The plugin transitions to development mode automatically.
 
 ---
 

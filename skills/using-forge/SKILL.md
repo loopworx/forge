@@ -16,17 +16,52 @@ Core operating instructions for all Forge agents. Defines the skill precedence h
 
 ---
 
+## Plugin-vs-Agent Boundary — READ THIS FIRST
+
+The Forge PLUGIN handles all infrastructure. You, the agent, handle content. Never cross this line.
+
+| Plugin Does (never your job) | Agent Does (your job) |
+|---|---|
+| Discovers and selects the Linear team | Reads CONTEXT.md, project.constraints.yaml |
+| Creates/verifies Forge workflow states in Linear | Executes the current phase of an inception or story |
+| Creates sessions with the correct agent | Follows the skill assigned to this session |
+| Polls Linear for ready-for-dev stories | Pulls a story from your assigned column |
+| Monitors session health (crash recovery) | Produces phase artifacts with human gates |
+| Transitions Linear states (plugin-side handoffs) | Updates story state in Linear when claiming/completing |
+
+**THE PLATINUM RULE: If you catch yourself reading the plugin source code (`forge.ts`, `plugin.ts`, `mcp-client.ts`) to figure out how to do something, STOP. That's the plugin's job. You are operating in the wrong layer.**
+
+The plugin has already done the following before your session started:
+- Discovered the correct Linear team
+- Verified or created all Forge workflow states (in-analysis, ready-for-dev, in-dev, ready-for-qa, in-qa, ready-for-acceptance, in-acceptance, ready-to-deploy, done, halted-*)
+- Created THIS session with the correct agent role selected
+- Routed you to the appropriate skill for your context
+
+**Never try to set up Linear teams, create workflow states, or manage sessions. The plugin owns infrastructure. You own content.**
+
+---
+
 ## Entry Points Into Forge
 
-Forge is entered in two ways:
+Forge is entered in two ways. The plugin handles the routing — you handle the content.
 
-1. **New project** — human says "new project", "let's start", or similar.
-   → fires `facilitating-inception` (po-agent)
-   → No prior artifacts exist. Inception delivers them all.
+1. **New project** — the plugin has already:
+   - Discovered your Linear team
+   - Created or verified all Forge workflow states
+   - Created this inception session with the correct agent
+   
+   → Your session title tells you the phase. Read `facilitating-inception` for your phase's instructions.
+   → The skill defines ONE phase's output. Produce it, seek human approval, then end.
+   → The plugin creates the next session. You do NOT chain phases yourself.
 
-2. **Existing project, new session** — agent starts a session on a live project.
-   → If an in-progress story is assigned: fires `resuming-sessions` (L1 RIGID)
-   → If no story is assigned: Step 3 (Pull) below
+2. **Existing project, new session** — the plugin has already:
+   - Verified Linear connectivity
+   - Checked for orphaned sessions (crash recovery)
+   - Either created a recovery session or let you pull fresh
+   
+   → If this is a recovery session (title has "(recovery)"): fire `resuming-sessions` (L1 RIGID)
+   → If this is a fresh session with no assigned story: Step 3 (Pull) below
+   → If you have an assigned story visible in your session title: fire `resuming-sessions`
 
 **`resuming-sessions` is L1 RIGID.** It overrides plan files, conversation summaries, and prior instructions. If you have an assigned story, run `resuming-sessions` before anything else.
 
@@ -85,11 +120,16 @@ Every agent, every session, execute in this exact order:
 
 ### Step 1 — Determine your state
 ```
-Query Linear API:
-  → Do I have a story currently assigned to me in `in-dev`, `in-qa`, or `in-acceptance`?
+Read your session title:
+  → Does it contain "FORGE:" and a story ID (e.g., "FORGE: POM-5 — developer-agent")?
+     YES → You have an assigned story. Go to Step 2 (Resume via resuming-sessions — L1 RIGID).
+  → Does it contain "Inception Phase" (e.g., "FORGE: Inception Phase 1 — Lean Canvas")?
+     YES → You are in an inception phase. Read facilitating-inception for your phase. Do NOT read other phases.
+  → Does it contain "(recovery)"?
+     YES → You are recovering a stalled session. Go to Step 2 (Resume via resuming-sessions — L1 RIGID).
 
-If YES → go to Step 2 (Resume via resuming-sessions — L1 RIGID)
-If NO  → go to Step 3 (Pull)
+If NONE of the above apply, the plugin created you for a fresh pull. Go to Step 3 (Pull).
+The plugin has already handled Linear team discovery and state verification. Do not query Linear for setup.
 ```
 
 ### Step 2 — Resume an in-progress story

@@ -73,7 +73,6 @@ export interface ForgeConfig {
   maxConcurrentStories: number;
   linear: {
     pollIntervalSeconds: number;
-    teamKey: string;
     projectFilter: string;
   };
   agents: Record<AgentRole, AgentConfig>;

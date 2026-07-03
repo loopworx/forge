@@ -10,7 +10,6 @@ max_concurrent_stories: 5
 
 linear:
   poll_interval_seconds: 10
-  team_key: "loopworx"
   project_filter: ""
 
 agents:
@@ -188,7 +187,6 @@ describe("config", () => {
       expect(config).toBeDefined();
       expect(config.active).toBe(false);
       expect(config.maxConcurrentStories).toBe(5);
-      expect(config.linear.teamKey).toBe("loopworx");
       expect(config.linear.pollIntervalSeconds).toBe(10);
     });
 
@@ -290,16 +288,6 @@ describe("config", () => {
       expect(errors).toHaveLength(0);
     });
 
-    test("missing team_key fails validation", () => {
-      const configPath = join(TMP_DIR, "forge.yaml");
-      writeFileSync(configPath, VALID_CONFIG.replace('team_key: "loopworx"', 'team_key: ""'));
-
-      const config = loadConfig(configPath);
-      const errors = validateConfig(config);
-
-      expect(errors).toContain("linear.team_key is required");
-    });
-
     test("zero poll interval fails validation", () => {
       const configPath = join(TMP_DIR, "forge.yaml");
       writeFileSync(configPath, VALID_CONFIG.replace("poll_interval_seconds: 10", "poll_interval_seconds: 0"));
@@ -368,8 +356,7 @@ describe("config", () => {
       expect(config.active).toBe(false);
       expect(config.maxConcurrentStories).toBe(5);
       expect(config.linear.pollIntervalSeconds).toBe(10);
-      expect(config.linear.teamKey).toBe("");
-      expect(errors).toContain("linear.team_key is required");
+      expect(errors).toHaveLength(0);
     });
 
     test("generated YAML includes all 7 agents", () => {
@@ -407,9 +394,9 @@ describe("config", () => {
     test("generated YAML has greenfield defaults (empty keys, inactive)", () => {
       const yaml = generateForgeYaml();
 
-      expect(yaml).toContain('team_key: ""');
       expect(yaml).toContain("active: false");
       expect(yaml).toContain("project_filter: \"\"");
+      expect(yaml).not.toContain("team_key");
       expect(yaml).not.toContain("api_key");
     });
 
@@ -439,44 +426,6 @@ describe("config", () => {
       expect(config.triggers.iterationZero.gate.agent).toBe("qa-agent");
       expect(config.triggers.architectureBlocked.agent).toBe("architect-agent");
       expect(config.triggers.securityReview.agent).toBe("secops-agent");
-    });
-  });
-
-  describe("env var fallback", () => {
-    const prevTeamKey = process.env.LINEAR_TEAM_KEY;
-
-    afterEach(() => {
-      if (prevTeamKey) process.env.LINEAR_TEAM_KEY = prevTeamKey;
-      else delete process.env.LINEAR_TEAM_KEY;
-    });
-
-    test("falls back to LINEAR_TEAM_KEY env var when forge.yaml has empty team_key", () => {
-      process.env.LINEAR_TEAM_KEY = "ENVTEAM";
-      const configPath = join(TMP_DIR, "forge.yaml");
-
-      const yamlWithoutTeam = VALID_CONFIG.replace('team_key: "loopworx"', 'team_key: ""');
-      writeFileSync(configPath, yamlWithoutTeam);
-
-      const config = loadConfig(configPath);
-      expect(config.linear.teamKey).toBe("ENVTEAM");
-    });
-
-    test("forge.yaml team_key takes precedence over env var", () => {
-      process.env.LINEAR_TEAM_KEY = "env_team_should_not_win";
-      const configPath = join(TMP_DIR, "forge.yaml");
-      writeFileSync(configPath, VALID_CONFIG);
-
-      const config = loadConfig(configPath);
-      expect(config.linear.teamKey).toBe("loopworx");
-    });
-
-    test("generateForgeYaml leaves empty team_key so env vars can fill it", () => {
-      process.env.LINEAR_TEAM_KEY = "ENV";
-      const configPath = join(TMP_DIR, "generated-forge.yaml");
-      writeFileSync(configPath, generateForgeYaml());
-
-      const config = loadConfig(configPath);
-      expect(config.linear.teamKey).toBe("ENV");
     });
   });
 });

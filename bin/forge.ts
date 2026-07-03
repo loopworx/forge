@@ -2,17 +2,30 @@
 import { Command } from "commander";
 import { existsSync, mkdirSync, cpSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { createInterface } from "node:readline";
+import { spawnSync } from "node:child_process";
 import { generateForgeYaml } from "../src/config";
 
-function prompt(question: string): Promise<string> {
-  const rl = createInterface({ input: process.stdin, output: process.stdout });
-  return new Promise((resolve) => {
-    rl.question(question, (answer) => {
-      rl.close();
-      resolve(answer.trim());
-    });
+function findBinary(name: string): string | null {
+  const result = spawnSync("which", [name], { stdio: ["pipe", "pipe", "pipe"] });
+  if (result.status !== 0) return null;
+  return result.stdout.toString().trim() || null;
+}
+
+function mcpAuthStatus(): "authenticated" | "not-authenticated" | "unknown" {
+  const result = spawnSync("opencode", ["mcp", "auth", "ls"], {
+    stdio: ["pipe", "pipe", "pipe"],
   });
+  const output = result.stdout.toString();
+  if (output.includes("✓ linear")) return "authenticated";
+  if (output.includes("✗ linear")) return "not-authenticated";
+  return "unknown";
+}
+
+function runOAuth(): boolean {
+  const result = spawnSync("opencode", ["mcp", "auth", "linear"], {
+    stdio: "inherit",
+  });
+  return result.status === 0;
 }
 
 const program = new Command();
@@ -26,7 +39,8 @@ program
   .command("init")
   .description("Initialize Forge in the current project")
   .option("--no-integrations", "Skip interactive integration selection")
-  .action(async (_opts) => {
+  .option("--skip-auth", "Skip Linear authentication")
+  .action(async (opts) => {
     const cwd = process.cwd();
     const packageRoot = join(import.meta.dir, "..");
 
@@ -70,23 +84,7 @@ program
 
     const configPath = join(cwd, "forge.yaml");
     if (!existsSync(configPath)) {
-      console.log();
-      console.log("Linear configuration");
-      console.log("-".repeat(30));
-      console.log("The plugin reuses the OAuth token from 'opencode mcp auth linear'.");
-      console.log("No API key needed — just your team key.");
-      console.log("If you prefer env vars, set LINEAR_TEAM_KEY and skip this prompt.");
-      console.log();
-
-      const teamKey = await prompt("  Team key (e.g. FOR): ");
-
-      const yaml = generateForgeYaml()
-        .replace('team_key: ""', `team_key: "${teamKey || ""}"`);
-      writeFileSync(configPath, yaml);
-
-      if (!teamKey) {
-        console.log("  ⚠  Team key left blank — set LINEAR_TEAM_KEY env var instead.");
-      }
+      writeFileSync(configPath, generateForgeYaml());
       console.log("  ✓ forge.yaml created");
     } else {
       console.log("  ✓ forge.yaml already exists (skipped)");
@@ -96,21 +94,10 @@ program
     if (!existsSync(opencodeJsonPath)) {
       const config = {
         $schema: "https://opencode.ai/config.json",
-        plugin: [
-          ".opencode/plugins/forge.ts"
-        ],
-        mcp: {
-          linear: {
-            type: "remote",
-            url: "https://mcp.linear.app/mcp",
-            enabled: true,
-            oauth: {},
-          },
-        },
+        plugin: [".opencode/plugins/forge.ts"],
       };
       writeFileSync(opencodeJsonPath, JSON.stringify(config, null, 2));
-      console.log("  ✓ opencode.json created (with Linear MCP + Forge plugin config)");
-      console.log("    Run: opencode mcp auth linear");
+      console.log("  ✓ opencode.json created (Forge plugin registered)");
     } else {
       console.log("  ✓ opencode.json already exists (skipped)");
     }
@@ -119,10 +106,49 @@ program
     writeFileSync(join(cwd, "stories", ".gitkeep"), "");
     console.log("  ✓ stories/ directory created");
 
+    if (opts.skipAuth) {
+      console.log();
+      console.log("Skipped Linear authentication (--skip-auth).");
+      console.log("Run manually: opencode mcp add linear --url https://mcp.linear.app/mcp");
+      console.log("              opencode mcp auth linear");
+      return;
+    }
+
+    const opencodeBin = findBinary("opencode");
+    if (!opencodeBin) {
+      console.log();
+      console.log("⚠  opencode CLI not found. Install it: https://opencode.ai");
+      console.log("   Then run: opencode mcp add linear --url https://mcp.linear.app/mcp");
+      console.log("             opencode mcp auth linear");
+      return;
+    }
+
     console.log();
-    console.log("Forge is ready. Next steps:");
-    console.log("  1. Run: opencode mcp auth linear  (OAuth for agent interactions)");
-    console.log("  2. Open opencode and run: /forge new project");
+    console.log("Linear setup");
+    console.log("-".repeat(30));
+
+    console.log("  Registering Linear MCP server...");
+    spawnSync("opencode", ["mcp", "add", "linear", "--url", "https://mcp.linear.app/mcp"], {
+      stdio: "pipe",
+    });
+    console.log("  ✓ Linear MCP server registered");
+
+    const status = mcpAuthStatus();
+    if (status === "authenticated") {
+      console.log("  ✓ Linear already authenticated");
+    } else {
+      console.log("  Authenticating with Linear (opens browser)...");
+      const ok = runOAuth();
+      if (!ok) {
+        console.log("  ⚠  Authentication was cancelled or failed.");
+        console.log("     Run manually: opencode mcp auth linear");
+        return;
+      }
+      console.log("  ✓ Linear authenticated");
+    }
+
+    console.log();
+    console.log("Forge is ready. Open opencode and run: /forge new project");
   });
 
 program.parse();

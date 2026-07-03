@@ -8,7 +8,6 @@ const TOKEN_URL = "https://mcp.linear.app/token";
 const AUTH_FILE = join(homedir(), ".local", "share", "opencode", "mcp-auth.json");
 
 interface McpClientOptions {
-  teamKey: string;
   projectFilter?: string;
   maxRetries?: number;
   retryDelayMs?: number;
@@ -21,19 +20,56 @@ interface AuthTokens {
   clientId: string;
 }
 
+export interface TeamInfo {
+  id: string;
+  name: string;
+}
+
 export class McpClient {
-  private teamKey: string;
+  teamId: string | null = null;
+  teamName: string | null = null;
   private projectFilter: string;
   private maxRetries: number;
   private retryDelayMs: number;
   private auth: AuthTokens | null = null;
   private requestId = 0;
 
-  constructor(opts: McpClientOptions) {
-    this.teamKey = opts.teamKey;
+  constructor(opts: McpClientOptions = {}) {
     this.projectFilter = opts.projectFilter ?? "";
     this.maxRetries = opts.maxRetries ?? 3;
     this.retryDelayMs = opts.retryDelayMs ?? 1000;
+  }
+
+  get hasTeam(): boolean {
+    return this.teamId !== null;
+  }
+
+  private ensureTeam(): void {
+    if (!this.teamId) {
+      throw new Error("Team not discovered. Call discoverTeam() first.");
+    }
+  }
+
+  async discoverTeam(): Promise<TeamInfo | null> {
+    const teams = await this.listTeams();
+
+    if (teams.length === 0) {
+      return null;
+    }
+
+    if (teams.length === 1) {
+      this.teamId = teams[0].id;
+      this.teamName = teams[0].name;
+      return teams[0];
+    }
+
+    return null;
+  }
+
+  async listTeams(): Promise<TeamInfo[]> {
+    const result = await this.callTool("list_teams", {});
+    const items = result?.teams ?? [];
+    return items.map((t: any) => ({ id: t.id, name: t.name }));
   }
 
   private async loadAuth(): Promise<AuthTokens> {
@@ -171,13 +207,14 @@ export class McpClient {
   }
 
   async pollStories(pullStates: LinearState[]): Promise<Story[]> {
+    this.ensureTeam();
     const allStories: Story[] = [];
     const seen = new Set<string>();
 
     for (const state of pullStates) {
       try {
         const args: Record<string, unknown> = {
-          team: this.teamKey,
+          team: this.teamId!,
           state,
           limit: 50,
         };
@@ -216,16 +253,18 @@ export class McpClient {
   }
 
   async getIssueCount(): Promise<number> {
+    this.ensureTeam();
     const result = await this.callTool("list_issues", {
-      team: this.teamKey,
+      team: this.teamId!,
       limit: 1,
     });
     return result?.issues?.length ?? 0;
   }
 
   async getWorkflowStates(): Promise<WorkflowStateInfo[]> {
+    this.ensureTeam();
     const result = await this.callTool("list_issue_statuses", {
-      team: this.teamKey,
+      team: this.teamId!,
     });
 
     const states = Array.isArray(result) ? result : (result?.states ?? []);
@@ -237,15 +276,9 @@ export class McpClient {
     }));
   }
 
-  async getTeamId(): Promise<string> {
-    const result = await this.callTool("get_team", { query: this.teamKey });
-    return result?.id ?? "";
-  }
-
   async ensureWorkflowStates(): Promise<{ created: string[]; existing: string[]; skipped: string[] }> {
     // The Linear MCP does not expose a "create workflow state" tool.
     // Workflow states must be created manually in Linear before using Forge.
-    // We check which Forge states are present and which are missing.
     const existingStates = await this.getWorkflowStates();
     const existingNames = new Set(existingStates.map((s) => s.name));
 

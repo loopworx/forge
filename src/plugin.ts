@@ -43,13 +43,31 @@ export const ForgePlugin: Plugin = async ({ client, directory }) => {
   }
 
   const linear = new McpClient({
-    teamKey: config.linear.teamKey,
     projectFilter: config.linear.projectFilter || undefined,
   });
 
   const forgeDir = join(directory, ".forge");
   if (!existsSync(forgeDir)) {
     mkdirSync(forgeDir, { recursive: true });
+  }
+
+  try {
+    const team = await linear.discoverTeam();
+    if (!team) {
+      const teams = await linear.listTeams();
+      if (teams.length === 0) {
+        console.error("[Forge] No teams found in your Linear workspace.");
+        return {};
+      }
+      const names = teams.map((t) => t.name).join(", ");
+      console.error(`[Forge] Multiple teams found: ${names}.`);
+      console.error(`[Forge] Add team_id to forge.yaml to pick one, or reduce to a single team.`);
+      return {};
+    }
+    console.log(`[Forge] Auto-detected team: ${team.name} (${team.id})`);
+  } catch (err) {
+    console.error("[Forge] Failed to discover Linear team:", (err as Error).message);
+    return {};
   }
 
   const activeSessions = new Map<string, ForgeSessionInfo>();

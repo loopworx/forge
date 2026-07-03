@@ -16,10 +16,9 @@
 
 ## How It Works
 
-1. **Install** — `forge init` drops the plugin, 7 agent definitions, 24 skills, and slash commands into your project's `.opencode/` directory
-2. **Authenticate** — `opencode mcp auth linear` connects to your Linear workspace
-3. **Start** — `/forge new project` kicks off the 8-phase inception flow
-4. **Deliver** — after inception, the plugin polls Linear for stories, claims them, creates agent sessions, and coordinates the delivery pipeline
+1. **Install** — `forge init` drops the plugin, 7 agent definitions, 24 skills, slash commands, and handles Linear authentication
+2. **Start** — `/forge new project` kicks off the 8-phase inception flow
+3. **Deliver** — after inception, the plugin polls Linear for stories, claims them, creates agent sessions, and coordinates the delivery pipeline
 
 There is no separate process or daemon. The plugin activates when you run `/forge new project` and stops with `/forge.stop`.
 
@@ -54,20 +53,15 @@ Each agent loads its assigned skills at session start. Roles are enforced by ski
 bun add -g @loopworx/forge
 # or: npm install -g @loopworx/forge
 
-# Initialize in your project
+# Initialize in your project (handles everything — auth included)
 cd my-project
 forge init
-# (you'll be prompted for your Linear team key — no API key needed)
 
-# Authenticate with Linear (single OAuth step — used by both agents and the plugin)
-opencode mcp auth linear
-
-# Start the inception flow
-# (run this inside opencode)
+# Start the inception flow (run this inside opencode)
 /forge new project
 ```
 
-`/forge new project` starts the inception flow. `forge init` prompts for your Linear team key. No API key needed — the plugin reuses the OAuth token from `opencode mcp auth linear`.
+`forge init` is a single zero-config command: it installs all files, registers the Linear MCP server, and authenticates via OAuth (opens your browser). The plugin auto-discovers your Linear team from the OAuth session — no API keys, no team keys, no manual steps.
 
 ### What `forge init` installs
 
@@ -77,7 +71,7 @@ opencode mcp auth linear
 | `.opencode/agents/` | 7 agent definitions with skill permissions |
 | `.opencode/skills/` | 24 skills (SKILL.md + LOOP.md each) |
 | `.opencode/commands/forge/` | Slash commands: `new-project`, `stop`, `status`, `approve` |
-| `forge.yaml` | Plugin config — just your Linear team key (auth is OAuth-based via `opencode mcp auth linear`) |
+| `forge.yaml` | Plugin config — poll interval, concurrency, inception phases (no auth config needed) |
 | `opencode.json` | Linear MCP server config + plugin registration |
 
 ---
@@ -157,7 +151,7 @@ bun install
 # Checks
 bun run lint       # oxlint — 0 warnings, 0 errors
 bun run typecheck  # tsc --noEmit
-bun test           # 94 tests, 240 expect calls
+bun test           # 92 tests, 242 expect calls
 bun run build      # compile plugin → dist/plugin.js
 
 # Test forge init locally

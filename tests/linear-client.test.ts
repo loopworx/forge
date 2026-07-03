@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { McpClient } from "../src/mcp-client";
 
 const TMP_DIR = join(import.meta.dir, ".tmp-linear-test");
+const TEST_TEAM_ID = "87fdc827-cb83-43ae-838b-ed7d978f3dff";
 
 function mcpResponse(innerData: unknown) {
   return {
@@ -30,6 +31,13 @@ const mockFetch = (response: { status: number; body: unknown }) => {
   });
 };
 
+function createClient(opts?: { projectFilter?: string; maxRetries?: number; retryDelayMs?: number }) {
+  const client = new McpClient(opts);
+  client.teamId = TEST_TEAM_ID;
+  client.teamName = "Forge-test";
+  return client;
+}
+
 describe("McpClient", () => {
   beforeEach(() => {
     mkdirSync(TMP_DIR, { recursive: true });
@@ -55,7 +63,7 @@ describe("McpClient", () => {
         ],
       })) as typeof fetch;
 
-      const client = new McpClient({ teamKey: "loopworx" });
+      const client = createClient();
       const stories = await client.pollStories(["ready-for-dev"]);
 
       expect(stories).toHaveLength(1);
@@ -69,7 +77,7 @@ describe("McpClient", () => {
     test("returns empty array when no stories in pull states", async () => {
       globalThis.fetch = mockFetch(mcpResponse({ issues: [] })) as typeof fetch;
 
-      const client = new McpClient({ teamKey: "loopworx" });
+      const client = createClient();
       const stories = await client.pollStories(["ready-for-dev"]);
 
       expect(stories).toEqual([]);
@@ -88,7 +96,7 @@ describe("McpClient", () => {
         } as Response;
       }) as typeof fetch;
 
-      const client = new McpClient({ teamKey: "loopworx", projectFilter: "Iteration 1" });
+      const client = createClient({ projectFilter: "Iteration 1" });
       await client.pollStories(["ready-for-dev"]);
 
       expect(capturedBody).toContain("Iteration 1");
@@ -116,7 +124,7 @@ describe("McpClient", () => {
         } as Response;
       }) as typeof fetch;
 
-      const client = new McpClient({ teamKey: "loopworx", maxRetries: 3, retryDelayMs: 1 });
+      const client = createClient({ maxRetries: 3, retryDelayMs: 1 });
       const stories = await client.pollStories(["ready-for-dev"]);
 
       expect(callCount).toBe(3);
@@ -136,7 +144,7 @@ describe("McpClient", () => {
         } as Response;
       }) as typeof fetch;
 
-      const client = new McpClient({ teamKey: "loopworx", maxRetries: 2, retryDelayMs: 1 });
+      const client = createClient({ maxRetries: 2, retryDelayMs: 1 });
       const stories = await client.pollStories(["ready-for-dev"]);
 
       expect(callCount).toBe(2);
@@ -152,7 +160,7 @@ describe("McpClient", () => {
         title: "test",
       })) as typeof fetch;
 
-      const client = new McpClient({ teamKey: "loopworx" });
+      const client = createClient();
       const state = await client.getStoryState("STORY-001");
 
       expect(state).toBe("in-dev");
@@ -163,7 +171,7 @@ describe("McpClient", () => {
     test("returns 0 for fresh team", async () => {
       globalThis.fetch = mockFetch(mcpResponse({ issues: [] })) as typeof fetch;
 
-      const client = new McpClient({ teamKey: "loopworx" });
+      const client = createClient();
       const count = await client.getIssueCount();
 
       expect(count).toBe(0);
@@ -174,7 +182,7 @@ describe("McpClient", () => {
         issues: [{ id: "1" }, { id: "2" }],
       })) as typeof fetch;
 
-      const client = new McpClient({ teamKey: "loopworx" });
+      const client = createClient();
       const count = await client.getIssueCount();
 
       expect(count).toBe(2);
@@ -188,7 +196,7 @@ describe("McpClient", () => {
         { id: "s2", name: "ready-for-dev", type: "unstarted", position: 2000 },
       ])) as typeof fetch;
 
-      const client = new McpClient({ teamKey: "loopworx" });
+      const client = createClient();
       const states = await client.getWorkflowStates();
 
       expect(states).toHaveLength(2);
@@ -197,26 +205,11 @@ describe("McpClient", () => {
     });
   });
 
-  describe("getTeamId", () => {
-    test("returns team ID", async () => {
-      globalThis.fetch = mockFetch(mcpResponse({
-        id: "team-123",
-        name: "Forge-test",
-        key: "FOR",
-      })) as typeof fetch;
-
-      const client = new McpClient({ teamKey: "FOR" });
-      const teamId = await client.getTeamId();
-
-      expect(teamId).toBe("team-123");
-    });
-  });
-
   describe("isFreshTeam", () => {
     test("returns true when team has no issues", async () => {
       globalThis.fetch = mockFetch(mcpResponse({ issues: [] })) as typeof fetch;
 
-      const client = new McpClient({ teamKey: "loopworx" });
+      const client = createClient();
       const isFresh = await client.isFreshTeam();
 
       expect(isFresh).toBe(true);
@@ -225,7 +218,7 @@ describe("McpClient", () => {
     test("returns false when team has issues", async () => {
       globalThis.fetch = mockFetch(mcpResponse({ issues: [{ id: "1" }] })) as typeof fetch;
 
-      const client = new McpClient({ teamKey: "loopworx" });
+      const client = createClient();
       const isFresh = await client.isFreshTeam();
 
       expect(isFresh).toBe(false);
@@ -239,7 +232,7 @@ describe("McpClient", () => {
         { id: "s2", name: "ready-for-dev", type: "unstarted", position: 2000 },
       ])) as typeof fetch;
 
-      const client = new McpClient({ teamKey: "loopworx" });
+      const client = createClient();
       const hasStates = await client.hasForgeStates();
 
       expect(hasStates).toBe(true);
@@ -251,7 +244,7 @@ describe("McpClient", () => {
         { id: "s2", name: "Done", type: "completed", position: 3 },
       ])) as typeof fetch;
 
-      const client = new McpClient({ teamKey: "loopworx" });
+      const client = createClient();
       const hasStates = await client.hasForgeStates();
 
       expect(hasStates).toBe(false);
@@ -265,13 +258,60 @@ describe("McpClient", () => {
         { id: "s2", name: "ready-for-dev", type: "unstarted", position: 2000 },
       ])) as typeof fetch;
 
-      const client = new McpClient({ teamKey: "FOR" });
+      const client = createClient();
       const result = await client.ensureWorkflowStates();
 
       expect(result.created).toHaveLength(0);
       expect(result.skipped.length).toBeGreaterThan(0);
       expect(result.existing).toContain("in-analysis");
       expect(result.existing).toContain("ready-for-dev");
+    });
+  });
+
+  describe("discoverTeam", () => {
+    test("returns team info when exactly 1 team exists", async () => {
+      globalThis.fetch = mockFetch(mcpResponse({
+        teams: [{ id: "team-1", name: "My Team" }],
+        hasNextPage: false,
+      })) as typeof fetch;
+
+      const client = new McpClient();
+      const team = await client.discoverTeam();
+
+      expect(team).not.toBeNull();
+      expect(team!.id).toBe("team-1");
+      expect(team!.name).toBe("My Team");
+      expect(client.teamId).toBe("team-1");
+      expect(client.teamName).toBe("My Team");
+    });
+
+    test("returns null when 0 teams exist", async () => {
+      globalThis.fetch = mockFetch(mcpResponse({
+        teams: [],
+        hasNextPage: false,
+      })) as typeof fetch;
+
+      const client = new McpClient();
+      const team = await client.discoverTeam();
+
+      expect(team).toBeNull();
+      expect(client.teamId).toBeNull();
+    });
+
+    test("returns null when multiple teams exist", async () => {
+      globalThis.fetch = mockFetch(mcpResponse({
+        teams: [
+          { id: "team-1", name: "Team A" },
+          { id: "team-2", name: "Team B" },
+        ],
+        hasNextPage: false,
+      })) as typeof fetch;
+
+      const client = new McpClient();
+      const team = await client.discoverTeam();
+
+      expect(team).toBeNull();
+      expect(client.teamId).toBeNull();
     });
   });
 });

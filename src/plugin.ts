@@ -60,27 +60,6 @@ export const ForgePlugin: Plugin = async ({ client, directory, serverUrl }) => {
       await client.tui.showToast({
         body: { message: `Forge: Team ${team.name} discovered`, variant: "info" },
       });
-      try {
-        const statesResult = await linear.ensureWorkflowStates();
-        const msg = `Forge: ${statesResult.created.length} states created, ${statesResult.existing.length} existing`;
-        await client.tui.showToast({
-          body: {
-            message: msg,
-            variant: statesResult.created.length > 0 ? "success" : "info",
-          },
-        });
-        if (statesResult.created.length > 0) {
-          console.log(`[Forge] Created workflow states: ${statesResult.created.join(", ")}`);
-        }
-        if (statesResult.skipped.length > 0) {
-          console.error(`[Forge] Failed to create workflow states: ${statesResult.skipped.join(", ")}`);
-        }
-      } catch (err) {
-        console.error("[Forge] Failed to ensure workflow states at startup:", (err as Error).message);
-        await client.tui.showToast({
-          body: { message: `Forge: Failed to create states: ${(err as Error).message}`, variant: "error" },
-        });
-      }
     } else {
       const teams = await linear.listTeams();
       if (teams.length === 0) {
@@ -774,6 +753,17 @@ export const ForgePlugin: Plugin = async ({ client, directory, serverUrl }) => {
         console.error("[Forge] Recovery check failed:", (err as Error).message);
       });
     } else {
+      try {
+        const statesResult = await linear.ensureWorkflowStates();
+        if (statesResult.created.length > 0) {
+          await client.tui.showToast({
+            body: { message: `Forge: ${statesResult.created.length} states created, ${statesResult.existing.length} existing`, variant: "success" },
+          });
+        }
+      } catch (err) {
+        console.error("[Forge] Failed to ensure workflow states:", (err as Error).message);
+      }
+
       const firstPhase = config.inception.phases[0];
       if (firstPhase) {
         console.log("[Forge] Plugin active. Auto-starting inception Phase 1.");

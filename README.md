@@ -14,6 +14,31 @@
 
 ---
 
+## Why Forge — Removing AI Slop
+
+Forge is an attempt to create the perfect product team — a team of agents with
+enforced roles, gated handoffs, and a feedback loop where every piece of work
+is verifiable, gated, and recoverable. Seven agents — PO, UX, Architect,
+Developer, QA, DevOps, SecOps — each own a defined slice of the delivery
+pipeline and are blocked from operating outside it.
+
+The outer acceptance test goes RED before any implementation code is written;
+TDD inner loops drive each sub-slice green (FE then BE); a QA desk check
+inspects every acceptance criterion through the UI exactly as a customer would;
+a scoped regression suite guards adjacent flows; and PO acceptance verifies
+shipped behavior against the original story intent. State lives in Linear —
+visible and human-readable — never in plan files or conversation summaries,
+which "lie." Loop pre-flights, failsafe auto-advance, crash recovery, and
+commit-per-AC guarantee nothing is silently lost. An L1-RIGID skill hierarchy
+overrides "just this once," and [loopkit](https://github.com/loopworx/loopkit)
+— a static analyzer that validates all 24 skill contracts on every push —
+keeps the process itself from drifting into slop.
+
+> The full mechanism map — 20 anti-slop claims, each tied to the skill that
+> enforces it — lives in [docs/anti-slop.md](docs/anti-slop.md).
+
+---
+
 ## How It Works
 
 1. **Install** — `forge init` drops the plugin, 7 agent definitions, 24 skills, slash commands, and handles Linear authentication

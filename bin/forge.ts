@@ -1,7 +1,8 @@
 #!/usr/bin/env bun
 import { Command } from "commander";
-import { existsSync, copyFileSync, mkdirSync, cpSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, cpSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { generateForgeYaml } from "../src/config";
 
 const program = new Command();
 
@@ -58,11 +59,8 @@ program
 
     const configPath = join(cwd, "forge.yaml");
     if (!existsSync(configPath)) {
-      const templatePath = join(packageRoot, "forge.yaml");
-      if (existsSync(templatePath)) {
-        copyFileSync(templatePath, configPath);
-        console.log("  ✓ forge.yaml created (edit to add your Linear API key)");
-      }
+      writeFileSync(configPath, generateForgeYaml());
+      console.log("  ✓ forge.yaml created (edit your Linear team_key and api_key)");
     } else {
       console.log("  ✓ forge.yaml already exists (skipped)");
     }

@@ -2,6 +2,176 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { parse, stringify } from "yaml";
 import type { ForgeConfig, AgentRole, LinearState } from "./types";
 
+export function generateForgeYaml(): string {
+  return `# forge.yaml — Forge process manager configuration
+# Fill in your Linear team key and API key, then restart opencode.
+
+active: false
+max_concurrent_stories: 5
+
+linear:
+  poll_interval_seconds: 10
+  team_key: ""
+  project_filter: ""
+  api_key: ""
+
+agents:
+  po-agent:
+    pull_states: ["ready-for-acceptance"]
+    active_state: "in-acceptance"
+    primary_skill: "approving-stories"
+    interactive: false
+    human_gate: false
+
+  developer-agent:
+    pull_states: ["ready-for-dev"]
+    active_state: "in-dev"
+    primary_skill: "running-atdd-sessions"
+    interactive: false
+    human_gate: false
+
+  qa-agent:
+    pull_states: ["ready-for-qa"]
+    active_state: "in-qa"
+    primary_skill: "running-regression-suite"
+    interactive: false
+    human_gate: false
+
+  devops-agent:
+    pull_states: ["ready-to-deploy"]
+    active_state: "ready-to-deploy"
+    primary_skill: "finishing-stories"
+    interactive: false
+    human_gate: true
+
+  ux-agent:
+    pull_states: []
+    active_state: "in-analysis"
+    primary_skill: "designing-ux"
+    interactive: true
+    human_gate: false
+
+  architect-agent:
+    pull_states: []
+    active_state: "in-analysis"
+    primary_skill: "establishing-architecture"
+    interactive: true
+    human_gate: false
+
+  secops-agent:
+    pull_states: []
+    active_state: "in-analysis"
+    primary_skill: "modeling-threats"
+    interactive: false
+    human_gate: false
+
+inception:
+  phases:
+    - phase: 1
+      name: "Lean Canvas"
+      skill: "facilitating-inception"
+      agent: "po-agent"
+      output: "docs/lean-canvas.md"
+    - phase: 2
+      name: "Empathy Mapping"
+      skill: "facilitating-inception"
+      agent: "ux-agent"
+      output: "docs/empathy-map.md"
+    - phase: 3
+      name: "Trade-off Sliders"
+      skill: "facilitating-inception"
+      agent: "po-agent"
+      output: "project.constraints.yaml"
+    - phase: 4
+      name: "Event Storming"
+      skill: "facilitating-event-storming"
+      agent: "po-agent"
+      output: "docs/event-storm.yaml"
+    - phase: 5
+      name: "UX/UI Design"
+      skill: "designing-ux"
+      agent: "ux-agent"
+      output: "design-system/MASTER.md"
+    - phase: 6
+      name: "Story Writing"
+      skill: "writing-stories"
+      agent: "po-agent"
+      output: "stories in Linear"
+    - phase: 7
+      name: "Tech Stack + Architecture"
+      skill: "selecting-tech-stack"
+      agent: "architect-agent"
+      output: "docs/adr/ADR-001-platform.md"
+    - phase: 8
+      name: "Iteration Mapping"
+      skill: "building-iteration-map"
+      agent: "po-agent"
+      output: "Linear Projects + Cycle"
+
+triggers:
+  new_project:
+    agent: "po-agent"
+    skill: "facilitating-inception"
+    interactive: true
+
+  iteration_zero:
+    concurrent:
+      - agent: "devops-agent"
+        skill: "bootstrapping-project"
+      - agent: "secops-agent"
+        skill: "securing-pipeline"
+    gate:
+      agent: "qa-agent"
+      skill: "validating-test-harness"
+
+  architecture_blocked:
+    agent: "architect-agent"
+    skill: "deciding-architecture"
+    interactive: false
+
+  security_review:
+    agent: "secops-agent"
+    skill: "modeling-threats"
+    interactive: false
+
+integrations:
+  ui-ux-pro-max:
+    enabled: true
+    skill_path: ".opencode/skills/ui-ux-pro-max/"
+    used_by: ["ux-agent"]
+    phase: 5
+
+  graphify:
+    enabled: true
+    skill_path: ".opencode/skills/graphify/"
+    used_by: ["developer-agent", "architect-agent"]
+    mcp_server: true
+
+  headroom:
+    enabled: true
+    mcp_server: true
+
+  browser-use:
+    enabled: false
+    mcp_server: true
+    used_by: ["qa-agent"]
+
+cost_tracking:
+  enabled: true
+  log_path: ".forge/costs/"
+  per_session: true
+  per_iteration: true
+  budget_alert_threshold_usd: 2.00
+
+loop_logs:
+  enabled: true
+  log_path: "stories/"
+  include_guardian_checks: true
+  include_iteration_counts: true
+  include_proof_results: true
+`;
+}
+
 export function loadConfig(configPath: string): ForgeConfig {
   const raw = readFileSync(configPath, "utf-8");
   const parsed = parse(raw);

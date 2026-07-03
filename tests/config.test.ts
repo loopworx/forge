@@ -1,7 +1,7 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { writeFileSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { loadConfig, validateConfig, saveConfig } from "../src/config";
+import { loadConfig, validateConfig, saveConfig, generateForgeYaml } from "../src/config";
 
 const TMP_DIR = join(import.meta.dir, ".tmp-config-test");
 const VALID_CONFIG = `
@@ -365,6 +365,94 @@ describe("config", () => {
 
       const config = loadConfig(configPath);
       expect(config.maxConcurrentStories).toBe(10);
+    });
+  });
+
+  describe("generateForgeYaml", () => {
+    test("produces valid YAML that can be loaded and validated", () => {
+      const yaml = generateForgeYaml();
+      const configPath = join(TMP_DIR, "generated-forge.yaml");
+      writeFileSync(configPath, yaml);
+
+      const config = loadConfig(configPath);
+      const errors = validateConfig(config);
+
+      expect(config.active).toBe(false);
+      expect(config.maxConcurrentStories).toBe(5);
+      expect(config.linear.pollIntervalSeconds).toBe(10);
+      expect(config.linear.teamKey).toBe("");
+      expect(config.linear.apiKey).toBe("");
+      expect(errors).toContain("linear.team_key is required");
+      expect(errors).toContain("linear.api_key is required");
+    });
+
+    test("generated YAML includes all 7 agents", () => {
+      const yaml = generateForgeYaml();
+      const configPath = join(TMP_DIR, "generated-forge.yaml");
+      writeFileSync(configPath, yaml);
+
+      const config = loadConfig(configPath);
+
+      const agentNames = Object.keys(config.agents);
+      expect(agentNames).toContain("po-agent");
+      expect(agentNames).toContain("developer-agent");
+      expect(agentNames).toContain("qa-agent");
+      expect(agentNames).toContain("devops-agent");
+      expect(agentNames).toContain("ux-agent");
+      expect(agentNames).toContain("architect-agent");
+      expect(agentNames).toContain("secops-agent");
+      expect(agentNames.length).toBe(7);
+    });
+
+    test("generated YAML includes all 8 inception phases", () => {
+      const yaml = generateForgeYaml();
+      const configPath = join(TMP_DIR, "generated-forge.yaml");
+      writeFileSync(configPath, yaml);
+
+      const config = loadConfig(configPath);
+
+      expect(config.inception.phases.length).toBe(8);
+      expect(config.inception.phases[0].name).toBe("Lean Canvas");
+      expect(config.inception.phases[0].phase).toBe(1);
+      expect(config.inception.phases[7].name).toBe("Iteration Mapping");
+      expect(config.inception.phases[7].phase).toBe(8);
+    });
+
+    test("generated YAML has greenfield defaults (empty keys, inactive)", () => {
+      const yaml = generateForgeYaml();
+
+      expect(yaml).toContain('team_key: ""');
+      expect(yaml).toContain('api_key: ""');
+      expect(yaml).toContain("active: false");
+      expect(yaml).toContain("project_filter: \"\"");
+    });
+
+    test("generated YAML key matches prod forge.yaml key set", () => {
+      const yaml = generateForgeYaml();
+      const configPath = join(TMP_DIR, "generated-forge.yaml");
+      writeFileSync(configPath, yaml);
+
+      const config = loadConfig(configPath);
+
+      expect(config.agents["po-agent"].activeState).toBe("in-acceptance");
+      expect(config.agents["developer-agent"].activeState).toBe("in-dev");
+      expect(config.agents["qa-agent"].activeState).toBe("in-qa");
+      expect(config.agents["devops-agent"].activeState).toBe("ready-to-deploy");
+
+      expect(config.integrations["ui-ux-pro-max"].enabled).toBe(true);
+      expect(config.integrations["graphify"].enabled).toBe(true);
+      expect(config.integrations["headroom"].enabled).toBe(true);
+      expect(config.integrations["browser-use"].enabled).toBe(false);
+
+      expect(config.costTracking.enabled).toBe(true);
+      expect(config.loopLogs.enabled).toBe(true);
+
+      expect(config.triggers.newProject.agent).toBe("po-agent");
+      expect(config.triggers.newProject.skill).toBe("facilitating-inception");
+      expect(config.triggers.iterationZero.concurrent.length).toBe(2);
+      expect(config.triggers.iterationZero.gate.agent).toBe("qa-agent");
+      expect(config.triggers.architectureBlocked.agent).toBe("architect-agent");
+      expect(config.triggers.securityReview.agent).toBe("secops-agent");
     });
   });
 });

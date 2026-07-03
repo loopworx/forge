@@ -1,4 +1,5 @@
 import type { Plugin } from "@opencode-ai/plugin";
+import { createOpencodeClient } from "@opencode-ai/sdk/v2";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { loadConfig, saveConfig, validateConfig } from "./config";
@@ -28,7 +29,8 @@ export function parseSessionTitle(title: string): { storyId: string; agentName: 
   };
 }
 
-export const ForgePlugin: Plugin = async ({ client, directory }) => {
+export const ForgePlugin: Plugin = async ({ client, directory, serverUrl }) => {
+  const v2 = createOpencodeClient({ baseUrl: serverUrl.toString() });
   const configPath = join(directory, "forge.yaml");
 
   if (!existsSync(configPath)) {
@@ -67,6 +69,22 @@ export const ForgePlugin: Plugin = async ({ client, directory }) => {
     console.log(`[Forge] Auto-detected team: ${team.name} (${team.id})`);
   } catch (err) {
     console.error("[Forge] Failed to discover Linear team:", (err as Error).message);
+    return {};
+  }
+
+  try {
+    const statesResult = await linear.ensureWorkflowStates();
+    if (statesResult.created.length > 0) {
+      console.log(`[Forge] Created workflow states: ${statesResult.created.join(", ")}`);
+    }
+    if (statesResult.existing.length > 0) {
+      console.log(`[Forge] Existing workflow states: ${statesResult.existing.length}`);
+    }
+    if (statesResult.skipped.length > 0) {
+      console.error(`[Forge] Failed to create workflow states: ${statesResult.skipped.join(", ")}`);
+    }
+  } catch (err) {
+    console.error("[Forge] Failed to ensure workflow states:", (err as Error).message);
     return {};
   }
 
@@ -185,8 +203,9 @@ export const ForgePlugin: Plugin = async ({ client, directory }) => {
 
       const title = `${FORGE_TAG} ${story.id} — ${agentName}`;
 
-      const createResult = await client.session.create({
-        body: { title },
+      const createResult = await v2.session.create({
+        title,
+        agent: agentName,
       });
 
       const sessionId = (createResult.data as any)?.id;
@@ -265,8 +284,9 @@ export const ForgePlugin: Plugin = async ({ client, directory }) => {
 
     const title = `${FORGE_TAG} ${storyId} — ${agentName} (recovery)`;
 
-    const createResult = await client.session.create({
-      body: { title },
+    const createResult = await v2.session.create({
+      title,
+      agent: agentName,
     });
 
     const sessionId = (createResult.data as any)?.id;
@@ -379,8 +399,9 @@ export const ForgePlugin: Plugin = async ({ client, directory }) => {
   async function startInceptionPhase(phase: InceptionPhase) {
     const title = `${FORGE_TAG} Inception Phase ${phase.phase} — ${phase.name}`;
 
-    const createResult = await client.session.create({
-      body: { title },
+    const createResult = await v2.session.create({
+      title,
+      agent: phase.agent,
     });
 
     const sessionId = (createResult.data as any)?.id;

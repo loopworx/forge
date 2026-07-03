@@ -253,19 +253,30 @@ describe("McpClient", () => {
   });
 
   describe("ensureWorkflowStates", () => {
-    test("reports existing states (no creation via MCP)", async () => {
+    test("reports existing states when all Forge states exist", async () => {
       globalThis.fetch = mockFetch(mcpResponse([
         { id: "s1", name: "in-analysis", type: "unstarted", position: 1000 },
         { id: "s2", name: "ready-for-dev", type: "unstarted", position: 2000 },
+        { id: "s3", name: "in-dev", type: "started", position: 3000 },
+        { id: "s4", name: "in-deskcheck", type: "started", position: 4000 },
+        { id: "s5", name: "ready-for-qa", type: "unstarted", position: 5000 },
+        { id: "s6", name: "in-qa", type: "started", position: 6000 },
+        { id: "s7", name: "ready-for-acceptance", type: "unstarted", position: 7000 },
+        { id: "s8", name: "in-acceptance", type: "started", position: 8000 },
+        { id: "s9", name: "ready-to-deploy", type: "unstarted", position: 9000 },
+        { id: "s10", name: "done", type: "completed", position: 10000 },
+        { id: "s11", name: "halted-stall", type: "canceled", position: 11000 },
+        { id: "s12", name: "halted-ambiguous", type: "canceled", position: 12000 },
+        { id: "s13", name: "halted-human-gate", type: "canceled", position: 13000 },
+        { id: "s14", name: "halted-unsafe", type: "canceled", position: 14000 },
       ])) as typeof fetch;
 
       const client = createClient();
       const result = await client.ensureWorkflowStates();
 
       expect(result.created).toHaveLength(0);
-      expect(result.skipped.length).toBeGreaterThan(0);
-      expect(result.existing).toContain("in-analysis");
-      expect(result.existing).toContain("ready-for-dev");
+      expect(result.existing.length).toBe(14);
+      expect(result.skipped).toHaveLength(0);
     });
   });
 

@@ -286,30 +286,109 @@ export class McpClient {
   }
 
   async ensureWorkflowStates(): Promise<{ created: string[]; existing: string[]; skipped: string[] }> {
-    // The Linear MCP does not expose a "create workflow state" tool.
-    // Workflow states must be created manually in Linear before using Forge.
+    this.ensureTeam();
     const existingStates = await this.getWorkflowStates();
     const existingNames = new Set(existingStates.map((s) => s.name));
 
-    const FORGE_STATES = [
-      "in-analysis", "ready-for-dev", "in-dev", "in-deskcheck",
-      "ready-for-qa", "in-qa", "ready-for-acceptance", "in-acceptance",
-      "ready-to-deploy", "done",
-      "halted-stall", "halted-ambiguous", "halted-human-gate", "halted-unsafe",
+    const FORGE_STATES: { name: string; color: string; type: string; position: number }[] = [
+      { name: "in-analysis", color: "#c4b5fd", type: "unstarted", position: 1000 },
+      { name: "ready-for-dev", color: "#93c5fd", type: "unstarted", position: 2000 },
+      { name: "in-dev", color: "#fbbf24", type: "started", position: 3000 },
+      { name: "in-deskcheck", color: "#fbbf24", type: "started", position: 4000 },
+      { name: "ready-for-qa", color: "#93c5fd", type: "unstarted", position: 5000 },
+      { name: "in-qa", color: "#fbbf24", type: "started", position: 6000 },
+      { name: "ready-for-acceptance", color: "#93c5fd", type: "unstarted", position: 7000 },
+      { name: "in-acceptance", color: "#fbbf24", type: "started", position: 8000 },
+      { name: "ready-to-deploy", color: "#93c5fd", type: "unstarted", position: 9000 },
+      { name: "done", color: "#86efac", type: "completed", position: 10000 },
+      { name: "halted-stall", color: "#fca5a5", type: "canceled", position: 11000 },
+      { name: "halted-ambiguous", color: "#fca5a5", type: "canceled", position: 12000 },
+      { name: "halted-human-gate", color: "#fca5a5", type: "canceled", position: 13000 },
+      { name: "halted-unsafe", color: "#fca5a5", type: "canceled", position: 14000 },
     ];
 
     const existing: string[] = [];
+    const created: string[] = [];
     const skipped: string[] = [];
 
-    for (const name of FORGE_STATES) {
-      if (existingNames.has(name)) {
-        existing.push(name);
-      } else {
-        skipped.push(name);
+    for (const state of FORGE_STATES) {
+      if (existingNames.has(state.name)) {
+        existing.push(state.name);
+        continue;
+      }
+
+      try {
+        await this.createWorkflowState(
+          state.name,
+          this.teamId!,
+          state.color,
+          state.type,
+          state.position,
+        );
+        created.push(state.name);
+      } catch (err) {
+        skipped.push(`${state.name}: ${(err as Error).message}`);
       }
     }
 
-    return { created: [], existing, skipped };
+    return { created, existing, skipped };
+  }
+
+  private async createWorkflowState(
+    name: string,
+    teamId: string,
+    color: string,
+    type: string,
+    position: number,
+  ): Promise<string> {
+    const auth = await this.loadAuth();
+    const mutation = `
+      mutation CreateState($name: String!, $teamId: String!, $color: String!, $type: String!, $position: Float!) {
+        workflowStateCreate(input: {
+          name: $name
+          teamId: $teamId
+          color: $color
+          type: $type
+          position: $position
+        }) {
+          success
+          workflowState { id name }
+        }
+      }
+    `;
+
+    let lastError: Error | null = null;
+    for (let attempt = 0; attempt < this.maxRetries; attempt++) {
+      try {
+        const response = await fetch("https://api.linear.app/graphql", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${auth.accessToken}`,
+          },
+          body: JSON.stringify({ query: mutation, variables: { name, teamId, color, type, position } }),
+        });
+
+        if (!response.ok) {
+          const errBody = await response.text().catch(() => "");
+          throw new Error(`GraphQL error ${response.status}: ${errBody}`);
+        }
+
+        const result = await response.json();
+        if (result.errors) {
+          throw new Error(result.errors[0]?.message ?? "GraphQL error");
+        }
+
+        return result.data?.workflowStateCreate?.workflowState?.id;
+      } catch (err) {
+        lastError = err as Error;
+        if (attempt < this.maxRetries - 1) {
+          await Bun.sleep(this.retryDelayMs);
+        }
+      }
+    }
+
+    throw lastError ?? new Error("Failed to create workflow state");
   }
 
   async isFreshTeam(): Promise<boolean> {

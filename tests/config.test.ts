@@ -455,4 +455,59 @@ describe("config", () => {
       expect(config.triggers.securityReview.agent).toBe("secops-agent");
     });
   });
+
+  describe("env var fallback", () => {
+    const prevApiKey = process.env.LINEAR_API_KEY;
+    const prevTeamKey = process.env.LINEAR_TEAM_KEY;
+
+    afterEach(() => {
+      if (prevApiKey) process.env.LINEAR_API_KEY = prevApiKey;
+      else delete process.env.LINEAR_API_KEY;
+      if (prevTeamKey) process.env.LINEAR_TEAM_KEY = prevTeamKey;
+      else delete process.env.LINEAR_TEAM_KEY;
+    });
+
+    test("falls back to LINEAR_API_KEY env var when forge.yaml has empty api_key", () => {
+      process.env.LINEAR_API_KEY = "lin_api_from_env";
+      const configPath = join(TMP_DIR, "forge.yaml");
+
+      const yamlWithoutApiKey = VALID_CONFIG.replace('api_key: "lin_api_test_key"', 'api_key: ""');
+      writeFileSync(configPath, yamlWithoutApiKey);
+
+      const config = loadConfig(configPath);
+      expect(config.linear.apiKey).toBe("lin_api_from_env");
+    });
+
+    test("falls back to LINEAR_TEAM_KEY env var when forge.yaml has empty team_key", () => {
+      process.env.LINEAR_TEAM_KEY = "ENVTEAM";
+      const configPath = join(TMP_DIR, "forge.yaml");
+
+      const yamlWithoutTeam = VALID_CONFIG.replace('team_key: "loopworx"', 'team_key: ""');
+      writeFileSync(configPath, yamlWithoutTeam);
+
+      const config = loadConfig(configPath);
+      expect(config.linear.teamKey).toBe("ENVTEAM");
+    });
+
+    test("forge.yaml value takes precedence over env var", () => {
+      process.env.LINEAR_API_KEY = "env_key_should_not_win";
+      const configPath = join(TMP_DIR, "forge.yaml");
+      writeFileSync(configPath, VALID_CONFIG);
+
+      const config = loadConfig(configPath);
+      expect(config.linear.apiKey).toBe("lin_api_test_key");
+    });
+
+    test("forges init generateForgeYaml leaves empty keys so env vars can fill them", () => {
+      process.env.LINEAR_API_KEY = "env_key";
+      process.env.LINEAR_TEAM_KEY = "ENV";
+      const yaml = generateForgeYaml();
+      const configPath = join(TMP_DIR, "generated-forge.yaml");
+      writeFileSync(configPath, yaml);
+
+      const config = loadConfig(configPath);
+      expect(config.linear.apiKey).toBe("env_key");
+      expect(config.linear.teamKey).toBe("ENV");
+    });
+  });
 });

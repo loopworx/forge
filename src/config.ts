@@ -263,9 +263,9 @@ function normalizeConfig(parsed: unknown): ForgeConfig {
     maxConcurrentStories: p.max_concurrent_stories ?? 5,
     linear: {
       pollIntervalSeconds: p.linear?.poll_interval_seconds ?? 10,
-      teamKey: p.linear?.team_key ?? "",
-      projectFilter: p.linear?.project_filter ?? "",
-      apiKey: p.linear?.api_key ?? process.env.LINEAR_API_KEY ?? "",
+      teamKey: p.linear?.team_key || process.env.LINEAR_TEAM_KEY || "",
+      projectFilter: p.linear?.project_filter || "",
+      apiKey: p.linear?.api_key || process.env.LINEAR_API_KEY || "",
     },
     agents,
     inception: { phases },

@@ -2,7 +2,18 @@
 import { Command } from "commander";
 import { existsSync, mkdirSync, cpSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { createInterface } from "node:readline";
 import { generateForgeYaml } from "../src/config";
+
+function prompt(question: string): Promise<string> {
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise((resolve) => {
+    rl.question(question, (answer) => {
+      rl.close();
+      resolve(answer.trim());
+    });
+  });
+}
 
 const program = new Command();
 
@@ -59,8 +70,26 @@ program
 
     const configPath = join(cwd, "forge.yaml");
     if (!existsSync(configPath)) {
-      writeFileSync(configPath, generateForgeYaml());
-      console.log("  ✓ forge.yaml created (edit your Linear team_key and api_key)");
+      console.log();
+      console.log("Linear configuration");
+      console.log("-".repeat(30));
+      console.log("The Forge plugin needs a Linear API key and team key for its own operations");
+      console.log("(separate from agent auth via OAuth — that's handled by 'opencode mcp auth linear').");
+      console.log("If you prefer env vars, set LINEAR_API_KEY and LINEAR_TEAM_KEY and skip this.");
+      console.log();
+
+      const teamKey = await prompt("  Team key (e.g. FOR): ");
+      const apiKey = await prompt("  API key (from https://linear.app/settings/api): ");
+
+      const yaml = generateForgeYaml()
+        .replace('team_key: ""', `team_key: "${teamKey || ""}"`)
+        .replace('api_key: ""', `api_key: "${apiKey || ""}"`);
+      writeFileSync(configPath, yaml);
+
+      if (!teamKey || !apiKey) {
+        console.log("  ⚠  Keys left blank — you can set LINEAR_API_KEY and LINEAR_TEAM_KEY env vars instead.");
+      }
+      console.log("  ✓ forge.yaml created");
     } else {
       console.log("  ✓ forge.yaml already exists (skipped)");
     }
@@ -94,10 +123,8 @@ program
 
     console.log();
     console.log("Forge is ready. Next steps:");
-    console.log("  1. Edit forge.yaml — add your Linear team_key and api_key");
-    console.log("     (API key: https://linear.app/settings/api — this is for the plugin's own operations)");
-    console.log("  2. Run: opencode mcp auth linear  (OAuth for agent interactions — separate from step 1)");
-    console.log("  3. Open opencode and run: /forge new project");
+    console.log("  1. Run: opencode mcp auth linear  (OAuth for agent interactions)");
+    console.log("  2. Open opencode and run: /forge new project");
   });
 
 program.parse();

@@ -57,10 +57,7 @@ bun add -g @loopworx/forge
 # Initialize in your project
 cd my-project
 forge init
-
-# Edit forge.yaml — add your Linear team_key and api_key
-# (API key from https://linear.app/settings/api — this is separate from the OAuth step below)
-edit forge.yaml
+# (you'll be prompted for your Linear team key and API key)
 
 # Authenticate with Linear (for agent interactions — separate OAuth step)
 opencode mcp auth linear
@@ -70,7 +67,7 @@ opencode mcp auth linear
 /forge new project
 ```
 
-`/forge new project` starts the inception flow. Before running, edit `forge.yaml` to add your Linear `team_key` and `api_key`. These are for the plugin's own polling and story claiming — separate from agent auth (`opencode mcp auth linear` handles that via OAuth). Create an API key at [linear.app/settings/api](https://linear.app/settings/api).
+`/forge new project` starts the inception flow. `forge init` already prompted you for the Linear keys — if you skipped them, set `LINEAR_API_KEY` and `LINEAR_TEAM_KEY` env vars instead. The plugin uses these for polling and story claiming; agent auth is handled separately via `opencode mcp auth linear` (OAuth).
 
 ### What `forge init` installs
 
@@ -80,7 +77,7 @@ opencode mcp auth linear
 | `.opencode/agents/` | 7 agent definitions with skill permissions |
 | `.opencode/skills/` | 24 skills (SKILL.md + LOOP.md each) |
 | `.opencode/commands/forge/` | Slash commands: `new-project`, `stop`, `status`, `approve` |
-| `forge.yaml` | Plugin config — requires your Linear API key and team key (separate from MCP OAuth auth) |
+| `forge.yaml` | Plugin config — keys entered interactively or via env vars (separate from MCP OAuth auth) |
 | `opencode.json` | Linear MCP server config + plugin registration |
 
 ---

@@ -53,40 +53,35 @@ export const ForgePlugin: Plugin = async ({ client, directory, serverUrl }) => {
     mkdirSync(forgeDir, { recursive: true });
   }
 
-  try {
-    const team = await linear.discoverTeam();
-    if (!team) {
+  linear.discoverTeam().then(async (team) => {
+    if (team) {
+      console.log(`[Forge] Auto-detected team: ${team.name} (${team.id})`);
+      try {
+        const statesResult = await linear.ensureWorkflowStates();
+        if (statesResult.created.length > 0) {
+          console.log(`[Forge] Created workflow states: ${statesResult.created.join(", ")}`);
+        }
+        if (statesResult.existing.length > 0) {
+          console.log(`[Forge] Existing workflow states: ${statesResult.existing.length}`);
+        }
+        if (statesResult.skipped.length > 0) {
+          console.error(`[Forge] Failed to create workflow states: ${statesResult.skipped.join(", ")}`);
+        }
+      } catch (err) {
+        console.error("[Forge] Failed to ensure workflow states at startup:", (err as Error).message);
+      }
+    } else {
       const teams = await linear.listTeams();
       if (teams.length === 0) {
         console.error("[Forge] No teams found in your Linear workspace.");
-        return {};
+      } else {
+        const names = teams.map((t) => t.name).join(", ");
+        console.error(`[Forge] Multiple teams found: ${names}.`);
       }
-      const names = teams.map((t) => t.name).join(", ");
-      console.error(`[Forge] Multiple teams found: ${names}.`);
-      console.error(`[Forge] Add team_id to forge.yaml to pick one, or reduce to a single team.`);
-      return {};
     }
-    console.log(`[Forge] Auto-detected team: ${team.name} (${team.id})`);
-  } catch (err) {
-    console.error("[Forge] Failed to discover Linear team:", (err as Error).message);
-    return {};
-  }
-
-  try {
-    const statesResult = await linear.ensureWorkflowStates();
-    if (statesResult.created.length > 0) {
-      console.log(`[Forge] Created workflow states: ${statesResult.created.join(", ")}`);
-    }
-    if (statesResult.existing.length > 0) {
-      console.log(`[Forge] Existing workflow states: ${statesResult.existing.length}`);
-    }
-    if (statesResult.skipped.length > 0) {
-      console.error(`[Forge] Failed to create workflow states: ${statesResult.skipped.join(", ")}`);
-    }
-  } catch (err) {
-    console.error("[Forge] Failed to ensure workflow states:", (err as Error).message);
-    return {};
-  }
+  }).catch((err) => {
+    console.error("[Forge] Failed to discover Linear team at startup:", (err as Error).message);
+  });
 
   const activeSessions = new Map<string, ForgeSessionInfo>();
   let projectState = loadProjectState(directory);
@@ -633,147 +628,6 @@ export const ForgePlugin: Plugin = async ({ client, directory, serverUrl }) => {
 - This is an autonomous recovery — do NOT wait for human`);
   }
 
-  async function startNewProject() {
-    try {
-      const hasStates = await linear.hasForgeStates();
-      if (!hasStates) {
-        const isFresh = await linear.isFreshTeam();
-        if (!isFresh) {
-          await client.tui.showToast({
-            body: {
-              message: "Linear team has existing issues but no Forge states. Create a fresh team and update forge.yaml.",
-              variant: "error",
-            },
-          });
-          return;
-        }
-
-        await client.tui.showToast({
-          body: {
-            message: "Creating Forge workflow states in Linear...",
-            variant: "info",
-          },
-        });
-
-        const result = await linear.ensureWorkflowStates();
-        console.log(`[Forge] Created ${result.created.length} states, ${result.existing.length} already existed.`);
-      }
-
-      const firstArtifactPath = join(directory, config.inception.phases[0]?.output ?? "docs/lean-canvas.md");
-      if (existsSync(firstArtifactPath) && projectState.mode === "development") {
-        await client.tui.showToast({
-          body: {
-            message: "Inception already complete. Starting development mode.",
-            variant: "info",
-          },
-        });
-        saveConfig(configPath, { active: true });
-        config.active = true;
-        startPolling();
-        return;
-      }
-
-      projectState.mode = "inception";
-      projectState.inception.mode = "inception";
-      projectState.inception.currentPhase = 0;
-      projectState.inception.phaseSessionId = null;
-      saveProjectState(directory, projectState);
-
-      saveConfig(configPath, { active: true });
-      config.active = true;
-
-      const firstPhase = config.inception.phases[0];
-      if (firstPhase) {
-        await startInceptionPhase(firstPhase);
-      }
-
-      await client.tui.showToast({
-        body: {
-          message: "Forge inception started. Phase 1: " + (firstPhase?.name ?? "Unknown"),
-          variant: "success",
-        },
-      });
-    } catch (err) {
-      console.error("[Forge] Start failed:", (err as Error).message);
-      await client.tui.showToast({
-        body: {
-          message: `Forge start failed: ${(err as Error).message}`,
-          variant: "error",
-        },
-      });
-    }
-  }
-
-  async function stopForge() {
-    saveConfig(configPath, { active: false });
-    config.active = false;
-    stopPolling();
-
-    await client.tui.showToast({
-      body: {
-        message: "Forge stopped. Active sessions will finish naturally.",
-        variant: "info",
-      },
-    });
-  }
-
-  async function forgeStatus() {
-    const mode = projectState.mode;
-    const phase = projectState.inception.currentPhase;
-    const sessionCount = activeSessions.size;
-
-    let message = `Forge status: ${mode} mode`;
-    if (mode === "inception" && phase > 0) {
-      const phaseInfo = config.inception.phases.find((p) => p.phase === phase);
-      message += ` (Phase ${phase}: ${phaseInfo?.name ?? "Unknown"})`;
-    }
-    message += ` | Active sessions: ${sessionCount}`;
-    if (config.active) {
-      message += " | Polling: active";
-    }
-
-    await client.tui.showToast({
-      body: { message, variant: "info" },
-    });
-  }
-
-  async function approveStory(storyId?: string) {
-    if (!storyId) {
-      await client.tui.showToast({
-        body: {
-          message: "Usage: /forge.approve FOR-5",
-          variant: "warning",
-        },
-      });
-      return;
-    }
-
-    const agentEntry = Object.entries(config.agents).find(
-      ([, ac]) => ac.humanGate,
-    );
-    if (!agentEntry) return;
-
-    const [agentName, agentConfig] = agentEntry as [AgentRole, typeof config.agents[AgentRole]];
-
-    const story: Story = {
-      id: storyId,
-      title: "",
-      state: "ready-to-deploy",
-      assignee: null,
-      iteration: null,
-      featureFlag: null,
-      url: "",
-    };
-
-    await createSessionForStory(story, agentName, agentConfig);
-    await client.tui.showToast({
-      body: {
-        message: `Approved ${storyId}. Creating ${agentName} session...`,
-        variant: "success",
-      },
-    });
-  }
-
   async function recoverOrphanedSessions() {
     console.log("[Forge] Checking for orphaned sessions...");
 
@@ -897,16 +751,72 @@ export const ForgePlugin: Plugin = async ({ client, directory, serverUrl }) => {
   }
 
   return {
-    "session.idle": async (input: any) => {
-      const sessionId = input?.properties?.sessionId ?? input?.sessionId;
-      if (!sessionId) return;
-      await handleSessionIdle(sessionId);
+    event: async (input: { event: { type: string; properties: Record<string, any> } }) => {
+      const eventType = input.event.type;
+      const props = input.event.properties ?? {};
+
+      if (eventType === "session.idle") {
+        const sessionId = props.sessionID ?? props.sessionId;
+        if (sessionId) await handleSessionIdle(sessionId);
+      } else if (eventType === "session.error") {
+        const sessionId = props.sessionID ?? props.sessionId;
+        if (sessionId) await handleSessionError(sessionId);
+      }
     },
 
-    "session.error": async (input: any) => {
-      const sessionId = input?.properties?.sessionId ?? input?.sessionId;
-      if (!sessionId) return;
-      await handleSessionError(sessionId);
+    "command.execute.before": async (input: any, output: any) => {
+      const command = input?.command ?? "";
+      const args = input?.arguments ?? "";
+
+      if (command.includes("forge new") || args.includes("new project")) {
+        try {
+          const team = await linear.discoverTeam();
+          if (!team) {
+            output.parts = output.parts ?? [];
+            output.parts.push({ type: "text", text: "Cannot start Forge: could not discover a Linear team. Ensure your Linear workspace has exactly one team." });
+            return;
+          }
+
+          const statesResult = await linear.ensureWorkflowStates();
+          console.log(`[Forge] Created ${statesResult.created.length} states, ${statesResult.existing.length} already existed.`);
+          if (statesResult.skipped.length > 0) {
+            console.error(`[Forge] Failed to create: ${statesResult.skipped.join(", ")}`);
+          }
+
+          const firstArtifactPath = join(directory, config.inception.phases[0]?.output ?? "docs/lean-canvas.md");
+          if (existsSync(firstArtifactPath) && projectState.mode === "development") {
+            saveConfig(configPath, { active: true });
+            config.active = true;
+            startPolling();
+            output.parts = output.parts ?? [];
+            output.parts.push({ type: "text", text: "Inception already complete. Forge is now active in development mode, polling Linear for stories." });
+            return;
+          }
+
+          saveConfig(configPath, { active: true });
+          config.active = true;
+
+          projectState.mode = "inception";
+          projectState.inception.mode = "inception";
+          projectState.inception.currentPhase = 0;
+          projectState.inception.phaseSessionId = null;
+          saveProjectState(directory, projectState);
+
+          const firstPhase = config.inception.phases[0];
+          if (firstPhase) {
+            await startInceptionPhase(firstPhase);
+          }
+
+          output.parts = output.parts ?? [];
+          output.parts.push({
+            type: "text",
+            text: `Inception Phase 1 (${firstPhase?.name ?? "Lean Canvas"}) has been started in a po-agent session. Switch to that session to participate.`,
+          });
+        } catch (err) {
+          output.parts = output.parts ?? [];
+          output.parts.push({ type: "text", text: `Forge start failed: ${(err as Error).message}` });
+        }
+      }
     },
 
     "experimental.session.compacting": async (input: any, output: any) => {
@@ -915,22 +825,8 @@ export const ForgePlugin: Plugin = async ({ client, directory, serverUrl }) => {
       await handleCompaction(sessionId, output);
     },
 
-    "tui.command.execute": async (input: any, output: any) => {
-      const command = input?.command ?? "";
-      if (command === "forge new project" || command === "/forge new project") {
-        await startNewProject();
-        output.handled = true;
-      } else if (command === "forge.stop" || command === "/forge.stop") {
-        await stopForge();
-        output.handled = true;
-      } else if (command === "forge.status" || command === "/forge.status") {
-        await forgeStatus();
-        output.handled = true;
-      } else if (command.startsWith("forge.approve") || command.startsWith("/forge.approve")) {
-        const storyId = command.split(" ")[1];
-        await approveStory(storyId);
-        output.handled = true;
-      }
+    dispose: async () => {
+      stopPolling();
     },
   };
 };

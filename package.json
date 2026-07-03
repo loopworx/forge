@@ -30,7 +30,7 @@
     "test": "bun test",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint .",
-    "build": "bun build src/plugin.ts --outfile dist/plugin.js --external @opencode-ai/plugin --external @opencode-ai/sdk",
+    "build": "bun build src/plugin.ts --outfile dist/plugin.js --external @opencode-ai/plugin --external @opencode-ai/sdk --external 'node:*'",
     "init": "bun run bin/forge.ts init",
     "prepublishOnly": "bun run typecheck && bun test && bun run build"
   },

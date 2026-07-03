@@ -1,4 +1,5 @@
 import type { Plugin } from "@opencode-ai/plugin";
+import { tool } from "@opencode-ai/plugin";
 import { createOpencodeClient } from "@opencode-ai/sdk/v2";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -56,27 +57,43 @@ export const ForgePlugin: Plugin = async ({ client, directory, serverUrl }) => {
   linear.discoverTeam().then(async (team) => {
     if (team) {
       console.log(`[Forge] Auto-detected team: ${team.name} (${team.id})`);
+      await client.tui.showToast({
+        body: { message: `Forge: Team ${team.name} discovered`, variant: "info" },
+      });
       try {
         const statesResult = await linear.ensureWorkflowStates();
+        const msg = `Forge: ${statesResult.created.length} states created, ${statesResult.existing.length} existing`;
+        await client.tui.showToast({
+          body: {
+            message: msg,
+            variant: statesResult.created.length > 0 ? "success" : "info",
+          },
+        });
         if (statesResult.created.length > 0) {
           console.log(`[Forge] Created workflow states: ${statesResult.created.join(", ")}`);
-        }
-        if (statesResult.existing.length > 0) {
-          console.log(`[Forge] Existing workflow states: ${statesResult.existing.length}`);
         }
         if (statesResult.skipped.length > 0) {
           console.error(`[Forge] Failed to create workflow states: ${statesResult.skipped.join(", ")}`);
         }
       } catch (err) {
         console.error("[Forge] Failed to ensure workflow states at startup:", (err as Error).message);
+        await client.tui.showToast({
+          body: { message: `Forge: Failed to create states: ${(err as Error).message}`, variant: "error" },
+        });
       }
     } else {
       const teams = await linear.listTeams();
       if (teams.length === 0) {
         console.error("[Forge] No teams found in your Linear workspace.");
+        await client.tui.showToast({
+          body: { message: "Forge: No Linear teams found", variant: "error" },
+        });
       } else {
         const names = teams.map((t) => t.name).join(", ");
         console.error(`[Forge] Multiple teams found: ${names}.`);
+        await client.tui.showToast({
+          body: { message: `Forge: Multiple teams found (${names}). Add team_id to forge.yaml.`, variant: "error" },
+        });
       }
     }
   }).catch((err) => {
@@ -199,6 +216,7 @@ export const ForgePlugin: Plugin = async ({ client, directory, serverUrl }) => {
       const title = `${FORGE_TAG} ${story.id} — ${agentName}`;
 
       const createResult = await v2.session.create({
+        directory,
         title,
         agent: agentName,
       });
@@ -280,6 +298,7 @@ export const ForgePlugin: Plugin = async ({ client, directory, serverUrl }) => {
     const title = `${FORGE_TAG} ${storyId} — ${agentName} (recovery)`;
 
     const createResult = await v2.session.create({
+      directory,
       title,
       agent: agentName,
     });
@@ -395,6 +414,7 @@ export const ForgePlugin: Plugin = async ({ client, directory, serverUrl }) => {
     const title = `${FORGE_TAG} Inception Phase ${phase.phase} — ${phase.name}`;
 
     const createResult = await v2.session.create({
+      directory,
       title,
       agent: phase.agent,
     });
@@ -430,6 +450,8 @@ export const ForgePlugin: Plugin = async ({ client, directory, serverUrl }) => {
         variant: "info",
       },
     });
+
+    await client.tui.openSessions();
 
     return sessionId;
   }
@@ -745,11 +767,28 @@ export const ForgePlugin: Plugin = async ({ client, directory, serverUrl }) => {
     });
     startPolling();
     console.log("[Forge] Plugin active in development mode. Polling Linear every", config.linear.pollIntervalSeconds, "seconds.");
-  } else if (config.active && projectState.mode === "inception" && projectState.inception.currentPhase > 0) {
-    console.log("[Forge] Plugin active in inception mode. Phase", projectState.inception.currentPhase, "was in progress.");
-    recoverOrphanedSessions().catch((err) => {
-      console.error("[Forge] Recovery check failed:", (err as Error).message);
-    });
+  } else if (config.active && projectState.mode === "inception") {
+    if (projectState.inception.currentPhase > 0) {
+      console.log("[Forge] Plugin active in inception mode. Resuming Phase", projectState.inception.currentPhase);
+      recoverOrphanedSessions().catch((err) => {
+        console.error("[Forge] Recovery check failed:", (err as Error).message);
+      });
+    } else {
+      const firstPhase = config.inception.phases[0];
+      if (firstPhase) {
+        console.log("[Forge] Plugin active. Auto-starting inception Phase 1.");
+        startInceptionPhase(firstPhase).then(async (sessionId) => {
+          if (sessionId) {
+            await client.tui.showToast({
+              body: { message: `Forge: Inception Phase 1 started`, variant: "success" },
+            });
+            await client.tui.openSessions();
+          }
+        }).catch((err) => {
+          console.error("[Forge] Failed to auto-start inception:", (err as Error).message);
+        });
+      }
+    }
   }
 
   return {
@@ -766,87 +805,70 @@ export const ForgePlugin: Plugin = async ({ client, directory, serverUrl }) => {
       }
     },
 
-    "command.execute.before": async (input: any, output: any) => {
-      const command = input?.command ?? "";
-      const args = input?.arguments ?? "";
+    tool: {
+      forge_start: tool({
+        description: "Start Forge delivery framework for a new project. Creates Linear workflow states and starts inception Phase 1 with the PO agent. Call this when the user types /forge new project.",
+        args: {},
+        async execute(_args, _ctx) {
+          try {
+            const team = await linear.discoverTeam();
+            if (!team) {
+              return "Cannot start Forge: could not discover a Linear team. Ensure your Linear workspace has exactly one team.";
+            }
 
-      if (command.includes("forge new") || args.includes("new project")) {
-        try {
-          const team = await linear.discoverTeam();
-          if (!team) {
-            output.parts = output.parts ?? [];
-            output.parts.push({ type: "text", text: "Cannot start Forge: could not discover a Linear team. Ensure your Linear workspace has exactly one team." });
-            return;
-          }
+            const statesResult = await linear.ensureWorkflowStates();
 
-          const statesResult = await linear.ensureWorkflowStates();
-          console.log(`[Forge] Created ${statesResult.created.length} states, ${statesResult.existing.length} already existed.`);
-          if (statesResult.skipped.length > 0) {
-            console.error(`[Forge] Failed to create: ${statesResult.skipped.join(", ")}`);
-          }
+            const firstArtifactPath = join(directory, config.inception.phases[0]?.output ?? "docs/lean-canvas.md");
+            if (existsSync(firstArtifactPath) && projectState.mode === "development") {
+              saveConfig(configPath, { active: true });
+              config.active = true;
+              startPolling();
+              return "Inception already complete. Forge is now active in development mode, polling Linear for stories.";
+            }
 
-          const firstArtifactPath = join(directory, config.inception.phases[0]?.output ?? "docs/lean-canvas.md");
-          if (existsSync(firstArtifactPath) && projectState.mode === "development") {
             saveConfig(configPath, { active: true });
             config.active = true;
-            startPolling();
-            output.parts = output.parts ?? [];
-            output.parts.push({ type: "text", text: "Inception already complete. Forge is now active in development mode, polling Linear for stories." });
-            return;
-          }
 
-          saveConfig(configPath, { active: true });
-          config.active = true;
+            projectState.mode = "inception";
+            projectState.inception.mode = "inception";
+            projectState.inception.currentPhase = 0;
+            projectState.inception.phaseSessionId = null;
+            saveProjectState(directory, projectState);
 
-          projectState.mode = "inception";
-          projectState.inception.mode = "inception";
-          projectState.inception.currentPhase = 0;
-          projectState.inception.phaseSessionId = null;
-          saveProjectState(directory, projectState);
+            const firstPhase = config.inception.phases[0];
+            const sessionId = firstPhase ? await startInceptionPhase(firstPhase) : null;
 
-          const firstPhase = config.inception.phases[0];
-          let sessionId: string | null = null;
-          if (firstPhase) {
-            sessionId = await startInceptionPhase(firstPhase);
-          }
+            const createdText = statesResult.created.length > 0
+              ? `Created ${statesResult.created.length} states (${statesResult.created.join(", ")}). `
+              : "";
+            const existingText = statesResult.existing.length > 0
+              ? `${statesResult.existing.length} states already existed. `
+              : "";
+            const skippedText = statesResult.skipped.length > 0
+              ? `WARNING: Failed to create ${statesResult.skipped.length} states: ${statesResult.skipped.join(", ")}. `
+              : "";
 
-          output.parts = output.parts ?? [];
-          const createdText = statesResult.created.length > 0
-            ? `Created ${statesResult.created.length} states (${statesResult.created.join(", ")}). `
-            : "";
-          const existingText = statesResult.existing.length > 0
-            ? `${statesResult.existing.length} states already existed. `
-            : "";
-          const skippedText = statesResult.skipped.length > 0
-            ? `WARNING: Failed to create ${statesResult.skipped.length} states: ${statesResult.skipped.join(", ")}. `
-            : "";
-
-          if (sessionId) {
-            output.parts.push({
-              type: "text",
-              text: [
+            if (sessionId) {
+              await client.tui.openSessions();
+              return [
                 `Inception Phase 1 (${firstPhase?.name ?? "Lean Canvas"}) started.`,
                 `Team: ${team.name}`,
                 (createdText + existingText + skippedText).trim(),
                 `Session: ${sessionId}`,
-                `Switch to the po-agent session to participate.`,
-              ].filter(Boolean).join("\n"),
-            });
-          } else {
-            output.parts.push({
-              type: "text",
-              text: [
-                `Team ready (${team.name}).`,
-                (createdText + existingText + skippedText).trim(),
-                `But failed to create inception session. Check server logs.`,
-              ].filter(Boolean).join("\n"),
-            });
+                "Switch to the po-agent session to participate.",
+              ].filter(Boolean).join("\n");
+            }
+
+            return [
+              `Team ready (${team.name}).`,
+              (createdText + existingText + skippedText).trim(),
+              "But failed to create inception session. Check server logs.",
+            ].filter(Boolean).join("\n");
+          } catch (err) {
+            return `Forge start failed: ${(err as Error).message}`;
           }
-        } catch (err) {
-          output.parts = output.parts ?? [];
-          output.parts.push({ type: "text", text: `Forge start failed: ${(err as Error).message}` });
-        }
-      }
+        },
+      }),
     },
 
     "experimental.session.compacting": async (input: any, output: any) => {

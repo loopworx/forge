@@ -391,7 +391,7 @@ export const ForgePlugin: Plugin = async ({ client, directory, serverUrl }) => {
     await startInceptionPhase(nextPhase);
   }
 
-  async function startInceptionPhase(phase: InceptionPhase) {
+  async function startInceptionPhase(phase: InceptionPhase): Promise<string | null> {
     const title = `${FORGE_TAG} Inception Phase ${phase.phase} — ${phase.name}`;
 
     const createResult = await v2.session.create({
@@ -402,7 +402,7 @@ export const ForgePlugin: Plugin = async ({ client, directory, serverUrl }) => {
     const sessionId = (createResult.data as any)?.id;
     if (!sessionId) {
       console.error(`[Forge] Failed to create inception session for Phase ${phase.phase}`);
-      return;
+      return null;
     }
 
     const prompt = buildInceptionPrompt({
@@ -430,6 +430,8 @@ export const ForgePlugin: Plugin = async ({ client, directory, serverUrl }) => {
         variant: "info",
       },
     });
+
+    return sessionId;
   }
 
   async function handleDevIdle(sessionId: string) {
@@ -803,15 +805,43 @@ export const ForgePlugin: Plugin = async ({ client, directory, serverUrl }) => {
           saveProjectState(directory, projectState);
 
           const firstPhase = config.inception.phases[0];
+          let sessionId: string | null = null;
           if (firstPhase) {
-            await startInceptionPhase(firstPhase);
+            sessionId = await startInceptionPhase(firstPhase);
           }
 
           output.parts = output.parts ?? [];
-          output.parts.push({
-            type: "text",
-            text: `Inception Phase 1 (${firstPhase?.name ?? "Lean Canvas"}) has been started in a po-agent session. Switch to that session to participate.`,
-          });
+          const createdText = statesResult.created.length > 0
+            ? `Created ${statesResult.created.length} states (${statesResult.created.join(", ")}). `
+            : "";
+          const existingText = statesResult.existing.length > 0
+            ? `${statesResult.existing.length} states already existed. `
+            : "";
+          const skippedText = statesResult.skipped.length > 0
+            ? `WARNING: Failed to create ${statesResult.skipped.length} states: ${statesResult.skipped.join(", ")}. `
+            : "";
+
+          if (sessionId) {
+            output.parts.push({
+              type: "text",
+              text: [
+                `Inception Phase 1 (${firstPhase?.name ?? "Lean Canvas"}) started.`,
+                `Team: ${team.name}`,
+                (createdText + existingText + skippedText).trim(),
+                `Session: ${sessionId}`,
+                `Switch to the po-agent session to participate.`,
+              ].filter(Boolean).join("\n"),
+            });
+          } else {
+            output.parts.push({
+              type: "text",
+              text: [
+                `Team ready (${team.name}).`,
+                (createdText + existingText + skippedText).trim(),
+                `But failed to create inception session. Check server logs.`,
+              ].filter(Boolean).join("\n"),
+            });
+          }
         } catch (err) {
           output.parts = output.parts ?? [];
           output.parts.push({ type: "text", text: `Forge start failed: ${(err as Error).message}` });

@@ -95,7 +95,8 @@ program
     console.log();
     console.log("Forge is ready. Next steps:");
     console.log("  1. Edit forge.yaml — add your Linear team_key and api_key");
-    console.log("  2. Run: opencode mcp auth linear  (authenticate with Linear)");
+    console.log("     (API key: https://linear.app/settings/api — this is for the plugin's own operations)");
+    console.log("  2. Run: opencode mcp auth linear  (OAuth for agent interactions — separate from step 1)");
     console.log("  3. Open opencode and run: /forge new project");
   });
 

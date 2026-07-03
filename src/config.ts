@@ -4,7 +4,10 @@ import type { ForgeConfig, AgentRole, LinearState } from "./types";
 
 export function generateForgeYaml(): string {
   return `# forge.yaml — Forge process manager configuration
-# Fill in your Linear team key and API key, then restart opencode.
+# The plugin needs a Linear API key for its own polling/claiming duties
+# (separate from agent auth — agents use "opencode mcp auth linear" for OAuth)
+# 
+# Create a Linear API key at: https://linear.app/settings/api
 
 active: false
 max_concurrent_stories: 5

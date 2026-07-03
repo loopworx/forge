@@ -75,7 +75,6 @@ export interface ForgeConfig {
     pollIntervalSeconds: number;
     teamKey: string;
     projectFilter: string;
-    apiKey: string;
   };
   agents: Record<AgentRole, AgentConfig>;
   inception: {

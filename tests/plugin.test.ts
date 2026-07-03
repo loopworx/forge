@@ -281,11 +281,10 @@ describe("plugin > project state persistence", () => {
   });
 });
 
-describe("linear-client > getLastComment", () => {
-  test("getLastComment method exists on LinearClient", async () => {
-    const { LinearClient } = await import("../src/linear-client");
-    const client = new LinearClient({
-      apiKey: "test_key",
+describe("mcp-client > getLastComment", () => {
+  test("getLastComment method exists on McpClient", async () => {
+    const { McpClient } = await import("../src/mcp-client");
+    const client = new McpClient({
       teamKey: "TEST",
     });
 
@@ -293,11 +292,10 @@ describe("linear-client > getLastComment", () => {
   });
 });
 
-describe("linear-client > getLastCommentWithDate", () => {
-  test("getLastCommentWithDate method exists on LinearClient", async () => {
-    const { LinearClient } = await import("../src/linear-client");
-    const client = new LinearClient({
-      apiKey: "test_key",
+describe("mcp-client > getLastCommentWithDate", () => {
+  test("getLastCommentWithDate method exists on McpClient", async () => {
+    const { McpClient } = await import("../src/mcp-client");
+    const client = new McpClient({
       teamKey: "TEST",
     });
 
@@ -305,11 +303,10 @@ describe("linear-client > getLastCommentWithDate", () => {
   });
 });
 
-describe("linear-client > updateStoryState", () => {
-  test("updateStoryState method exists on LinearClient", async () => {
-    const { LinearClient } = await import("../src/linear-client");
-    const client = new LinearClient({
-      apiKey: "test_key",
+describe("mcp-client > updateStoryState", () => {
+  test("updateStoryState method exists on McpClient", async () => {
+    const { McpClient } = await import("../src/mcp-client");
+    const client = new McpClient({
       teamKey: "TEST",
     });
 

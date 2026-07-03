@@ -73,21 +73,19 @@ program
       console.log();
       console.log("Linear configuration");
       console.log("-".repeat(30));
-      console.log("The Forge plugin needs a Linear API key and team key for its own operations");
-      console.log("(separate from agent auth via OAuth — that's handled by 'opencode mcp auth linear').");
-      console.log("If you prefer env vars, set LINEAR_API_KEY and LINEAR_TEAM_KEY and skip this.");
+      console.log("The plugin reuses the OAuth token from 'opencode mcp auth linear'.");
+      console.log("No API key needed — just your team key.");
+      console.log("If you prefer env vars, set LINEAR_TEAM_KEY and skip this prompt.");
       console.log();
 
       const teamKey = await prompt("  Team key (e.g. FOR): ");
-      const apiKey = await prompt("  API key (from https://linear.app/settings/api): ");
 
       const yaml = generateForgeYaml()
-        .replace('team_key: ""', `team_key: "${teamKey || ""}"`)
-        .replace('api_key: ""', `api_key: "${apiKey || ""}"`);
+        .replace('team_key: ""', `team_key: "${teamKey || ""}"`);
       writeFileSync(configPath, yaml);
 
-      if (!teamKey || !apiKey) {
-        console.log("  ⚠  Keys left blank — you can set LINEAR_API_KEY and LINEAR_TEAM_KEY env vars instead.");
+      if (!teamKey) {
+        console.log("  ⚠  Team key left blank — set LINEAR_TEAM_KEY env var instead.");
       }
       console.log("  ✓ forge.yaml created");
     } else {

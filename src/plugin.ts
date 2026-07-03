@@ -2,7 +2,7 @@ import type { Plugin } from "@opencode-ai/plugin";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { loadConfig, saveConfig, validateConfig } from "./config";
-import { LinearClient } from "./linear-client";
+import { McpClient } from "./mcp-client";
 import { buildPrompt, buildLoopPrompt, buildInceptionPrompt } from "./prompt-builder";
 import type {
   Story,
@@ -42,10 +42,8 @@ export const ForgePlugin: Plugin = async ({ client, directory }) => {
     return {};
   }
 
-  const linear = new LinearClient({
-    apiKey: config.linear.apiKey,
+  const linear = new McpClient({
     teamKey: config.linear.teamKey,
-    pollIntervalSeconds: config.linear.pollIntervalSeconds,
     projectFilter: config.linear.projectFilter || undefined,
   });
 

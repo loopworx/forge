@@ -12,7 +12,6 @@ linear:
   poll_interval_seconds: 10
   team_key: "loopworx"
   project_filter: ""
-  api_key: "lin_api_test_key"
 
 agents:
   po-agent:
@@ -191,7 +190,6 @@ describe("config", () => {
       expect(config.maxConcurrentStories).toBe(5);
       expect(config.linear.teamKey).toBe("loopworx");
       expect(config.linear.pollIntervalSeconds).toBe(10);
-      expect(config.linear.apiKey).toBe("lin_api_test_key");
     });
 
     test("parses agent definitions correctly", () => {
@@ -302,16 +300,6 @@ describe("config", () => {
       expect(errors).toContain("linear.team_key is required");
     });
 
-    test("missing api_key fails validation", () => {
-      const configPath = join(TMP_DIR, "forge.yaml");
-      writeFileSync(configPath, VALID_CONFIG.replace('api_key: "lin_api_test_key"', 'api_key: ""'));
-
-      const config = loadConfig(configPath);
-      const errors = validateConfig(config);
-
-      expect(errors).toContain("linear.api_key is required");
-    });
-
     test("zero poll interval fails validation", () => {
       const configPath = join(TMP_DIR, "forge.yaml");
       writeFileSync(configPath, VALID_CONFIG.replace("poll_interval_seconds: 10", "poll_interval_seconds: 0"));
@@ -381,9 +369,7 @@ describe("config", () => {
       expect(config.maxConcurrentStories).toBe(5);
       expect(config.linear.pollIntervalSeconds).toBe(10);
       expect(config.linear.teamKey).toBe("");
-      expect(config.linear.apiKey).toBe("");
       expect(errors).toContain("linear.team_key is required");
-      expect(errors).toContain("linear.api_key is required");
     });
 
     test("generated YAML includes all 7 agents", () => {
@@ -422,9 +408,9 @@ describe("config", () => {
       const yaml = generateForgeYaml();
 
       expect(yaml).toContain('team_key: ""');
-      expect(yaml).toContain('api_key: ""');
       expect(yaml).toContain("active: false");
       expect(yaml).toContain("project_filter: \"\"");
+      expect(yaml).not.toContain("api_key");
     });
 
     test("generated YAML key matches prod forge.yaml key set", () => {
@@ -457,25 +443,11 @@ describe("config", () => {
   });
 
   describe("env var fallback", () => {
-    const prevApiKey = process.env.LINEAR_API_KEY;
     const prevTeamKey = process.env.LINEAR_TEAM_KEY;
 
     afterEach(() => {
-      if (prevApiKey) process.env.LINEAR_API_KEY = prevApiKey;
-      else delete process.env.LINEAR_API_KEY;
       if (prevTeamKey) process.env.LINEAR_TEAM_KEY = prevTeamKey;
       else delete process.env.LINEAR_TEAM_KEY;
-    });
-
-    test("falls back to LINEAR_API_KEY env var when forge.yaml has empty api_key", () => {
-      process.env.LINEAR_API_KEY = "lin_api_from_env";
-      const configPath = join(TMP_DIR, "forge.yaml");
-
-      const yamlWithoutApiKey = VALID_CONFIG.replace('api_key: "lin_api_test_key"', 'api_key: ""');
-      writeFileSync(configPath, yamlWithoutApiKey);
-
-      const config = loadConfig(configPath);
-      expect(config.linear.apiKey).toBe("lin_api_from_env");
     });
 
     test("falls back to LINEAR_TEAM_KEY env var when forge.yaml has empty team_key", () => {
@@ -489,24 +461,21 @@ describe("config", () => {
       expect(config.linear.teamKey).toBe("ENVTEAM");
     });
 
-    test("forge.yaml value takes precedence over env var", () => {
-      process.env.LINEAR_API_KEY = "env_key_should_not_win";
+    test("forge.yaml team_key takes precedence over env var", () => {
+      process.env.LINEAR_TEAM_KEY = "env_team_should_not_win";
       const configPath = join(TMP_DIR, "forge.yaml");
       writeFileSync(configPath, VALID_CONFIG);
 
       const config = loadConfig(configPath);
-      expect(config.linear.apiKey).toBe("lin_api_test_key");
+      expect(config.linear.teamKey).toBe("loopworx");
     });
 
-    test("forges init generateForgeYaml leaves empty keys so env vars can fill them", () => {
-      process.env.LINEAR_API_KEY = "env_key";
+    test("generateForgeYaml leaves empty team_key so env vars can fill it", () => {
       process.env.LINEAR_TEAM_KEY = "ENV";
-      const yaml = generateForgeYaml();
       const configPath = join(TMP_DIR, "generated-forge.yaml");
-      writeFileSync(configPath, yaml);
+      writeFileSync(configPath, generateForgeYaml());
 
       const config = loadConfig(configPath);
-      expect(config.linear.apiKey).toBe("env_key");
       expect(config.linear.teamKey).toBe("ENV");
     });
   });

@@ -4,10 +4,8 @@ import type { ForgeConfig, AgentRole, LinearState } from "./types";
 
 export function generateForgeYaml(): string {
   return `# forge.yaml — Forge process manager configuration
-# The plugin needs a Linear API key for its own polling/claiming duties
-# (separate from agent auth — agents use "opencode mcp auth linear" for OAuth)
-# 
-# Create a Linear API key at: https://linear.app/settings/api
+# The plugin uses the OAuth token from "opencode mcp auth linear"
+# No API key needed — run opencode mcp auth linear before starting Forge.
 
 active: false
 max_concurrent_stories: 5
@@ -16,7 +14,6 @@ linear:
   poll_interval_seconds: 10
   team_key: ""
   project_filter: ""
-  api_key: ""
 
 agents:
   po-agent:
@@ -194,9 +191,6 @@ export function validateConfig(config: ForgeConfig): string[] {
   if (!config.linear.teamKey) {
     errors.push("linear.team_key is required");
   }
-  if (!config.linear.apiKey) {
-    errors.push("linear.api_key is required");
-  }
   if (config.linear.pollIntervalSeconds <= 0) {
     errors.push("linear.poll_interval_seconds must be greater than 0");
   }
@@ -265,7 +259,6 @@ function normalizeConfig(parsed: unknown): ForgeConfig {
       pollIntervalSeconds: p.linear?.poll_interval_seconds ?? 10,
       teamKey: p.linear?.team_key || process.env.LINEAR_TEAM_KEY || "",
       projectFilter: p.linear?.project_filter || "",
-      apiKey: p.linear?.api_key || process.env.LINEAR_API_KEY || "",
     },
     agents,
     inception: { phases },

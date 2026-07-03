@@ -2,7 +2,7 @@ import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { writeFileSync, mkdirSync, rmSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { buildPrompt, buildInceptionPrompt, buildLoopPrompt } from "../src/prompt-builder";
-import { parseSessionTitle } from "../src/plugin";
+import { parseSessionTitle } from "../src/utils";
 import type { Story, InceptionPhase } from "../src/types";
 
 const TMP_DIR = join(import.meta.dir, ".tmp-plugin-test");

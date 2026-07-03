@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { loadConfig, saveConfig, validateConfig } from "./config";
 import { McpClient } from "./mcp-client";
 import { buildPrompt, buildLoopPrompt, buildInceptionPrompt } from "./prompt-builder";
+import { parseSessionTitle } from "./utils";
 import type {
   Story,
   AgentRole,
@@ -19,16 +20,6 @@ import type {
 const FORGE_TAG = "FORGE:";
 const SESSIONS_FILE = ".forge/sessions.json";
 const PROJECT_STATE_FILE = ".forge/project-state.json";
-
-export function parseSessionTitle(title: string): { storyId: string; agentName: AgentRole; isRecovery: boolean } | null {
-  const match = title.match(/^FORGE:\s+([A-Z]+-\d+)\s+—\s+(\S+?)(?:\s+\(recovery\))?$/);
-  if (!match) return null;
-  return {
-    storyId: match[1],
-    agentName: match[2] as AgentRole,
-    isRecovery: title.includes("(recovery)"),
-  };
-}
 
 export const ForgePlugin: Plugin = async ({ client, directory, serverUrl }) => {
   const v2 = createOpencodeClient({ baseUrl: serverUrl.toString() });

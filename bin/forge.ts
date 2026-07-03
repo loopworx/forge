@@ -94,10 +94,9 @@ program
     if (!existsSync(opencodeJsonPath)) {
       const config = {
         $schema: "https://opencode.ai/config.json",
-        plugin: [".opencode/plugins/forge.js"],
       };
       writeFileSync(opencodeJsonPath, JSON.stringify(config, null, 2));
-      console.log("  ✓ opencode.json created (Forge plugin registered)");
+      console.log("  ✓ opencode.json created (Forge plugin auto-loads from .opencode/plugins/)");
     } else {
       console.log("  ✓ opencode.json already exists (skipped)");
     }

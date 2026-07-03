@@ -74,12 +74,12 @@ program
       console.log("  ✓ Commands installed (.opencode/commands/forge/)");
     }
 
-    const srcPlugin = join(packageRoot, "src", "plugin.ts");
+    const distPlugin = join(packageRoot, "dist", "plugin.js");
     const pluginDir = join(opencodeDir, "plugins");
-    if (existsSync(srcPlugin)) {
+    if (existsSync(distPlugin)) {
       mkdirSync(pluginDir, { recursive: true });
-      cpSync(srcPlugin, join(pluginDir, "forge.ts"));
-      console.log("  ✓ Plugin installed (.opencode/plugins/forge.ts)");
+      cpSync(distPlugin, join(pluginDir, "forge.js"));
+      console.log("  ✓ Plugin installed (.opencode/plugins/forge.js)");
     }
 
     const configPath = join(cwd, "forge.yaml");
@@ -94,7 +94,7 @@ program
     if (!existsSync(opencodeJsonPath)) {
       const config = {
         $schema: "https://opencode.ai/config.json",
-        plugin: [".opencode/plugins/forge.ts"],
+        plugin: [".opencode/plugins/forge.js"],
       };
       writeFileSync(opencodeJsonPath, JSON.stringify(config, null, 2));
       console.log("  ✓ opencode.json created (Forge plugin registered)");

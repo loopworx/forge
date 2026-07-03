@@ -7,7 +7,7 @@ Call the `forge_start` tool to begin Forge inception. Report the returned result
 Do NOT:
 - Query Linear for teams or states
 - Create workflow states
-- Read plugin source code (forge.ts, plugin.ts, mcp-client.ts)
+- Read plugin source code (forge.js, plugin.ts, mcp-client.ts)
 - Try to start inception yourself — the tool does everything
 
 The tool will:

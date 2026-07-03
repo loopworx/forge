@@ -30,7 +30,7 @@ Facilitates the full inception process for a new project across 8 sequential pha
 - Create new sessions for subsequent phases
 - Chain multiple inception phases in one session
 - Read or modify `.forge/` directory files (sessions.json, project-state.json)
-- Read plugin source code (forge.ts, plugin.ts, mcp-client.ts) to understand infrastructure
+- Read plugin source code (forge.js, plugin.ts, mcp-client.ts) to understand infrastructure
 
 If you need a Linear operation that the plugin doesn't expose (e.g., creating issues during Phase 6), use the Linear MCP tools directly — but ONLY for content operations, never infrastructure.
 

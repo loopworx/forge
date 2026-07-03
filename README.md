@@ -92,7 +92,7 @@ forge init
 
 | Path | Contents |
 |------|----------|
-| `.opencode/plugins/forge.ts` | The Forge plugin (coordinator) |
+| `.opencode/plugins/forge.js` | The Forge plugin (coordinator) |
 | `.opencode/agents/` | 7 agent definitions with skill permissions |
 | `.opencode/skills/` | 24 skills (SKILL.md + LOOP.md each) |
 | `.opencode/commands/forge/` | Slash commands: `new-project`, `stop`, `status`, `approve` |

@@ -29,7 +29,7 @@ The Forge PLUGIN handles all infrastructure. You, the agent, handle content. Nev
 | Monitors session health (crash recovery) | Produces phase artifacts with human gates |
 | Transitions Linear states (plugin-side handoffs) | Updates story state in Linear when claiming/completing |
 
-**THE PLATINUM RULE: If you catch yourself reading the plugin source code (`forge.ts`, `plugin.ts`, `mcp-client.ts`) to figure out how to do something, STOP. That's the plugin's job. You are operating in the wrong layer.**
+**THE PLATINUM RULE: If you catch yourself reading the plugin source code (`forge.js`, `plugin.ts`, `mcp-client.ts`) to figure out how to do something, STOP. That's the plugin's job. You are operating in the wrong layer.**
 
 The plugin has already done the following before your session started:
 - Discovered the correct Linear team

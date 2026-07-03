@@ -35,6 +35,7 @@ function createClient(opts?: { projectFilter?: string; maxRetries?: number; retr
   const client = new McpClient(opts);
   client.teamId = TEST_TEAM_ID;
   client.teamName = "Forge-test";
+  client.setAuthForTesting("test-access-token");
   return client;
 }
 
@@ -276,6 +277,7 @@ describe("McpClient", () => {
       })) as typeof fetch;
 
       const client = new McpClient();
+      client.setAuthForTesting("test-token");
       const team = await client.discoverTeam();
 
       expect(team).not.toBeNull();
@@ -292,6 +294,7 @@ describe("McpClient", () => {
       })) as typeof fetch;
 
       const client = new McpClient();
+      client.setAuthForTesting("test-token");
       const team = await client.discoverTeam();
 
       expect(team).toBeNull();
@@ -308,6 +311,7 @@ describe("McpClient", () => {
       })) as typeof fetch;
 
       const client = new McpClient();
+      client.setAuthForTesting("test-token");
       const team = await client.discoverTeam();
 
       expect(team).toBeNull();

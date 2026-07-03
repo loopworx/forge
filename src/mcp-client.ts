@@ -44,6 +44,15 @@ export class McpClient {
     return this.teamId !== null;
   }
 
+  setAuthForTesting(accessToken: string) {
+    this.auth = {
+      accessToken,
+      refreshToken: "refresh-test-token",
+      expiresAt: Date.now() / 1000 + 3600,
+      clientId: "test-client-id",
+    };
+  }
+
   private ensureTeam(): void {
     if (!this.teamId) {
       throw new Error("Team not discovered. Call discoverTeam() first.");

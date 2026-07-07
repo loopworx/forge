@@ -43,11 +43,10 @@ async function runOAuth(authFile: string): Promise<boolean> {
   authUrl.searchParams.set("client_id", FORGE_CLIENT_ID);
   authUrl.searchParams.set("redirect_uri", CALLBACK_URI);
   authUrl.searchParams.set("response_type", "code");
-  authUrl.searchParams.set("scope", "read,write");
+  authUrl.searchParams.set("scope", "read,write,admin");
   authUrl.searchParams.set("state", state);
   authUrl.searchParams.set("code_challenge", challenge);
   authUrl.searchParams.set("code_challenge_method", "S256");
-  authUrl.searchParams.set("actor", "app");
   authUrl.searchParams.set("prompt", "consent");
 
   return new Promise((resolve) => {
@@ -320,6 +319,7 @@ program
 
     console.log();
     console.log("Forge is ready. Open opencode and run: /forge new project");
+    process.exit(0);
   });
 
 program.parse();

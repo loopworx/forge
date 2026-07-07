@@ -1,6 +1,5 @@
 import type { Plugin } from "@opencode-ai/plugin";
 import { tool } from "@opencode-ai/plugin";
-import { createOpencodeClient } from "@opencode-ai/sdk/v2";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { loadConfig, saveConfig, validateConfig } from "./config";
@@ -21,8 +20,7 @@ const FORGE_TAG = "FORGE:";
 const SESSIONS_FILE = ".forge/sessions.json";
 const PROJECT_STATE_FILE = ".forge/project-state.json";
 
-export const ForgePlugin: Plugin = async ({ client, directory, serverUrl }) => {
-  const v2 = createOpencodeClient({ baseUrl: serverUrl.toString() });
+export const ForgePlugin: Plugin = async ({ client, directory }) => {
   const configPath = join(directory, "forge.yaml");
 
   if (!existsSync(configPath)) {
@@ -195,10 +193,9 @@ export const ForgePlugin: Plugin = async ({ client, directory, serverUrl }) => {
 
       const title = `${FORGE_TAG} ${story.id} — ${agentName}`;
 
-      const createResult = await v2.session.create({
-        directory,
-        title,
-        agent: agentName,
+      const createResult = await client.session.create({
+        body: { title },
+        query: { directory },
       });
 
       const sessionId = (createResult.data as any)?.id;
@@ -280,10 +277,9 @@ export const ForgePlugin: Plugin = async ({ client, directory, serverUrl }) => {
 
     const title = `${FORGE_TAG} ${storyId} — ${agentName} (recovery)`;
 
-    const createResult = await v2.session.create({
-      directory,
-      title,
-      agent: agentName,
+    const createResult = await client.session.create({
+      body: { title },
+      query: { directory },
     });
 
     const sessionId = (createResult.data as any)?.id;
@@ -402,10 +398,9 @@ export const ForgePlugin: Plugin = async ({ client, directory, serverUrl }) => {
   async function startInceptionPhase(phase: InceptionPhase): Promise<string | null> {
     const title = `${FORGE_TAG} Inception Phase ${phase.phase} — ${phase.name}`;
 
-    const createResult = await v2.session.create({
-      directory,
-      title,
-      agent: phase.agent,
+    const createResult = await client.session.create({
+      body: { title },
+      query: { directory },
     });
 
     const sessionId = (createResult.data as any)?.id;

@@ -1,15 +1,30 @@
+import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { join } from "node:path";
+import { homedir } from "node:os";
 import type { Story, LinearState, WorkflowStateInfo, CommentWithDate } from "./types";
 
+const LINEAR_API_URL = "https://api.linear.app/graphql";
+const TOKEN_URL = "https://api.linear.app/oauth/token";
+const FORGE_CLIENT_ID = "383e63c709107d75f0468505bc68eb20";
+const DEFAULT_AUTH_PATH = join(homedir(), ".local", "share", "forge", "linear-auth.json");
+
 interface LinearClientOptions {
-  apiKey: string;
-  teamKey: string;
-  pollIntervalSeconds?: number;
+  authPath?: string;
   projectFilter?: string;
   maxRetries?: number;
   retryDelayMs?: number;
 }
 
-const LINEAR_API_URL = "https://api.linear.app/graphql";
+interface AuthTokens {
+  accessToken: string;
+  refreshToken: string;
+  expiresAt: number;
+}
+
+export interface TeamInfo {
+  id: string;
+  name: string;
+}
 
 const FORGE_WORKFLOW_STATES: { name: string; color: string; type: string; position: number }[] = [
   { name: "in-analysis", color: "#c4b5fd", type: "unstarted", position: 1000 },
@@ -29,18 +44,119 @@ const FORGE_WORKFLOW_STATES: { name: string; color: string; type: string; positi
 ];
 
 export class LinearClient {
-  private apiKey: string;
-  private teamKey: string;
+  teamId: string | null = null;
+  teamName: string | null = null;
+  private authPath: string;
   private projectFilter: string;
   private maxRetries: number;
   private retryDelayMs: number;
+  private auth: AuthTokens | null = null;
 
-  constructor(opts: LinearClientOptions) {
-    this.apiKey = opts.apiKey;
-    this.teamKey = opts.teamKey;
+  constructor(opts: LinearClientOptions = {}) {
+    this.authPath = opts.authPath ?? DEFAULT_AUTH_PATH;
     this.projectFilter = opts.projectFilter ?? "";
     this.maxRetries = opts.maxRetries ?? 3;
     this.retryDelayMs = opts.retryDelayMs ?? 1000;
+  }
+
+  get hasTeam(): boolean {
+    return this.teamId !== null;
+  }
+
+  private ensureTeam(): void {
+    if (!this.teamId) {
+      throw new Error("Team not discovered. Call discoverTeam() first.");
+    }
+  }
+
+  async discoverTeam(): Promise<TeamInfo | null> {
+    const teams = await this.listTeams();
+
+    if (teams.length === 0) {
+      return null;
+    }
+
+    if (teams.length === 1) {
+      this.teamId = teams[0].id;
+      this.teamName = teams[0].name;
+      return teams[0];
+    }
+
+    return null;
+  }
+
+  async listTeams(): Promise<TeamInfo[]> {
+    const query = `
+      query ListTeams {
+        teams {
+          nodes { id name key }
+        }
+      }
+    `;
+    const result = await this.graphql(query);
+    const nodes = result.data?.teams?.nodes ?? [];
+    return nodes.map((t: any) => ({ id: t.id, name: t.name }));
+  }
+
+  private async loadAuth(): Promise<AuthTokens> {
+    if (this.auth && Date.now() / 1000 < this.auth.expiresAt - 60) {
+      return this.auth;
+    }
+
+    try {
+      const raw = readFileSync(this.authPath, "utf-8");
+      const data = JSON.parse(raw);
+      if (!data?.accessToken) {
+        throw new Error("Linear auth not found. Run: forge init");
+      }
+      this.auth = {
+        accessToken: data.accessToken,
+        refreshToken: data.refreshToken,
+        expiresAt: data.expiresAt,
+      };
+    } catch {
+      throw new Error("Linear auth not found. Run: forge init");
+    }
+
+    if (Date.now() / 1000 >= (this.auth?.expiresAt ?? 0) - 60) {
+      await this.refreshToken();
+    }
+
+    return this.auth!;
+  }
+
+  private async refreshToken(): Promise<void> {
+    const params = new URLSearchParams({
+      grant_type: "refresh_token",
+      refresh_token: this.auth!.refreshToken,
+      client_id: FORGE_CLIENT_ID,
+    });
+
+    const response = await fetch(TOKEN_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: params.toString(),
+    });
+
+    if (!response.ok) {
+      this.auth = null;
+      throw new Error("Token refresh failed. Re-run: forge init");
+    }
+
+    const data = await response.json();
+    this.auth = {
+      accessToken: data.access_token,
+      refreshToken: data.refresh_token ?? this.auth!.refreshToken,
+      expiresAt: Date.now() / 1000 + (data.expires_in ?? 3600),
+    };
+
+    try {
+      const dir = this.authPath.substring(0, this.authPath.lastIndexOf("/"));
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(this.authPath, JSON.stringify(this.auth, null, 2));
+    } catch {
+      // best-effort write back to disk
+    }
   }
 
   private async graphql(query: string, variables: Record<string, unknown> = {}): Promise<any> {
@@ -48,11 +164,12 @@ export class LinearClient {
 
     for (let attempt = 0; attempt < this.maxRetries; attempt++) {
       try {
+        const auth = await this.loadAuth();
         const response = await fetch(LINEAR_API_URL, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": this.apiKey,
+            "Authorization": `Bearer ${auth.accessToken}`,
           },
           body: JSON.stringify({ query, variables }),
         });
@@ -62,7 +179,12 @@ export class LinearClient {
           throw new Error(`Linear API error ${response.status}: ${JSON.stringify(errorBody)}`);
         }
 
-        return await response.json();
+        const result = await response.json();
+        if (result.errors) {
+          throw new Error(result.errors[0]?.message ?? "GraphQL error");
+        }
+
+        return result;
       } catch (err) {
         lastError = err as Error;
         if (attempt < this.maxRetries - 1) {
@@ -75,17 +197,17 @@ export class LinearClient {
   }
 
   async pollStories(pullStates: LinearState[]): Promise<Story[]> {
+    this.ensureTeam();
+    const stateFilter = pullStates.map((s) => `{ name: { eq: "${s}" } }`).join(", ");
     const projectFilter = this.projectFilter
       ? `, project: { name: { eq: "${this.projectFilter}" } }`
       : "";
-
-    const stateFilter = pullStates.map((s) => `{ name: { eq: "${s}" } }`).join(", ");
 
     const query = `
       query PollStories {
         issues(
           filter: {
-            team: { key: { eq: "${this.teamKey}" } }
+            team: { id: { eq: "${this.teamId}" } }
             state: { or: [${stateFilter}] }
             ${projectFilter}
           }
@@ -133,11 +255,12 @@ export class LinearClient {
   }
 
   async getIssueCount(): Promise<number> {
+    this.ensureTeam();
     const query = `
       query GetIssueCount {
         issues(
           filter: {
-            team: { key: { eq: "${this.teamKey}" } }
+            team: { id: { eq: "${this.teamId}" } }
           }
         ) {
           nodes { id }
@@ -150,9 +273,10 @@ export class LinearClient {
   }
 
   async getWorkflowStates(): Promise<WorkflowStateInfo[]> {
+    this.ensureTeam();
     const query = `
       query GetWorkflowStates {
-        teams(filter: { key: { eq: "${this.teamKey}" } }) {
+        teams(filter: { id: { eq: "${this.teamId}" } }) {
           nodes {
             states { nodes { id name type position } }
           }
@@ -195,30 +319,13 @@ export class LinearClient {
     return result.data?.workflowStateCreate?.workflowState?.id;
   }
 
-  async getTeamId(): Promise<string> {
-    const query = `
-      query GetTeamId {
-        teams(filter: { key: { eq: "${this.teamKey}" } }) {
-          nodes { id name key }
-        }
-      }
-    `;
-
-    const result = await this.graphql(query);
-    return result.data?.teams?.nodes?.[0]?.id;
-  }
-
   async ensureWorkflowStates(): Promise<{ created: string[]; existing: string[]; skipped: string[] }> {
-    const teamId = await this.getTeamId();
-    if (!teamId) {
-      throw new Error(`Team with key "${this.teamKey}" not found`);
-    }
-
+    this.ensureTeam();
     const existingStates = await this.getWorkflowStates();
     const existingNames = new Set(existingStates.map((s) => s.name));
 
-    const created: string[] = [];
     const existing: string[] = [];
+    const created: string[] = [];
     const skipped: string[] = [];
 
     for (const state of FORGE_WORKFLOW_STATES) {
@@ -230,7 +337,7 @@ export class LinearClient {
       try {
         await this.createWorkflowState(
           state.name,
-          teamId,
+          this.teamId!,
           state.color,
           state.type,
           state.position,
@@ -245,8 +352,8 @@ export class LinearClient {
   }
 
   async isFreshTeam(): Promise<boolean> {
-    const issueCount = await this.getIssueCount();
-    return issueCount === 0;
+    const count = await this.getIssueCount();
+    return count === 0;
   }
 
   async hasForgeStates(): Promise<boolean> {
@@ -300,8 +407,8 @@ export class LinearClient {
 
   async updateStoryState(storyId: string, stateName: string): Promise<void> {
     const stateQuery = `
-      query GetStateId($teamKey: String!, $stateName: String!) {
-        teams(filter: { key: { eq: $teamKey } }) {
+      query GetStateId($teamId: String!, $stateName: String!) {
+        teams(filter: { id: { eq: $teamId } }) {
           nodes {
             states(filter: { name: { eq: $stateName } }) {
               nodes { id name }
@@ -312,13 +419,13 @@ export class LinearClient {
     `;
 
     const stateResult = await this.graphql(stateQuery, {
-      teamKey: this.teamKey,
+      teamId: this.teamId,
       stateName,
     });
 
     const stateId = stateResult.data?.teams?.nodes?.[0]?.states?.nodes?.[0]?.id;
     if (!stateId) {
-      throw new Error(`Workflow state "${stateName}" not found in team ${this.teamKey}`);
+      throw new Error(`Workflow state "${stateName}" not found in team ${this.teamName}`);
     }
 
     const mutation = `

@@ -1,31 +1,159 @@
 #!/usr/bin/env bun
 import { Command } from "commander";
-import { existsSync, mkdirSync, cpSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, cpSync, writeFileSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { homedir } from "node:os";
 import { spawnSync } from "node:child_process";
+import { randomBytes, createHash } from "node:crypto";
 import { generateForgeYaml } from "../src/config";
 
-function findBinary(name: string): string | null {
-  const result = spawnSync("which", [name], { stdio: ["pipe", "pipe", "pipe"] });
-  if (result.status !== 0) return null;
-  return result.stdout.toString().trim() || null;
+const FORGE_CLIENT_ID = "383e63c709107d75f0468505bc68eb20";
+const AUTH_FILE = join(homedir(), ".local", "share", "forge", "linear-auth.json");
+const CALLBACK_PORT = 43117;
+const CALLBACK_HOST = "127.0.0.1";
+const CALLBACK_URI = `http://${CALLBACK_HOST}:${CALLBACK_PORT}/callback`;
+
+function base64url(buf: Buffer): string {
+  return buf.toString("base64url");
 }
 
-function mcpAuthStatus(): "authenticated" | "not-authenticated" | "unknown" {
-  const result = spawnSync("opencode", ["mcp", "auth", "ls"], {
-    stdio: ["pipe", "pipe", "pipe"],
-  });
-  const output = result.stdout.toString();
-  if (output.includes("✓ linear")) return "authenticated";
-  if (output.includes("✗ linear")) return "not-authenticated";
-  return "unknown";
+function generatePKCE(): { verifier: string; challenge: string } {
+  const verifier = base64url(randomBytes(32));
+  const challenge = base64url(createHash("sha256").update(verifier).digest());
+  return { verifier, challenge };
 }
 
-function runOAuth(): boolean {
-  const result = spawnSync("opencode", ["mcp", "auth", "linear"], {
-    stdio: "inherit",
+function authStatus(): "authenticated" | "not-authenticated" {
+  try {
+    const raw = readFileSync(AUTH_FILE, "utf-8");
+    const data = JSON.parse(raw);
+    if (!data?.accessToken) return "not-authenticated";
+    if (Date.now() / 1000 >= (data.expiresAt ?? 0) - 60) return "not-authenticated";
+    return "authenticated";
+  } catch {
+    return "not-authenticated";
+  }
+}
+
+async function runOAuth(): Promise<boolean> {
+  const { verifier, challenge } = generatePKCE();
+  const state = base64url(randomBytes(16));
+
+  const authUrl = new URL("https://linear.app/oauth/authorize");
+  authUrl.searchParams.set("client_id", FORGE_CLIENT_ID);
+  authUrl.searchParams.set("redirect_uri", CALLBACK_URI);
+  authUrl.searchParams.set("response_type", "code");
+  authUrl.searchParams.set("scope", "read,write");
+  authUrl.searchParams.set("state", state);
+  authUrl.searchParams.set("code_challenge", challenge);
+  authUrl.searchParams.set("code_challenge_method", "S256");
+  authUrl.searchParams.set("actor", "user");
+
+  return new Promise((resolve) => {
+    let resolved = false;
+
+    const timeout = setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        server.stop();
+        resolve(false);
+      }
+    }, 120000);
+
+    const server = Bun.serve({
+      port: CALLBACK_PORT,
+      hostname: CALLBACK_HOST,
+      async fetch(req) {
+        const url = new URL(req.url);
+        if (url.pathname !== "/callback") {
+          return new Response("Not found", { status: 404 });
+        }
+
+        const code = url.searchParams.get("code");
+        const returnedState = url.searchParams.get("state");
+
+        if (returnedState !== state) {
+          clearTimeout(timeout);
+          if (!resolved) {
+            resolved = true;
+            server.stop();
+            resolve(false);
+          }
+          return new Response("Invalid state parameter", { status: 400 });
+        }
+
+        if (!code) {
+          clearTimeout(timeout);
+          if (!resolved) {
+            resolved = true;
+            server.stop();
+            resolve(false);
+          }
+          return new Response("Missing authorization code", { status: 400 });
+        }
+
+        try {
+          const tokenParams = new URLSearchParams({
+            grant_type: "authorization_code",
+            code,
+            redirect_uri: CALLBACK_URI,
+            client_id: FORGE_CLIENT_ID,
+            code_verifier: verifier,
+          });
+
+          const tokenResponse = await fetch("https://api.linear.app/oauth/token", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: tokenParams.toString(),
+          });
+
+          if (!tokenResponse.ok) {
+            const errText = await tokenResponse.text();
+            clearTimeout(timeout);
+            if (!resolved) {
+              resolved = true;
+              server.stop();
+              resolve(false);
+            }
+            return new Response(`Token exchange failed: ${errText}`, { status: 500 });
+          }
+
+          const tokenData = await tokenResponse.json();
+
+          const authDir = join(homedir(), ".local", "share", "forge");
+          mkdirSync(authDir, { recursive: true });
+          writeFileSync(
+            join(authDir, "linear-auth.json"),
+            JSON.stringify({
+              accessToken: tokenData.access_token,
+              refreshToken: tokenData.refresh_token,
+              expiresAt: Date.now() / 1000 + tokenData.expires_in,
+            }, null, 2)
+          );
+
+          clearTimeout(timeout);
+          if (!resolved) {
+            resolved = true;
+            server.stop();
+            resolve(true);
+          }
+          return new Response("Forge authenticated successfully! You can close this tab.");
+        } catch (err) {
+          clearTimeout(timeout);
+          if (!resolved) {
+            resolved = true;
+            server.stop();
+            resolve(false);
+          }
+          return new Response(`Error: ${(err as Error).message}`, { status: 500 });
+        }
+      },
+    });
+
+    // Open browser
+    const openCmd = process.platform === "darwin" ? "open" : "xdg-open";
+    spawnSync(openCmd, [authUrl.toString()], { stdio: "ignore" });
   });
-  return result.status === 0;
 }
 
 const program = new Command();
@@ -108,17 +236,7 @@ program
     if (opts.skipAuth) {
       console.log();
       console.log("Skipped Linear authentication (--skip-auth).");
-      console.log("Run manually: opencode mcp add linear --url https://mcp.linear.app/mcp");
-      console.log("              opencode mcp auth linear");
-      return;
-    }
-
-    const opencodeBin = findBinary("opencode");
-    if (!opencodeBin) {
-      console.log();
-      console.log("⚠  opencode CLI not found. Install it: https://opencode.ai");
-      console.log("   Then run: opencode mcp add linear --url https://mcp.linear.app/mcp");
-      console.log("             opencode mcp auth linear");
+      console.log("Run manually: forge init (without --skip-auth)");
       return;
     }
 
@@ -126,21 +244,15 @@ program
     console.log("Linear setup");
     console.log("-".repeat(30));
 
-    console.log("  Registering Linear MCP server...");
-    spawnSync("opencode", ["mcp", "add", "linear", "--url", "https://mcp.linear.app/mcp"], {
-      stdio: "pipe",
-    });
-    console.log("  ✓ Linear MCP server registered");
-
-    const status = mcpAuthStatus();
+    const status = authStatus();
     if (status === "authenticated") {
       console.log("  ✓ Linear already authenticated");
     } else {
       console.log("  Authenticating with Linear (opens browser)...");
-      const ok = runOAuth();
+      const ok = await runOAuth();
       if (!ok) {
         console.log("  ⚠  Authentication was cancelled or failed.");
-        console.log("     Run manually: opencode mcp auth linear");
+        console.log("     Run manually: forge init");
         return;
       }
       console.log("  ✓ Linear authenticated");

@@ -281,28 +281,28 @@ describe("plugin > project state persistence", () => {
   });
 });
 
-describe("mcp-client > getLastComment", () => {
-  test("getLastComment method exists on McpClient", async () => {
-    const { McpClient } = await import("../src/mcp-client");
-    const client = new McpClient();
+describe("linear-client > getLastComment", () => {
+  test("getLastComment method exists on LinearClient", async () => {
+    const { LinearClient } = await import("../src/linear-client");
+    const client = new LinearClient({ authPath: "/tmp/test-auth.json" });
 
     expect(typeof client.getLastComment).toBe("function");
   });
 });
 
-describe("mcp-client > getLastCommentWithDate", () => {
-  test("getLastCommentWithDate method exists on McpClient", async () => {
-    const { McpClient } = await import("../src/mcp-client");
-    const client = new McpClient();
+describe("linear-client > getLastCommentWithDate", () => {
+  test("getLastCommentWithDate method exists on LinearClient", async () => {
+    const { LinearClient } = await import("../src/linear-client");
+    const client = new LinearClient({ authPath: "/tmp/test-auth.json" });
 
     expect(typeof client.getLastCommentWithDate).toBe("function");
   });
 });
 
-describe("mcp-client > updateStoryState", () => {
-  test("updateStoryState method exists on McpClient", async () => {
-    const { McpClient } = await import("../src/mcp-client");
-    const client = new McpClient();
+describe("linear-client > updateStoryState", () => {
+  test("updateStoryState method exists on LinearClient", async () => {
+    const { LinearClient } = await import("../src/linear-client");
+    const client = new LinearClient({ authPath: "/tmp/test-auth.json" });
 
     expect(typeof client.updateStoryState).toBe("function");
   });

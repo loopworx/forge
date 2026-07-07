@@ -234,6 +234,10 @@ program
     writeFileSync(join(cwd, "stories", ".gitkeep"), "");
     console.log("  ✓ stories/ directory created");
 
+    const forgeDir = join(cwd, ".forge");
+    mkdirSync(forgeDir, { recursive: true });
+    const authFile = join(forgeDir, "linear-auth.json");
+
     if (opts.skipAuth) {
       console.log();
       console.log("Skipped Linear authentication (--skip-auth).");
@@ -244,23 +248,28 @@ program
     console.log("Linear setup");
     console.log("-".repeat(30));
 
-    const forgeDir = join(cwd, ".forge");
-    mkdirSync(forgeDir, { recursive: true });
-    const authFile = join(forgeDir, "linear-auth.json");
-
     if (opts.reAuth && existsSync(authFile)) {
       rmSync(authFile);
       console.log("  Cleared existing auth (--re-auth)");
     }
 
     const status = authStatus(authFile);
-    let needsTeamSelection = false;
 
     if (status === "authenticated") {
       console.log("  ✓ Linear already authenticated");
-      needsTeamSelection = true;
     } else {
-      console.log("  Authenticating with Linear (opens browser)...");
+      console.log("  Opening Linear in your browser...");
+      console.log("  1. Log in to Linear");
+      console.log("  2. Switch to your desired workspace (top-right dropdown)");
+      console.log("  3. Press Enter here when ready");
+      const openCmd = process.platform === "darwin" ? "open" : "xdg-open";
+      spawnSync(openCmd, ["https://linear.app/login"], { stdio: "ignore" });
+
+      await new Promise<void>((resolve) => {
+        process.stdin.once("data", () => resolve());
+      });
+
+      console.log("  Starting Forge authorization (opens browser)...");
       const ok = await runOAuth(authFile);
       if (!ok) {
         console.log("  ⚠  Authentication was cancelled or failed.");
@@ -268,46 +277,43 @@ program
         return;
       }
       console.log("  ✓ Linear authenticated");
-      needsTeamSelection = true;
     }
 
-    if (needsTeamSelection) {
-      const existingConfig = parse(readFileSync(configPath, "utf-8"));
+    const existingConfig = parse(readFileSync(configPath, "utf-8"));
 
-      if (existingConfig.linear?.team_id) {
-        console.log(`  ✓ Team already configured: ${existingConfig.linear.team_name || existingConfig.linear.team_id}`);
+    if (existingConfig.linear?.team_id) {
+      console.log(`  ✓ Team already configured: ${existingConfig.linear.team_name || existingConfig.linear.team_id}`);
+    } else {
+      console.log("  Fetching your teams...");
+      const linear = new LinearClient({ authPath: authFile });
+      const teams = await linear.listTeams();
+
+      if (teams.length === 0) {
+        console.log("  ⚠  No teams found in your Linear workspace.");
+      } else if (teams.length === 1) {
+        existingConfig.linear = existingConfig.linear || {};
+        existingConfig.linear.team_id = teams[0].id;
+        existingConfig.linear.team_name = teams[0].name;
+        writeFileSync(configPath, stringify(existingConfig));
+        console.log(`  ✓ Team auto-selected: ${teams[0].name}`);
       } else {
-        console.log("  Fetching your teams...");
-        const linear = new LinearClient({ authPath: authFile });
-        const teams = await linear.listTeams();
+        console.log("  Available teams:");
+        teams.forEach((t, i) => console.log(`    ${i + 1}. ${t.name}`));
+        process.stdout.write("  Select team number: ");
 
-        if (teams.length === 0) {
-          console.log("  ⚠  No teams found in your Linear workspace.");
-        } else if (teams.length === 1) {
+        const answer = await new Promise<string>((resolve) => {
+          process.stdin.once("data", (data) => resolve(data.toString().trim()));
+        });
+
+        const idx = parseInt(answer, 10) - 1;
+        if (idx >= 0 && idx < teams.length) {
           existingConfig.linear = existingConfig.linear || {};
-          existingConfig.linear.team_id = teams[0].id;
-          existingConfig.linear.team_name = teams[0].name;
+          existingConfig.linear.team_id = teams[idx].id;
+          existingConfig.linear.team_name = teams[idx].name;
           writeFileSync(configPath, stringify(existingConfig));
-          console.log(`  ✓ Team auto-selected: ${teams[0].name}`);
+          console.log(`  ✓ Team selected: ${teams[idx].name}`);
         } else {
-          console.log("  Available teams:");
-          teams.forEach((t, i) => console.log(`    ${i + 1}. ${t.name}`));
-          process.stdout.write("  Select team number: ");
-
-          const answer = await new Promise<string>((resolve) => {
-            process.stdin.once("data", (data) => resolve(data.toString().trim()));
-          });
-
-          const idx = parseInt(answer, 10) - 1;
-          if (idx >= 0 && idx < teams.length) {
-            existingConfig.linear = existingConfig.linear || {};
-            existingConfig.linear.team_id = teams[idx].id;
-            existingConfig.linear.team_name = teams[idx].name;
-            writeFileSync(configPath, stringify(existingConfig));
-            console.log(`  ✓ Team selected: ${teams[idx].name}`);
-          } else {
-            console.log("  ⚠  Invalid selection. Run forge init again to select a team.");
-          }
+          console.log("  ⚠  Invalid selection. Run forge init again to select a team.");
         }
       }
     }

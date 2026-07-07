@@ -203,7 +203,10 @@ export const ForgePlugin: Plugin = async ({ client, directory, serverUrl }) => {
 
       const sessionId = (createResult.data as any)?.id;
       if (!sessionId) {
-        console.error(`[Forge] Failed to create session for ${story.id}`);
+        const err = createResult.error as any;
+        console.error(`[Forge] Failed to create session for ${story.id}:`,
+          err?.message ?? err?.body ?? err ?? "unknown error",
+          "(HTTP", createResult.response?.status, ")");
         return;
       }
 
@@ -284,7 +287,13 @@ export const ForgePlugin: Plugin = async ({ client, directory, serverUrl }) => {
     });
 
     const sessionId = (createResult.data as any)?.id;
-    if (!sessionId) return;
+    if (!sessionId) {
+      const err = createResult.error as any;
+      console.error(`[Forge] Failed to create recovery session for ${storyId}:` ,
+        err?.message ?? err?.body ?? err ?? "unknown error",
+        "(HTTP", createResult.response?.status, ")");
+      return;
+    }
 
     const prompt = buildLoopPrompt({
       agentName,
@@ -401,7 +410,10 @@ export const ForgePlugin: Plugin = async ({ client, directory, serverUrl }) => {
 
     const sessionId = (createResult.data as any)?.id;
     if (!sessionId) {
-      console.error(`[Forge] Failed to create inception session for Phase ${phase.phase}`);
+      const err = createResult.error as any;
+      console.error(`[Forge] Failed to create inception session for Phase ${phase.phase}:`,
+        err?.message ?? err?.body ?? err ?? "unknown error",
+        "(HTTP", createResult.response?.status, ")");
       return null;
     }
 
@@ -802,9 +814,9 @@ export const ForgePlugin: Plugin = async ({ client, directory, serverUrl }) => {
         args: {},
         async execute(_args, _ctx) {
           try {
-            const team = await linear.discoverTeam();
-            if (!team) {
-              return "Cannot start Forge: could not discover a Linear team. Ensure your Linear workspace has exactly one team.";
+            const teamId = config.linear?.teamId;
+            if (!teamId) {
+              return "Cannot start Forge: no Linear team configured. Run `forge init` first.";
             }
 
             const statesResult = await linear.ensureWorkflowStates();
@@ -843,7 +855,7 @@ export const ForgePlugin: Plugin = async ({ client, directory, serverUrl }) => {
               await client.tui.openSessions();
               return [
                 `Inception Phase 1 (${firstPhase?.name ?? "Lean Canvas"}) started.`,
-                `Team: ${team.name}`,
+                `Team: ${config.linear?.teamName || teamId}`,
                 (createdText + existingText + skippedText).trim(),
                 `Session: ${sessionId}`,
                 "Switch to the po-agent session to participate.",
@@ -851,7 +863,7 @@ export const ForgePlugin: Plugin = async ({ client, directory, serverUrl }) => {
             }
 
             return [
-              `Team ready (${team.name}).`,
+              `Team ready (${config.linear?.teamName || teamId}).`,
               (createdText + existingText + skippedText).trim(),
               "But failed to create inception session. Check server logs.",
             ].filter(Boolean).join("\n");

@@ -1,14 +1,14 @@
 #!/usr/bin/env bun
 import { Command } from "commander";
-import { existsSync, mkdirSync, cpSync, writeFileSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, cpSync, writeFileSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { homedir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { randomBytes, createHash } from "node:crypto";
+import { parse, stringify } from "yaml";
 import { generateForgeYaml } from "../src/config";
+import { LinearClient } from "../src/linear-client";
 
 const FORGE_CLIENT_ID = "383e63c709107d75f0468505bc68eb20";
-const AUTH_FILE = join(homedir(), ".local", "share", "forge", "linear-auth.json");
 const CALLBACK_PORT = 43117;
 const CALLBACK_HOST = "127.0.0.1";
 const CALLBACK_URI = `http://${CALLBACK_HOST}:${CALLBACK_PORT}/callback`;
@@ -23,9 +23,9 @@ function generatePKCE(): { verifier: string; challenge: string } {
   return { verifier, challenge };
 }
 
-function authStatus(): "authenticated" | "not-authenticated" {
+function authStatus(authFile: string): "authenticated" | "not-authenticated" {
   try {
-    const raw = readFileSync(AUTH_FILE, "utf-8");
+    const raw = readFileSync(authFile, "utf-8");
     const data = JSON.parse(raw);
     if (!data?.accessToken) return "not-authenticated";
     if (Date.now() / 1000 >= (data.expiresAt ?? 0) - 60) return "not-authenticated";
@@ -35,7 +35,7 @@ function authStatus(): "authenticated" | "not-authenticated" {
   }
 }
 
-async function runOAuth(): Promise<boolean> {
+async function runOAuth(authFile: string): Promise<boolean> {
   const { verifier, challenge } = generatePKCE();
   const state = base64url(randomBytes(16));
 
@@ -47,7 +47,8 @@ async function runOAuth(): Promise<boolean> {
   authUrl.searchParams.set("state", state);
   authUrl.searchParams.set("code_challenge", challenge);
   authUrl.searchParams.set("code_challenge_method", "S256");
-  authUrl.searchParams.set("actor", "user");
+  authUrl.searchParams.set("actor", "app");
+  authUrl.searchParams.set("prompt", "consent");
 
   return new Promise((resolve) => {
     let resolved = false;
@@ -120,10 +121,10 @@ async function runOAuth(): Promise<boolean> {
 
           const tokenData = await tokenResponse.json();
 
-          const authDir = join(homedir(), ".local", "share", "forge");
+          const authDir = authFile.substring(0, authFile.lastIndexOf("/"));
           mkdirSync(authDir, { recursive: true });
           writeFileSync(
-            join(authDir, "linear-auth.json"),
+            authFile,
             JSON.stringify({
               accessToken: tokenData.access_token,
               refreshToken: tokenData.refresh_token,
@@ -150,7 +151,6 @@ async function runOAuth(): Promise<boolean> {
       },
     });
 
-    // Open browser
     const openCmd = process.platform === "darwin" ? "open" : "xdg-open";
     spawnSync(openCmd, [authUrl.toString()], { stdio: "ignore" });
   });
@@ -168,6 +168,7 @@ program
   .description("Initialize Forge in the current project")
   .option("--no-integrations", "Skip interactive integration selection")
   .option("--skip-auth", "Skip Linear authentication")
+  .option("--re-auth", "Force re-authentication with Linear")
   .action(async (opts) => {
     const cwd = process.cwd();
     const packageRoot = join(import.meta.dir, "..");
@@ -236,7 +237,6 @@ program
     if (opts.skipAuth) {
       console.log();
       console.log("Skipped Linear authentication (--skip-auth).");
-      console.log("Run manually: forge init (without --skip-auth)");
       return;
     }
 
@@ -244,18 +244,72 @@ program
     console.log("Linear setup");
     console.log("-".repeat(30));
 
-    const status = authStatus();
+    const forgeDir = join(cwd, ".forge");
+    mkdirSync(forgeDir, { recursive: true });
+    const authFile = join(forgeDir, "linear-auth.json");
+
+    if (opts.reAuth && existsSync(authFile)) {
+      rmSync(authFile);
+      console.log("  Cleared existing auth (--re-auth)");
+    }
+
+    const status = authStatus(authFile);
+    let needsTeamSelection = false;
+
     if (status === "authenticated") {
       console.log("  ✓ Linear already authenticated");
+      needsTeamSelection = true;
     } else {
       console.log("  Authenticating with Linear (opens browser)...");
-      const ok = await runOAuth();
+      const ok = await runOAuth(authFile);
       if (!ok) {
         console.log("  ⚠  Authentication was cancelled or failed.");
         console.log("     Run manually: forge init");
         return;
       }
       console.log("  ✓ Linear authenticated");
+      needsTeamSelection = true;
+    }
+
+    if (needsTeamSelection) {
+      const existingConfig = parse(readFileSync(configPath, "utf-8"));
+
+      if (existingConfig.linear?.team_id) {
+        console.log(`  ✓ Team already configured: ${existingConfig.linear.team_name || existingConfig.linear.team_id}`);
+      } else {
+        console.log("  Fetching your teams...");
+        const linear = new LinearClient({ authPath: authFile });
+        const teams = await linear.listTeams();
+
+        if (teams.length === 0) {
+          console.log("  ⚠  No teams found in your Linear workspace.");
+        } else if (teams.length === 1) {
+          existingConfig.linear = existingConfig.linear || {};
+          existingConfig.linear.team_id = teams[0].id;
+          existingConfig.linear.team_name = teams[0].name;
+          writeFileSync(configPath, stringify(existingConfig));
+          console.log(`  ✓ Team auto-selected: ${teams[0].name}`);
+        } else {
+          console.log("  Available teams:");
+          teams.forEach((t, i) => console.log(`    ${i + 1}. ${t.name}`));
+          process.stdout.write("  Select team number: ");
+
+          const answer = await new Promise<string>((resolve) => {
+            process.stdin.once("data", (data) => resolve(data.toString().trim()));
+          });
+
+          const idx = parseInt(answer, 10) - 1;
+          if (idx >= 0 && idx < teams.length) {
+            existingConfig.linear = existingConfig.linear || {};
+            existingConfig.linear.team_id = teams[idx].id;
+            existingConfig.linear.team_name = teams[idx].name;
+            writeFileSync(configPath, stringify(existingConfig));
+            console.log(`  ✓ Team selected: ${teams[idx].name}`);
+          } else {
+            console.log("  ⚠  Invalid selection. Run forge init again to select a team.");
+          }
+        }
+      }
     }
 
     console.log();

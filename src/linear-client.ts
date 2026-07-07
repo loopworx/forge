@@ -1,12 +1,9 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
-import { homedir } from "node:os";
 import type { Story, LinearState, WorkflowStateInfo, CommentWithDate } from "./types";
 
 const LINEAR_API_URL = "https://api.linear.app/graphql";
 const TOKEN_URL = "https://api.linear.app/oauth/token";
 const FORGE_CLIENT_ID = "383e63c709107d75f0468505bc68eb20";
-const DEFAULT_AUTH_PATH = join(homedir(), ".local", "share", "forge", "linear-auth.json");
 
 interface LinearClientOptions {
   authPath?: string;
@@ -52,8 +49,11 @@ export class LinearClient {
   private retryDelayMs: number;
   private auth: AuthTokens | null = null;
 
-  constructor(opts: LinearClientOptions = {}) {
-    this.authPath = opts.authPath ?? DEFAULT_AUTH_PATH;
+  constructor(opts: LinearClientOptions) {
+    if (!opts.authPath) {
+      throw new Error("LinearClient requires authPath (e.g., .forge/linear-auth.json)");
+    }
+    this.authPath = opts.authPath;
     this.projectFilter = opts.projectFilter ?? "";
     this.maxRetries = opts.maxRetries ?? 3;
     this.retryDelayMs = opts.retryDelayMs ?? 1000;

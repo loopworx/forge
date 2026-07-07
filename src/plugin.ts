@@ -37,6 +37,7 @@ export const ForgePlugin: Plugin = async ({ client, directory, serverUrl }) => {
   }
 
   const linear = new LinearClient({
+    authPath: join(directory, ".forge", "linear-auth.json"),
     projectFilter: config.linear.projectFilter || undefined,
   });
 
@@ -45,30 +46,39 @@ export const ForgePlugin: Plugin = async ({ client, directory, serverUrl }) => {
     mkdirSync(forgeDir, { recursive: true });
   }
 
-  linear.discoverTeam().then(async (team) => {
-    if (team) {
-      console.log(`[Forge] Auto-detected team: ${team.name} (${team.id})`);
-      await client.tui.showToast({
-        body: { message: `Forge: Team ${team.name} discovered`, variant: "info" },
-      });
-    } else {
-      const teams = await linear.listTeams();
-      if (teams.length === 0) {
-        console.error("[Forge] No teams found in your Linear workspace.");
+  if (config.linear.teamId) {
+    linear.teamId = config.linear.teamId;
+    linear.teamName = config.linear.teamName;
+    console.log(`[Forge] Using configured team: ${linear.teamName} (${linear.teamId})`);
+    client.tui.showToast({
+      body: { message: `Forge: Team ${linear.teamName}`, variant: "info" },
+    }).catch(() => {});
+  } else {
+    linear.discoverTeam().then(async (team) => {
+      if (team) {
+        console.log(`[Forge] Auto-detected team: ${team.name} (${team.id})`);
         await client.tui.showToast({
-          body: { message: "Forge: No Linear teams found", variant: "error" },
+          body: { message: `Forge: Team ${team.name} discovered`, variant: "info" },
         });
       } else {
-        const names = teams.map((t) => t.name).join(", ");
-        console.error(`[Forge] Multiple teams found: ${names}.`);
-        await client.tui.showToast({
-          body: { message: `Forge: Multiple teams found (${names}). Add team_id to forge.yaml.`, variant: "error" },
-        });
+        const teams = await linear.listTeams();
+        if (teams.length === 0) {
+          console.error("[Forge] No teams found in your Linear workspace.");
+          await client.tui.showToast({
+            body: { message: "Forge: No Linear teams found", variant: "error" },
+          });
+        } else {
+          const names = teams.map((t) => t.name).join(", ");
+          console.error(`[Forge] Multiple teams found: ${names}.`);
+          await client.tui.showToast({
+            body: { message: `Forge: Multiple teams found (${names}). Run forge init to select a team.`, variant: "error" },
+          });
+        }
       }
-    }
-  }).catch((err) => {
-    console.error("[Forge] Failed to discover Linear team at startup:", (err as Error).message);
-  });
+    }).catch((err) => {
+      console.error("[Forge] Failed to discover Linear team at startup:", (err as Error).message);
+    });
+  }
 
   const activeSessions = new Map<string, ForgeSessionInfo>();
   let projectState = loadProjectState(directory);

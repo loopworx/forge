@@ -13,6 +13,8 @@ max_concurrent_stories: 5
 linear:
   poll_interval_seconds: 10
   project_filter: ""
+  team_id: ""
+  team_name: ""
 
 agents:
   po-agent:
@@ -254,6 +256,8 @@ function normalizeConfig(parsed: unknown): ForgeConfig {
     linear: {
       pollIntervalSeconds: p.linear?.poll_interval_seconds ?? 10,
       projectFilter: p.linear?.project_filter || "",
+      teamId: p.linear?.team_id || "",
+      teamName: p.linear?.team_name || "",
     },
     agents,
     inception: { phases },

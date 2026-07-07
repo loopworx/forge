@@ -74,6 +74,8 @@ export interface ForgeConfig {
   linear: {
     pollIntervalSeconds: number;
     projectFilter: string;
+    teamId: string;
+    teamName: string;
   };
   agents: Record<AgentRole, AgentConfig>;
   inception: {

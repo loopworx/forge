@@ -29,22 +29,20 @@
     "./forge-bridge": "./dist/forge-bridge.js"
   },
   "bin": {
-    "forge": "./bin/forge.ts"
+    "forge": "./dist/forge.js"
   },
   "scripts": {
     "test": "bun test",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint src/ tests/",
-    "build": "bun build src/bridge/pi-bridge.ts --outfile dist/pi-bridge.js --external @earendil-works/pi-coding-agent --external @earendil-works/pi-tui --external typebox --external 'node:*' && bun build src/bridge/forge-bridge.ts --outfile dist/forge-bridge.js --external @earendil-works/pi-coding-agent --external @earendil-works/pi-tui --external typebox --external 'node:*'",
+    "build": "bun build src/bridge/pi-bridge.ts --outfile dist/pi-bridge.js --external @earendil-works/pi-coding-agent --external @earendil-works/pi-tui --external typebox --external 'node:*' && bun build src/bridge/forge-bridge.ts --outfile dist/forge-bridge.js --external @earendil-works/pi-coding-agent --external @earendil-works/pi-tui --external typebox --external 'node:*' && bun build bin/forge.ts --outfile dist/forge.js --external @earendil-works/pi-coding-agent --external @earendil-works/pi-tui --external typebox --external 'node:*' && bun -e \"const fs=require('fs');const f='dist/forge.js';let c=fs.readFileSync(f,'utf8');if(!c.startsWith('#!'))fs.writeFileSync(f,'#!/usr/bin/env bun\\n'+c);fs.chmodSync(f,0o755)\"",
     "init": "bun run bin/forge.ts init",
     "prepublishOnly": "bun run typecheck && bun test && bun run build"
   },
   "files": [
     "dist/",
     "templates/",
-    "bin/",
     "tsconfig.json",
-    "bunfig.toml",
     "README.md"
   ],
   "publishConfig": {

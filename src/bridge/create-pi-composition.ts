@@ -37,6 +37,9 @@ export function createForgeComposition(
 
   const authPath = join(workdir, ".forge", "auth.json");
   const linear = new LinearClient({ authPath });
+  const loadedConfig = config.load();
+  if (loadedConfig.linear.teamId) linear.teamId = loadedConfig.linear.teamId;
+  if (loadedConfig.linear.teamName) linear.teamName = loadedConfig.linear.teamName;
   const stories = new LinearStoryRepository(linear);
   const artifacts = new LinearDocumentRepository(linear);
 

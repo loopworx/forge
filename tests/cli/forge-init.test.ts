@@ -23,28 +23,29 @@ describe("forge init CLI", () => {
   });
 
   it("creates .forge directory and forge.yaml", async () => {
-    const result = await $`bun run ${FORGE_BIN} init --cwd ${TEST_PROJECT_DIR} --team-id TEAM-1 --team-name test`.quiet();
+    const result = await $`bun run ${FORGE_BIN} init --cwd ${TEST_PROJECT_DIR} --team-id TEAM-1 --team-name test --skip-auth`.quiet();
     expect(result.exitCode).toBe(0);
     expect(existsSync(join(TEST_PROJECT_DIR, ".forge"))).toBe(true);
     expect(existsSync(join(TEST_PROJECT_DIR, "forge.yaml"))).toBe(true);
   });
 
   it("prints success message", async () => {
-    const result = await $`bun run ${FORGE_BIN} init --cwd ${TEST_PROJECT_DIR} --team-id TEAM-1 --team-name test`.quiet();
+    const result = await $`bun run ${FORGE_BIN} init --cwd ${TEST_PROJECT_DIR} --team-id TEAM-1 --team-name test --skip-auth`.quiet();
     expect(result.exitCode).toBe(0);
-    expect(result.stderr.toString()).toContain("Forge initialized");
+    const output = result.stdout.toString() + result.stderr.toString();
+    expect(output).toContain("Forge initialized");
   });
 
   it("fails when project already initialized", async () => {
-    const init = await $`bun run ${FORGE_BIN} init --cwd ${TEST_PROJECT_DIR}`.quiet();
+    const init = await $`bun run ${FORGE_BIN} init --cwd ${TEST_PROJECT_DIR} --skip-auth`.quiet();
     expect(init.exitCode).toBe(0);
 
-    const secondInit = await $`bun run ${FORGE_BIN} init --cwd ${TEST_PROJECT_DIR}`.nothrow().quiet();
+    const secondInit = await $`bun run ${FORGE_BIN} init --cwd ${TEST_PROJECT_DIR} --skip-auth`.nothrow().quiet();
     expect(secondInit.exitCode).toBe(1);
   });
 
   it("copies skills and agents", async () => {
-    const result = await $`bun run ${FORGE_BIN} init --cwd ${TEST_PROJECT_DIR}`.quiet();
+    const result = await $`bun run ${FORGE_BIN} init --cwd ${TEST_PROJECT_DIR} --skip-auth`.quiet();
     expect(result.exitCode).toBe(0);
     expect(existsSync(join(TEST_PROJECT_DIR, "skills", "using-forge", "SKILL.md"))).toBe(true);
     expect(existsSync(join(TEST_PROJECT_DIR, "agents", "developer-agent.md"))).toBe(true);

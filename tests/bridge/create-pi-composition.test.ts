@@ -45,8 +45,11 @@ dashboard:
 class StubRuntime implements AgentRuntime {
   registeredTools: Array<{ name: string }> = [];
   registeredEvents: Array<{ event: string }> = [];
+  registeredCommands: Array<string> = [];
 
-  registerCommand(_name: string, _handler: unknown): void {}
+  registerCommand(name: string, _handler: unknown): void {
+    this.registeredCommands.push(name);
+  }
   registerTool(definition: { name: string }): void {
     this.registeredTools.push(definition);
   }
@@ -117,15 +120,40 @@ describe("createForgeComposition", () => {
     expect(toolNames).toContain("forge_log_progress");
   });
 
-  it("subscribes to agent lifecycle events", () => {
+  it("subscribes to session_start and session_shutdown lifecycle events", () => {
     const runtime = new StubRuntime();
     const sessions = new StubSessionManager();
     createForgeComposition(TEST_DIR, runtime, sessions);
 
     const eventTypes = runtime.registeredEvents.map(e => e.event).sort();
-    expect(eventTypes).toContain("agent_settled");
-    expect(eventTypes).toContain("agent_error");
-    expect(eventTypes).toContain("output");
+    expect(eventTypes).toContain("session_start");
+    expect(eventTypes).toContain("session_shutdown");
+  });
+
+  it("does NOT subscribe to duplicate agent_settled or output events", () => {
+    const runtime = new StubRuntime();
+    const sessions = new StubSessionManager();
+    createForgeComposition(TEST_DIR, runtime, sessions);
+
+    const eventTypes = runtime.registeredEvents.map(e => e.event);
+    expect(eventTypes).not.toContain("agent_settled");
+    expect(eventTypes).not.toContain("agent_error");
+    expect(eventTypes).not.toContain("output");
+  });
+
+  it("registers forge-new, forge-status, forge-stop, forge-approve commands", () => {
+    const runtime = new StubRuntime() as any;
+    runtime.registeredCommands = [];
+    runtime.registerCommand = (name: string, _handler: unknown) => {
+      runtime.registeredCommands.push(name);
+    };
+    const sessions = new StubSessionManager();
+    createForgeComposition(TEST_DIR, runtime as any, sessions);
+
+    expect(runtime.registeredCommands).toContain("forge-new");
+    expect(runtime.registeredCommands).toContain("forge-status");
+    expect(runtime.registeredCommands).toContain("forge-stop");
+    expect(runtime.registeredCommands).toContain("forge-approve");
   });
 
   it("loads config from forge.yaml in the working directory", () => {

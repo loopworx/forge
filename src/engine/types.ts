@@ -101,6 +101,7 @@ export interface SessionConfig {
   model?: unknown;
   tools: string[];
   agentRole: AgentRole;
+  storyId?: string;
 }
 
 export interface SessionInfo {

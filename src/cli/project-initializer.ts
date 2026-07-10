@@ -43,6 +43,15 @@ export class ProjectInitializer {
     mkdirSync(join(cwd, "stories"), { recursive: true });
     mkdirSync(join(cwd, "adr"), { recursive: true });
     mkdirSync(join(cwd, "design-system"), { recursive: true });
+    mkdirSync(join(cwd, "docs"), { recursive: true });
+
+    const extDir = join(cwd, ".pi", "extensions");
+    mkdirSync(extDir, { recursive: true });
+    const extContent = `import { piBridge } from "@loopworx/forge";
+
+export default piBridge;
+`;
+    writeFileSync(join(extDir, "forge.ts"), extContent);
 
     this.persistence.write("project-state", {
       mode: "inception",

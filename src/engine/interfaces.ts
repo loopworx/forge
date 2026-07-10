@@ -63,6 +63,7 @@ export type CommandHandler = (args: string, ctx: CommandContext) => Promise<void
 export interface CommandContext {
   cwd: string;
   model?: unknown;
+  ui?: unknown;
 }
 
 export type EventHandler = (event: RuntimeEvent, ctx: EventContext) => Promise<void>;
@@ -79,6 +80,7 @@ export interface RuntimeEvent {
 export interface EventContext {
   sessionId: string;
   cwd: string;
+  ui?: unknown;
 }
 
 export interface SessionManager {

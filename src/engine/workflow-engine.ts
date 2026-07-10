@@ -74,11 +74,17 @@ export class WorkflowEngine {
     });
   }
 
-  async completeAc(storyId: string, acNumber: number, _summary: string): Promise<Result> {
+  async completeAc(storyId: string, acNumber: number, summary: string): Promise<Result> {
     const verified = await this.proof.verifyGitCommit(storyId, acNumber);
     if (!verified) {
       return { success: false, error: `AC${acNumber} for ${storyId} requires a git commit matching feat(${storyId}): AC${acNumber}` };
     }
+    try {
+      await this.stories.postComment(storyId, `[AC${acNumber} Complete] ${summary}`);
+    } catch {
+      // Comment failure is non-fatal
+    }
+    this.events.publish({ type: "ac_completed", storyId, acNumber, summary });
     return { success: true };
   }
 
@@ -263,6 +269,7 @@ Test locations: ${params.testLocations}${params.blockers ? `\nBlockers: ${params
                 "forge_claim_story", "forge_complete_ac", "forge_handoff",
                 "forge_create_artifact", "forge_log_progress"],
         agentRole,
+        storyId,
       });
 
       session.subscribe((event) => {
@@ -280,6 +287,14 @@ Test locations: ${params.testLocations}${params.blockers ? `\nBlockers: ${params
 
       return session.sessionId;
     });
+  }
+
+  async dispatchAgentPublic(
+    storyId: string,
+    agentRole: AgentRole,
+    agentConfig: AgentConfig,
+  ): Promise<string | null> {
+    return this.dispatchAgent(storyId, agentRole, agentConfig);
   }
 
   dispose(): void {

@@ -1,9 +1,6 @@
 import { PiDevRuntime } from "./pi-dev-runtime";
 import { PiDevSessionManager } from "./pi-dev-session-manager";
 import { createForgeComposition } from "./create-pi-composition";
-import { SplitLayout } from "../dashboard/split-layout";
-import { ForgeChatBar } from "../dashboard/forge-chat-bar";
-import { ForgeLayout } from "../dashboard/forge-layout";
 
 interface PiDevExtensionApi {
   registerTool(def: unknown): void;
@@ -17,14 +14,26 @@ export async function piBridge(api: unknown): Promise<unknown> {
   const runtime = new PiDevRuntime(piApi);
   const sessions = new PiDevSessionManager(cwd);
 
-  const { engine, eventBridge } = createForgeComposition(cwd, runtime, sessions);
+  const { engine, eventBridge, uiState } = createForgeComposition(cwd, runtime, sessions);
 
-  const sidebar = eventBridge.sidebar;
-  const agentPanel = eventBridge.agentPanel;
-  const chatBar = new ForgeChatBar();
-  const splitLayout = new SplitLayout({ sidebar, agentPanel, chatBar });
-  const forgeLayout = new ForgeLayout(splitLayout, eventBridge, agentPanel);
-  forgeLayout.startCycling(5000);
+  const _sidebar = eventBridge.sidebar;
+  const _agentPanel = eventBridge.agentPanel;
 
-  return { engine, forgeLayout, eventBridge };
+  const _timer = setInterval(() => {
+    const ui = (uiState.ctx as any)?.ui;
+    if (!ui?.setWidget) return;
+    const lines: string[] = [];
+    lines.push("Forge Dashboard");
+    lines.push(`Mode: ${engine.getProjectState().mode}`);
+    const activeSessions = engine.getActiveSessions();
+    lines.push(`Active sessions: ${activeSessions.length}`);
+    for (const s of activeSessions) {
+      lines.push(`  ${s.storyId} — ${s.agentRole} (${s.workflowState})`);
+    }
+    ui.setWidget("forge", lines);
+  }, 5000);
+
+  return { engine, eventBridge, uiState };
 }
+
+export default piBridge;

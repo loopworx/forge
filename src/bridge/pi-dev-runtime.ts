@@ -28,14 +28,24 @@ export class PiDevRuntime implements AgentRuntime {
   }
 
   on(event: string, handler: EventHandler): void {
-    this.api.on(event, async (piEvent: unknown) => {
-      const e = piEvent as { type: string; sessionId: string; delta?: string; toolName?: string; isError?: boolean };
-      await handler(e, { sessionId: e.sessionId, cwd: "" });
+    this.api.on(event, async (piEvent: unknown, ctx?: unknown) => {
+      const e = piEvent as { type: string; sessionId?: string; delta?: string; toolName?: string; isError?: boolean };
+      const c = ctx as { cwd?: string; ui?: unknown } | undefined;
+      await handler(e as any, {
+        sessionId: e?.sessionId ?? "",
+        cwd: c?.cwd ?? process.cwd(),
+        ui: c?.ui,
+      });
     });
   }
 
-  registerCommand(name: string, _handler: CommandHandler): void {
-    this.api.registerCommand(name, {});
+  registerCommand(name: string, handler: CommandHandler): void {
+    this.api.registerCommand(name, {
+      description: name,
+      handler: async (args: string, ctx: any) => {
+        await handler(args, { cwd: ctx?.cwd ?? process.cwd(), model: ctx?.model, ui: ctx?.ui });
+      },
+    });
   }
 
   setStatus(_key: string, _text: string | undefined): void {}

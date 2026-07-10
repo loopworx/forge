@@ -89,6 +89,22 @@ describe("ProjectInitializer", () => {
       expect(state).not.toBeNull();
       expect((state as Record<string, unknown>).mode).toBe("inception");
     });
+
+    it("creates .pi/extensions directory", () => {
+      const init = new ProjectInitializer(TEMPLATES_DIR, persistence);
+      init.initProject(TEST_PROJECT_DIR);
+      expect(existsSync(join(TEST_PROJECT_DIR, ".pi", "extensions"))).toBe(true);
+    });
+
+    it("creates .pi/extensions/forge.ts extension entry point", () => {
+      const init = new ProjectInitializer(TEMPLATES_DIR, persistence);
+      init.initProject(TEST_PROJECT_DIR);
+      const extFile = join(TEST_PROJECT_DIR, ".pi", "extensions", "forge.ts");
+      expect(existsSync(extFile)).toBe(true);
+      const content = readFileSync(extFile, "utf-8");
+      expect(content).toContain("piBridge");
+      expect(content).toContain("export default");
+    });
   });
 
   describe("isInitialized", () => {

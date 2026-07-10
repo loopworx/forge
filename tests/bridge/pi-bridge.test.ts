@@ -53,16 +53,20 @@ dashboard:
       const mockApi = {
         registerTool: () => {},
         on: () => {},
-        setStatus: () => {},
         registerCommand: () => {},
       };
 
       const result = await piBridge(mockApi);
       expect(result).toBeDefined();
       expect(typeof (result as any).engine.activeSessionCount).toBe("number");
-      expect(typeof (result as any).forgeLayout.render).toBe("function");
     } finally {
       process.chdir(originalCwd);
     }
+  });
+
+  it("has a default export that is the piBridge function", async () => {
+    const mod = await import("../../src/bridge/pi-bridge");
+    expect(typeof mod.default).toBe("function");
+    expect(mod.default).toBe(mod.piBridge);
   });
 });

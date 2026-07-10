@@ -56,6 +56,27 @@ describe("PiDevRuntime", () => {
     expect(api.events.get("agent_settled")!.length).toBe(1);
   });
 
+  it("passes pi.dev ctx through to event handlers", async () => {
+    const api = createStubApi();
+    const runtime = new PiDevRuntime(api as any);
+
+    let receivedCtx: any = null;
+    runtime.on("session_start", async (_event, ctx) => {
+      receivedCtx = ctx;
+    });
+
+    const handlers = api.events.get("session_start")!;
+    await handlers[0](
+      { type: "session_start", sessionId: "test-session" },
+      { cwd: "/test/cwd", ui: { notify: () => {} } },
+    );
+
+    expect(receivedCtx).not.toBeNull();
+    expect(receivedCtx.cwd).toBe("/test/cwd");
+    expect(receivedCtx.ui).toBeDefined();
+    expect(receivedCtx.sessionId).toBe("test-session");
+  });
+
   it("passes through setStatus", () => {
     const api = createStubApi();
     const runtime = new PiDevRuntime(api as any);
@@ -78,5 +99,10 @@ describe("PiDevSessionManager", () => {
   it("terminateSession does not throw for unknown session", async () => {
     const sessions = new PiDevSessionManager("/tmp");
     await expect(sessions.terminateSession("nonexistent")).resolves.toBeUndefined();
+  });
+
+  it("getActiveSessions returns sessions after createSession is called", async () => {
+    const sessions = new PiDevSessionManager("/tmp");
+    expect(sessions.getActiveSessions()).toEqual([]);
   });
 });

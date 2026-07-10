@@ -202,9 +202,12 @@ function setupLifecycleHandlers(
     }
   });
 
-  runtime.on("session_shutdown", async () => {
-    log("lifecycle", "session_shutdown — disposing engine");
-    engine.dispose();
+  runtime.on("session_shutdown", async (event: any) => {
+    const reason = event?.reason ?? "quit";
+    log("lifecycle", `session_shutdown — reason=${reason}`);
+    if (reason === "quit" || reason === "reload") {
+      engine.dispose();
+    }
   });
 }
 

@@ -153,20 +153,24 @@ export function buildInceptionPrompt(params: BuildInceptionPromptParams): string
   lines.push(`Expected output: ${phase.output}`);
   lines.push("--- END FORGE INCEPTION ---");
   lines.push("");
-
-  lines.push("Read these files before starting:");
+  lines.push("You are facilitating an INTERACTIVE session with the human.");
+  lines.push("Do NOT work autonomously. Ask questions, gather input, and build the artifact together.");
+  lines.push("The human decides when this phase is complete.");
+  lines.push("");
+  lines.push("Read these files before starting (if they exist):");
   lines.push("1. CONTEXT.md");
   if (existsSync(join(workdir, "project.constraints.yaml"))) lines.push("2. project.constraints.yaml");
   lines.push("");
   lines.push(`Load the skill: ${phase.skill}`);
+  lines.push("Follow the skill's protocol to guide the human through this phase.");
   lines.push("");
 
-  if (phase.phase === 6) {
-    lines.push("--- PHASE 6: STORY WRITING ---");
+  if (phase.phase === 7) {
+    lines.push("--- PHASE 7: STORY WRITING ---");
     lines.push("Write stories using forge_create_artifact to record them.");
     lines.push("Set each story's state to ready-for-dev.");
     lines.push("Include acceptance criteria in the story description.");
-    lines.push("--- END PHASE 6 ---");
+    lines.push("--- END PHASE 7 ---");
     lines.push("");
   }
 
@@ -178,10 +182,10 @@ export function buildInceptionPrompt(params: BuildInceptionPromptParams): string
     lines.push("");
   }
 
-  lines.push("--- HANDOFF PROTOCOL ---");
-  lines.push(`When complete, call forge_create_artifact with the content of ${phase.output}`);
-  lines.push("Then end your session. The engine will verify the artifact and advance.");
-  lines.push("--- END HANDOFF PROTOCOL ---");
+  lines.push("--- COMPLETION PROTOCOL ---");
+  lines.push(`When the human confirms this phase is complete, call forge_create_artifact with the content of ${phase.output}.`);
+  lines.push("Then tell the human to type /forge-next to advance to the next phase.");
+  lines.push("--- END COMPLETION PROTOCOL ---");
 
   return lines.join("\n");
 }

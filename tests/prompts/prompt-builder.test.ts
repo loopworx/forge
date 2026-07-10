@@ -132,13 +132,22 @@ describe("prompt-builder", () => {
       expect(prompt).toContain("facilitating-inception");
     });
 
-    it("includes Phase 6 special instructions", () => {
+    it("includes Phase 7 special instructions for story writing", () => {
       const prompt = buildInceptionPrompt({
-        phase: { phase: 6, name: "Story Writing", skill: "writing-stories", agent: "po-agent", output: "stories in Linear" },
+        phase: { phase: 7, name: "Story Writing", skill: "writing-stories", agent: "po-agent", output: "stories in Linear" },
         workdir: "/tmp",
       });
-      expect(prompt).toContain("PHASE 6");
+      expect(prompt).toContain("PHASE 7");
       expect(prompt).toContain("forge_create_artifact");
+    });
+
+    it("includes interactive facilitation instructions", () => {
+      const prompt = buildInceptionPrompt({
+        phase: { phase: 1, name: "Lean Canvas", skill: "facilitating-inception", agent: "po-agent", output: "docs/lean-canvas.md" },
+        workdir: "/tmp",
+      });
+      expect(prompt).toContain("INTERACTIVE");
+      expect(prompt).toContain("/forge-next");
     });
   });
 });

@@ -40,10 +40,14 @@ export class PiDevSessionManager implements SessionManager {
     const opts: Record<string, unknown> = {
       cwd: config.cwd ?? this.cwd,
       tools: config.tools,
+      noExtensions: true,
+      noSession: true,
     };
     if (config.model) opts.model = config.model;
 
-    log("sessions", "calling createAgentSession with opts", { cwd: opts.cwd, toolCount: (opts.tools as string[])?.length });
+    log("sessions", "calling createAgentSession with opts", { cwd: opts.cwd, toolCount: (opts.tools as string[])?.length, noExtensions: true });
+
+    process.env.FORGE_SUBSESSION = "1";
     let result: any;
     try {
       result = await createAgentSession(opts as any);
@@ -51,6 +55,8 @@ export class PiDevSessionManager implements SessionManager {
     } catch (err) {
       log("sessions", `createAgentSession ERROR: ${(err as Error).message}`);
       throw err;
+    } finally {
+      delete process.env.FORGE_SUBSESSION;
     }
 
     const session: Session = {

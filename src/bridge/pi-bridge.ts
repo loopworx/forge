@@ -14,6 +14,10 @@ interface PiDevExtensionApi {
 }
 
 export async function piBridge(api: unknown): Promise<unknown> {
+  if (process.env.FORGE_SUBSESSION === "1") {
+    log("bridge", "skipping forge extension in sub-session (FORGE_SUBSESSION=1)");
+    return;
+  }
   log("bridge", `piBridge entry (cwd=${process.cwd()})`);
   const piApi = api as PiDevExtensionApi;
   const cwd = process.cwd();

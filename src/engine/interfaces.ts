@@ -65,10 +65,10 @@ export interface CommandContext {
   model?: unknown;
   ui?: unknown;
   newSession?: (opts: any) => Promise<{ cancelled: boolean }>;
-  sendUserMessage?: (content: string) => Promise<void>;
+  sendUserMessage?: (content: string) => void;
 }
 
-export type EventHandler = (event: RuntimeEvent, ctx: EventContext) => Promise<void>;
+export type EventHandler = (event: RuntimeEvent, ctx: EventContext) => Promise<void | unknown>;
 
 export interface RuntimeEvent {
   type: string;

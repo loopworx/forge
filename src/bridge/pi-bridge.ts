@@ -11,6 +11,7 @@ interface PiDevExtensionApi {
   registerTool(def: unknown): void;
   on(event: string, handler: (event: unknown) => void | Promise<void>): void;
   registerCommand(name: string, opts: unknown): void;
+  sendUserMessage(content: string | unknown[], options?: unknown): void;
 }
 
 export async function piBridge(api: unknown): Promise<unknown> {

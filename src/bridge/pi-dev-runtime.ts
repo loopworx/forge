@@ -9,6 +9,7 @@ interface PiDevApi {
   registerTool(def: unknown): void;
   on(event: string, handler: (event: unknown) => void | Promise<void>): void;
   registerCommand(name: string, opts: unknown): void;
+  sendUserMessage(content: string | unknown[], options?: unknown): void;
 }
 
 export class PiDevRuntime implements AgentRuntime {
@@ -45,20 +46,22 @@ export class PiDevRuntime implements AgentRuntime {
 
   on(event: string, handler: EventHandler): void {
     log("runtime", `on: subscribing to "${event}"`);
-    this.api.on(event, async (piEvent: unknown, ctx?: unknown) => {
+    const wrapped = async (piEvent: unknown, ctx?: unknown): Promise<unknown> => {
       const e = piEvent as { type: string; sessionId?: string; delta?: string; toolName?: string; isError?: boolean };
       const c = ctx as { cwd?: string; ui?: unknown } | undefined;
       log("event", `"${event}" received`, { type: e?.type, sessionId: e?.sessionId });
       try {
-        await handler(e as any, {
+        return await handler(e as any, {
           sessionId: e?.sessionId ?? "",
           cwd: c?.cwd ?? process.cwd(),
           ui: c?.ui,
         });
       } catch (err) {
         log("event", `"${event}" handler ERROR: ${(err as Error).message}`);
+        return undefined;
       }
-    });
+    };
+    this.api.on(event, wrapped as any);
   }
 
   registerCommand(name: string, handler: CommandHandler): void {
@@ -73,7 +76,7 @@ export class PiDevRuntime implements AgentRuntime {
             model: ctx?.model,
             ui: ctx?.ui,
             newSession: ctx?.newSession?.bind(ctx),
-            sendUserMessage: ctx?.sendUserMessage?.bind(ctx),
+            sendUserMessage: (content: string) => this.api.sendUserMessage(content),
           });
           log("command", `/${name} completed`);
         } catch (err) {

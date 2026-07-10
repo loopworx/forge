@@ -62,7 +62,7 @@ export function createForgeComposition(
   log("composition", "registering tools...");
   setupTools(runtime, engine, artifacts);
   log("composition", "registering lifecycle handlers...");
-  setupLifecycleHandlers(runtime, engine, config, uiState);
+  setupLifecycleHandlers(runtime, engine, config, uiState, workdir);
   log("composition", "registering commands...");
   setupCommands(runtime, engine, config, stories, uiState);
 
@@ -185,6 +185,7 @@ function setupLifecycleHandlers(
   engine: WorkflowEngine,
   config: YamlConfig,
   uiState: { ctx: CommandContext | null },
+  workdir: string,
 ): void {
   runtime.on("session_start", async (_event: any, ctx: any) => {
     log("lifecycle", `session_start — cwd=${ctx?.cwd} ui=${!!ctx?.ui}`);
@@ -209,6 +210,12 @@ function setupLifecycleHandlers(
       engine.dispose();
     }
   });
+
+  runtime.on("resources_discover", async (_event: any, _ctx: any) => {
+    const skillsPath = join(workdir, "skills");
+    log("lifecycle", `resources_discover: contributing skillPaths=[${skillsPath}]`);
+    return { skillPaths: [skillsPath] };
+  });
 }
 
 function setupCommands(
@@ -216,7 +223,7 @@ function setupCommands(
   engine: WorkflowEngine,
   config: YamlConfig,
   stories: LinearStoryRepository,
-  uiState: { ctx: CommandContext | null },
+  _uiState: { ctx: CommandContext | null },
 ): void {
   runtime.registerCommand("forge-new", async (_args: string, ctx: CommandContext & { ui?: any }) => {
     log("cmd", "/forge-new invoked");
@@ -239,23 +246,15 @@ function setupCommands(
           ctx.ui?.notify("Failed to build inception prompt", "error");
           return;
         }
-        log("cmd", `/forge-new: starting phase 1: ${phases[0].name} (interactive)`);
-        ctx.ui?.notify(`Inception Phase 1: ${phases[0].name} (${phases[0].agent})`, "info");
-        if (ctx.newSession) {
-          await ctx.newSession({
-            withSession: async (newCtx: any) => {
-              uiState.ctx = { cwd: newCtx.cwd, ui: newCtx.ui, newSession: newCtx.newSession, sendUserMessage: newCtx.sendUserMessage };
-              if (newCtx.sendUserMessage) {
-                await newCtx.sendUserMessage(prompt);
-              }
-            },
-          });
-        } else {
-          log("cmd", "/forge-new: no newSession available — using sendUserMessage on current session");
-          if (ctx.sendUserMessage) await ctx.sendUserMessage(prompt);
-        }
+        log("cmd", `/forge-new: sending phase 1 prompt: ${phases[0].name} (interactive, current session)`);
         engine.markInceptionPhaseStarted(0);
-        log("cmd", "/forge-new: inception phase 0 started");
+        ctx.ui?.notify(`Inception Phase 1: ${phases[0].name} (${phases[0].agent})`, "info");
+        if (ctx.sendUserMessage) {
+          ctx.sendUserMessage(prompt);
+        } else {
+          log("cmd", "/forge-new: no sendUserMessage available");
+          ctx.ui?.notify("Cannot send inception prompt — sendUserMessage unavailable", "error");
+        }
       } else {
         log("cmd", "/forge-new: no phases, starting polling");
         engine.startPolling();
@@ -291,22 +290,14 @@ function setupCommands(
         ctx.ui?.notify(`Phase ${nextPhase + 1} not found`, "error");
         return;
       }
-      log("cmd", `/forge-next: starting phase ${nextPhase + 1}: ${phases[nextPhase].name} (interactive)`);
-      ctx.ui?.notify(`Phase ${nextPhase + 1}: ${phases[nextPhase].name} (${phases[nextPhase].agent})`, "info");
-      if (ctx.newSession) {
-        await ctx.newSession({
-          withSession: async (newCtx: any) => {
-            uiState.ctx = { cwd: newCtx.cwd, ui: newCtx.ui, newSession: newCtx.newSession, sendUserMessage: newCtx.sendUserMessage };
-            if (newCtx.sendUserMessage) {
-              await newCtx.sendUserMessage(prompt);
-            }
-          },
-        });
-      } else {
-        if (ctx.sendUserMessage) await ctx.sendUserMessage(prompt);
-      }
+      log("cmd", `/forge-next: sending phase ${nextPhase + 1} prompt: ${phases[nextPhase].name} (interactive, current session)`);
       engine.markInceptionPhaseStarted(nextPhase);
-      log("cmd", `/forge-next: phase ${nextPhase} started`);
+      ctx.ui?.notify(`Phase ${nextPhase + 1}: ${phases[nextPhase].name} (${phases[nextPhase].agent})`, "info");
+      if (ctx.sendUserMessage) {
+        ctx.sendUserMessage(prompt);
+      } else {
+        log("cmd", "/forge-next: no sendUserMessage available");
+      }
     } catch (err) {
       const msg = (err as Error).message;
       log("cmd", `/forge-next ERROR: ${msg}`);

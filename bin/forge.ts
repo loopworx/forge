@@ -6,6 +6,7 @@ import { LinearClient } from "../src/linear/linear-story-repository";
 import { runOAuth } from "../src/linear/linear-oauth";
 
 const TEMPLATES_DIR = join(import.meta.dir, "..", "templates");
+const BUNDLE_DIR = join(import.meta.dir);
 
 function printUsage(): never {
   console.log(`Usage: forge <command> [options]
@@ -49,7 +50,7 @@ async function main() {
   const cwd = args.values.cwd ?? process.cwd();
   const persistenceDir = join(cwd, ".forge");
   const persistence = new FilePersistence(persistenceDir);
-  const init = new ProjectInitializer(TEMPLATES_DIR, persistence);
+  const init = new ProjectInitializer(TEMPLATES_DIR, persistence, BUNDLE_DIR);
 
   if (init.isInitialized(cwd)) {
     console.error("Forge already initialized in this directory.");

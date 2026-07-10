@@ -96,7 +96,7 @@ describe("ProjectInitializer", () => {
       expect(existsSync(join(TEST_PROJECT_DIR, ".pi", "extensions"))).toBe(true);
     });
 
-    it("creates .pi/extensions/forge.ts extension entry point", () => {
+    it("creates .pi/extensions/forge.ts fallback when no bundle dir", () => {
       const init = new ProjectInitializer(TEMPLATES_DIR, persistence);
       init.initProject(TEST_PROJECT_DIR);
       const extFile = join(TEST_PROJECT_DIR, ".pi", "extensions", "forge.ts");
@@ -104,6 +104,16 @@ describe("ProjectInitializer", () => {
       const content = readFileSync(extFile, "utf-8");
       expect(content).toContain("piBridge");
       expect(content).toContain("export default");
+    });
+
+    it("copies dist/pi-bridge.js to .pi/extensions/forge.js when bundleDir provided", () => {
+      const distDir = join(import.meta.dir, "..", "..", "dist");
+      const init = new ProjectInitializer(TEMPLATES_DIR, persistence, distDir);
+      init.initProject(TEST_PROJECT_DIR);
+      const extFile = join(TEST_PROJECT_DIR, ".pi", "extensions", "forge.js");
+      expect(existsSync(extFile)).toBe(true);
+      const content = readFileSync(extFile, "utf-8");
+      expect(content).toContain("piBridge");
     });
   });
 

@@ -11,6 +11,7 @@ export class ProjectInitializer {
   constructor(
     private templatesDir: string,
     private persistence: Persistence,
+    private bundleDir?: string,
   ) {}
 
   initProject(cwd: string, opts: InitOptions = {}): void {
@@ -47,11 +48,16 @@ export class ProjectInitializer {
 
     const extDir = join(cwd, ".pi", "extensions");
     mkdirSync(extDir, { recursive: true });
-    const extContent = `import { piBridge } from "@loopworx/forge";
+    const bundlePath = this.bundleDir ? join(this.bundleDir, "pi-bridge.js") : null;
+    if (bundlePath && existsSync(bundlePath)) {
+      cpSync(bundlePath, join(extDir, "forge.js"));
+    } else {
+      const extContent = `import { piBridge } from "@loopworx/forge";
 
 export default piBridge;
 `;
-    writeFileSync(join(extDir, "forge.ts"), extContent);
+      writeFileSync(join(extDir, "forge.ts"), extContent);
+    }
 
     this.persistence.write("project-state", {
       mode: "inception",

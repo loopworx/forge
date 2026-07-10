@@ -2,6 +2,11 @@ import { PiDevRuntime } from "./pi-dev-runtime";
 import { PiDevSessionManager } from "./pi-dev-session-manager";
 import { createForgeComposition } from "./create-pi-composition";
 
+function log(tag: string, msg: string, ...args: unknown[]): void {
+  const ts = new Date().toISOString();
+  console.error(`[forge ${ts}] ${tag}: ${msg}`, ...args.length ? args : []);
+}
+
 interface PiDevExtensionApi {
   registerTool(def: unknown): void;
   on(event: string, handler: (event: unknown) => void | Promise<void>): void;
@@ -9,16 +14,23 @@ interface PiDevExtensionApi {
 }
 
 export async function piBridge(api: unknown): Promise<unknown> {
+  log("bridge", `piBridge entry (cwd=${process.cwd()})`);
   const piApi = api as PiDevExtensionApi;
   const cwd = process.cwd();
   const runtime = new PiDevRuntime(piApi);
   const sessions = new PiDevSessionManager(cwd);
 
+  log("bridge", "calling createForgeComposition");
   const { engine, eventBridge, uiState } = createForgeComposition(cwd, runtime, sessions);
+  log("bridge", "createForgeComposition done", {
+    projectMode: engine.getProjectState().mode,
+    activeSessions: engine.activeSessionCount,
+  });
 
   const _sidebar = eventBridge.sidebar;
   const _agentPanel = eventBridge.agentPanel;
 
+  log("bridge", "starting dashboard widget timer (5s interval)");
   const _timer = setInterval(() => {
     const ui = (uiState.ctx as any)?.ui;
     if (!ui?.setWidget) return;
@@ -33,6 +45,7 @@ export async function piBridge(api: unknown): Promise<unknown> {
     ui.setWidget("forge", lines);
   }, 5000);
 
+  log("bridge", "piBridge complete — returning");
   return { engine, eventBridge, uiState };
 }
 

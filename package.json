@@ -1,7 +1,7 @@
 {
   "name": "@loopworx/forge",
-  "version": "0.1.1",
-  "description": "Lean software delivery framework for AI agents — from inception to production",
+  "version": "0.2.0",
+  "description": "AI-driven software delivery orchestrator that coordinates seven specialized AI agents through a lean delivery pipeline",
   "type": "module",
   "license": "MIT",
   "repository": {
@@ -16,43 +16,47 @@
     "ai-agents",
     "delivery",
     "linear",
-    "opencode",
+    "pi-dev",
     "atdd",
     "tdd",
     "lean",
     "xp",
     "ci-cd"
   ],
+  "main": "dist/pi-bridge.js",
+  "exports": {
+    ".": "./dist/pi-bridge.js",
+    "./forge-bridge": "./dist/forge-bridge.js"
+  },
   "bin": {
     "forge": "./bin/forge.ts"
   },
   "scripts": {
     "test": "bun test",
     "typecheck": "tsc --noEmit",
-    "lint": "oxlint .",
-    "build": "bun build src/plugin.ts --outfile dist/plugin.js --external @opencode-ai/plugin --external @opencode-ai/sdk --external 'node:*'",
+    "lint": "oxlint src/ tests/",
+    "build": "bun build src/bridge/pi-bridge.ts --outfile dist/pi-bridge.js --external @earendil-works/pi-coding-agent --external @earendil-works/pi-tui --external typebox --external 'node:*' && bun build src/bridge/forge-bridge.ts --outfile dist/forge-bridge.js --external @earendil-works/pi-coding-agent --external @earendil-works/pi-tui --external typebox --external 'node:*'",
     "init": "bun run bin/forge.ts init",
     "prepublishOnly": "bun run typecheck && bun test && bun run build"
   },
   "files": [
-    "bin/",
-    "src/",
     "dist/",
-    "agents/",
-    "skills/",
-    "integrations/",
-    "commands/",
+    "templates/",
+    "bin/",
     "tsconfig.json",
+    "bunfig.toml",
     "README.md"
   ],
   "publishConfig": {
     "access": "public"
   },
   "dependencies": {
-    "@opencode-ai/plugin": "^1.17.13",
-    "@opencode-ai/sdk": "latest",
-    "commander": "^12.1.0",
     "yaml": "^2.9.0"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": ">=0.80.0",
+    "@earendil-works/pi-tui": ">=0.32.0",
+    "typebox": ">=0.32.0"
   },
   "devDependencies": {
     "@types/bun": "latest",

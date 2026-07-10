@@ -64,6 +64,8 @@ export interface CommandContext {
   cwd: string;
   model?: unknown;
   ui?: unknown;
+  newSession?: (opts: any) => Promise<{ cancelled: boolean }>;
+  sendUserMessage?: (content: string) => Promise<void>;
 }
 
 export type EventHandler = (event: RuntimeEvent, ctx: EventContext) => Promise<void>;

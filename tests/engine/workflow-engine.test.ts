@@ -294,5 +294,30 @@ describe("WorkflowEngine", () => {
       expect(sessionId).toMatch(/session-/);
       expect(sessions.sessions.length).toBe(1);
     });
+
+    it("buildInceptionPrompt returns prompt text for valid phase index", () => {
+      const prompt = engine.buildInceptionPrompt(0, "/tmp");
+      expect(prompt).not.toBeNull();
+      expect(typeof prompt).toBe("string");
+      expect(prompt!.length).toBeGreaterThan(0);
+    });
+
+    it("buildInceptionPrompt returns null for invalid phase index", () => {
+      const prompt = engine.buildInceptionPrompt(999, "/tmp");
+      expect(prompt).toBeNull();
+    });
+
+    it("markInceptionPhaseStarted updates project state", () => {
+      engine.markInceptionPhaseStarted(2, "test-session-id");
+      const state = engine.getProjectState();
+      expect(state.inception.currentPhase).toBe(2);
+      expect(state.inception.phaseSessionId).toBe("test-session-id");
+    });
+
+    it("transitionToDevelopment changes mode to development", () => {
+      engine.transitionToDevelopment();
+      const state = engine.getProjectState();
+      expect(state.mode).toBe("development");
+    });
   });
 });

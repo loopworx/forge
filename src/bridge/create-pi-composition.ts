@@ -143,13 +143,27 @@ function setupTools(
   runtime.registerTool({
     name: "forge_create_artifact",
     label: "Create Artifact",
-    description: "Create a document artifact in Linear",
-    parameters: { type: "object", properties: { title: { type: "string" }, content: { type: "string" } } },
+    description: "Create a document artifact in Linear. Both title and content are required.",
+    parameters: { type: "object", properties: { title: { type: "string" }, content: { type: "string" } }, required: ["title", "content"] },
     execute: async (_id: string, params: unknown) => {
       const p = params as { title: string; content: string };
+      if (!p?.title || typeof p.title !== "string" || p.title.trim().length === 0) {
+        log("tool", "forge_create_artifact: missing or empty title");
+        return { content: [{ type: "text" as const, text: "Error: title is required and must be a non-empty string" }], details: null, isError: true };
+      }
+      if (!p?.content || typeof p.content !== "string" || p.content.trim().length === 0) {
+        log("tool", "forge_create_artifact: missing or empty content");
+        return { content: [{ type: "text" as const, text: "Error: content is required and must be a non-empty string" }], details: null, isError: true };
+      }
       log("tool", `forge_create_artifact: title=${p.title}`);
-      const artifactId = await artifacts.createArtifact(p.title, p.content);
-      return { content: [{ type: "text" as const, text: `Artifact created: ${artifactId}` }], details: { artifactId }, isError: false };
+      try {
+        const artifactId = await artifacts.createArtifact(p.title, p.content);
+        log("tool", `forge_create_artifact: created ${artifactId}`);
+        return { content: [{ type: "text" as const, text: `Artifact created: ${artifactId}` }], details: { artifactId }, isError: false };
+      } catch (err) {
+        log("tool", `forge_create_artifact ERROR: ${(err as Error).message}`);
+        return { content: [{ type: "text" as const, text: `Error creating artifact: ${(err as Error).message}` }], details: null, isError: true };
+      }
     },
   });
 
@@ -216,14 +230,29 @@ function setupCommands(
       log("cmd", "/forge-new: saving config active=true");
       config.save({ active: true });
       const phases = loaded.inception.phases;
-      log("cmd", `/forge-new: ${phases.length} phases, starting phase 1: ${phases[0]?.name}`);
       if (phases.length > 0) {
-        const sid = await engine.startInceptionPhase(phases[0].name, ctx.cwd);
-        log("cmd", `/forge-new: startInceptionPhase returned sessionId=${sid}`);
-        ctx.ui?.notify(`Inception started — Phase 1: ${phases[0].name}`, "info");
-        if (sid) {
-          uiState.ctx = { cwd: ctx.cwd, ui: ctx.ui };
+        const prompt = engine.buildInceptionPrompt(0, ctx.cwd);
+        if (!prompt) {
+          ctx.ui?.notify("Failed to build inception prompt", "error");
+          return;
         }
+        log("cmd", `/forge-new: starting phase 1: ${phases[0].name} (interactive)`);
+        ctx.ui?.notify(`Inception Phase 1: ${phases[0].name} (${phases[0].agent})`, "info");
+        if (ctx.newSession) {
+          await ctx.newSession({
+            withSession: async (newCtx: any) => {
+              uiState.ctx = { cwd: newCtx.cwd, ui: newCtx.ui, newSession: newCtx.newSession, sendUserMessage: newCtx.sendUserMessage };
+              if (newCtx.sendUserMessage) {
+                await newCtx.sendUserMessage(prompt);
+              }
+            },
+          });
+        } else {
+          log("cmd", "/forge-new: no newSession available — using sendUserMessage on current session");
+          if (ctx.sendUserMessage) await ctx.sendUserMessage(prompt);
+        }
+        engine.markInceptionPhaseStarted(0);
+        log("cmd", "/forge-new: inception phase 0 started");
       } else {
         log("cmd", "/forge-new: no phases, starting polling");
         engine.startPolling();
@@ -234,6 +263,52 @@ function setupCommands(
       log("cmd", `/forge-new ERROR: ${msg}`);
       ctx.ui?.notify(`Forge error: ${msg}`, "error");
       console.error("[forge-new] error:", err);
+    }
+  });
+
+  runtime.registerCommand("forge-next", async (_args: string, ctx: CommandContext & { ui?: any }) => {
+    log("cmd", "/forge-next invoked");
+    try {
+      const loaded = config.load();
+      const phases = loaded.inception.phases;
+      const state = engine.getProjectState();
+      const currentPhase = state.inception.currentPhase;
+      const nextPhase = currentPhase + 1;
+
+      if (nextPhase >= phases.length) {
+        log("cmd", `/forge-next: inception complete (currentPhase=${currentPhase}, phases=${phases.length})`);
+        engine.transitionToDevelopment();
+        engine.startPolling();
+        ctx.ui?.notify("Inception complete! Starting development mode — polling Linear.", "info");
+        return;
+      }
+
+      const prompt = engine.buildInceptionPrompt(nextPhase, ctx.cwd);
+      if (!prompt) {
+        ctx.ui?.notify(`Phase ${nextPhase + 1} not found`, "error");
+        return;
+      }
+      log("cmd", `/forge-next: starting phase ${nextPhase + 1}: ${phases[nextPhase].name} (interactive)`);
+      ctx.ui?.notify(`Phase ${nextPhase + 1}: ${phases[nextPhase].name} (${phases[nextPhase].agent})`, "info");
+      if (ctx.newSession) {
+        await ctx.newSession({
+          withSession: async (newCtx: any) => {
+            uiState.ctx = { cwd: newCtx.cwd, ui: newCtx.ui, newSession: newCtx.newSession, sendUserMessage: newCtx.sendUserMessage };
+            if (newCtx.sendUserMessage) {
+              await newCtx.sendUserMessage(prompt);
+            }
+          },
+        });
+      } else {
+        if (ctx.sendUserMessage) await ctx.sendUserMessage(prompt);
+      }
+      engine.markInceptionPhaseStarted(nextPhase);
+      log("cmd", `/forge-next: phase ${nextPhase} started`);
+    } catch (err) {
+      const msg = (err as Error).message;
+      log("cmd", `/forge-next ERROR: ${msg}`);
+      ctx.ui?.notify(`Forge error: ${msg}`, "error");
+      console.error("[forge-next] error:", err);
     }
   });
 

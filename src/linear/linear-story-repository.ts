@@ -158,7 +158,7 @@ export class LinearClient {
         return result;
       } catch (err) {
         lastError = err as Error;
-        if (attempt < this.maxRetries - 1) await Bun.sleep(this.retryDelayMs);
+        if (attempt < this.maxRetries - 1) await new Promise(resolve => setTimeout(resolve, this.retryDelayMs));
       }
     }
 

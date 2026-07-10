@@ -68,7 +68,13 @@ export class PiDevRuntime implements AgentRuntime {
       handler: async (args: string, ctx: any) => {
         log("command", `/${name} invoked`, { args, cwd: ctx?.cwd });
         try {
-          await handler(args, { cwd: ctx?.cwd ?? process.cwd(), model: ctx?.model, ui: ctx?.ui });
+          await handler(args, {
+            cwd: ctx?.cwd ?? process.cwd(),
+            model: ctx?.model,
+            ui: ctx?.ui,
+            newSession: ctx?.newSession?.bind(ctx),
+            sendUserMessage: ctx?.sendUserMessage?.bind(ctx),
+          });
           log("command", `/${name} completed`);
         } catch (err) {
           const msg = (err as Error).message;

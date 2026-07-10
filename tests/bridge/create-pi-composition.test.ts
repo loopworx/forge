@@ -141,7 +141,7 @@ describe("createForgeComposition", () => {
     expect(eventTypes).not.toContain("output");
   });
 
-  it("registers forge-new, forge-status, forge-stop, forge-approve commands", () => {
+  it("registers forge-new, forge-next, forge-status, forge-stop, forge-approve commands", () => {
     const runtime = new StubRuntime() as any;
     runtime.registeredCommands = [];
     runtime.registerCommand = (name: string, _handler: unknown) => {
@@ -151,6 +151,7 @@ describe("createForgeComposition", () => {
     createForgeComposition(TEST_DIR, runtime as any, sessions);
 
     expect(runtime.registeredCommands).toContain("forge-new");
+    expect(runtime.registeredCommands).toContain("forge-next");
     expect(runtime.registeredCommands).toContain("forge-status");
     expect(runtime.registeredCommands).toContain("forge-stop");
     expect(runtime.registeredCommands).toContain("forge-approve");

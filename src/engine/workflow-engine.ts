@@ -195,6 +195,35 @@ Test locations: ${params.testLocations}${params.blockers ? `\nBlockers: ${params
     return session.sessionId;
   }
 
+  buildInceptionPrompt(phaseIndex: number, workdir: string): string | null {
+    const config = this.config.load();
+    const phase = config.inception.phases[phaseIndex];
+    if (!phase) return null;
+    return this.prompts.buildInceptionPrompt({ phase, workdir });
+  }
+
+  markInceptionPhaseStarted(phaseIndex: number, sessionId?: string): void {
+    this.projectState.inception.currentPhase = phaseIndex;
+    if (sessionId !== undefined) {
+      this.projectState.inception.phaseSessionId = sessionId;
+    }
+    this.saveProjectState();
+
+    const config = this.config.load();
+    const phase = config.inception.phases[phaseIndex];
+    if (phase) {
+      this.events.publish({ type: "phase_started", phase: phase.phase, name: phase.name });
+    }
+  }
+
+  transitionToDevelopment(): void {
+    this.projectState.mode = "development";
+    this.projectState.inception.currentPhase = 0;
+    this.projectState.inception.phaseSessionId = null;
+    this.saveProjectState();
+    this.events.publish({ type: "inception_complete" });
+  }
+
   startPolling(): void {
     if (this.pollingTimer) return;
     const interval = (this.config.load().linear.pollIntervalSeconds || 10) * 1000;

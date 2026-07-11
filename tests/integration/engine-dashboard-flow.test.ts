@@ -10,12 +10,6 @@ import { YamlConfig } from "../../src/config/config-loader";
 import { PromptBuilderImpl } from "../../src/prompts/prompt-builder";
 import type { SessionConfig, SessionInfo, Story, WorkflowState } from "../../src/engine/types";
 import type { StoryRepository, ArtifactRepository, SessionManager, Session } from "../../src/engine/interfaces";
-import { ForgeLayout } from "../../src/dashboard/forge-layout";
-import { SplitLayout } from "../../src/dashboard/split-layout";
-import { ForgeSidebar } from "../../src/dashboard/forge-sidebar";
-import { ForgeAgentPanel } from "../../src/dashboard/forge-agent-panel";
-import { ForgeChatBar } from "../../src/dashboard/forge-chat-bar";
-import { DashboardEventBridge } from "../../src/dashboard/dashboard-event-bridge";
 
 const TEST_DIR = join(import.meta.dir, "..", ".test-integration");
 
@@ -99,14 +93,10 @@ class StubRuntime {
   closeDashboard() {}
 }
 
-describe("Full engine → dashboard integration", () => {
+describe("Full engine pipeline integration", () => {
   let stories: StubStoryRepository;
   let engine: WorkflowEngine;
-  let sidebar: ForgeSidebar;
-  let agentPanel: ForgeAgentPanel;
-  let forgeLayout: ForgeLayout;
   let eventBus: EngineEventBus;
-  let eventBridge: DashboardEventBridge;
 
   beforeEach(() => {
     if (existsSync(TEST_DIR)) rmSync(TEST_DIR, { recursive: true, force: true });
@@ -157,43 +147,20 @@ dashboard:
       stories, artifacts, persistence, sessions,
       proof, prompts, config, clock, eventBus, runtime as any,
     );
-
-    sidebar = new ForgeSidebar();
-    agentPanel = new ForgeAgentPanel();
-    const chatBar = new ForgeChatBar();
-    const splitLayout = new SplitLayout({ sidebar, agentPanel, chatBar });
-    eventBridge = new DashboardEventBridge(sidebar, agentPanel);
-    forgeLayout = new ForgeLayout(splitLayout, eventBridge, agentPanel);
-
-    eventBus.subscribe((event) => {
-      eventBridge.handle(event as any);
-    });
   });
 
   afterEach(() => {
-    forgeLayout.stop();
     engine.dispose();
     if (existsSync(TEST_DIR)) rmSync(TEST_DIR, { recursive: true, force: true });
   });
 
-  it("dashboard shows empty state before any story claims", () => {
-    const lines = forgeLayout.render(80);
-    expect(lines.length).toBeGreaterThan(0);
-    const text = lines.join("\n");
-    expect(text).toContain("No active sessions");
-  });
-
-  it("claiming a story updates dashboard sidebar", async () => {
+  it("claiming a story succeeds when stories are available", async () => {
     stories.stories = [
       { id: "F-1", title: "Test story", state: "ready-for-dev", assignee: null, iteration: null, featureFlag: null, url: "" },
     ];
 
     const claimed = await engine.claimStory("developer-agent");
     expect(claimed).not.toBeNull();
-
-    const lines = forgeLayout.render(80);
-    const text = lines.join("\n");
-    expect(text).toContain("F-1");
   });
 
   it("handoff after claim succeeds with valid transition", async () => {
@@ -233,19 +200,7 @@ dashboard:
     expect(result.success).toBe(false);
   });
 
-  it("engine events are forwarded to dashboard", () => {
-    eventBridge.handle({
-      type: "output",
-      sessionId: "s1",
-      delta: "Processing story F-1...",
-    });
-
-    const lines = agentPanel.render(80);
-    const text = lines.join("\n");
-    expect(text).toContain("Processing story F-1");
-  });
-
-  it("pipeline transition can be rendered end to end", async () => {
+  it("pipeline transition can be executed end to end", async () => {
     stories.stories = [
       { id: "F-1", title: "Test", state: "ready-for-dev", assignee: null, iteration: null, featureFlag: null, url: "" },
     ];

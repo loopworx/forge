@@ -67,6 +67,12 @@ export class AgentConversationBuffer {
     this.important = false;
   }
 
+  addUserMessage(text: string): void {
+    this.flushAgentText();
+    this.lines.push(`user: ${text}`);
+    this.trim();
+  }
+
   private flushAgentText(): void {
     if (this.currentAgentText.length > 0) {
       this.lines.push(`agent: ${this.currentAgentText}`);

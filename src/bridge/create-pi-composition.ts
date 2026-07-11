@@ -1,5 +1,5 @@
 import type { AgentRole } from "../engine/types";
-import type { AgentRuntime, SessionManager, CommandContext } from "../engine/interfaces";
+import type { AgentRuntime, SessionManager, CommandContext, CommandHandler } from "../engine/interfaces";
 import { WorkflowEngine } from "../engine/workflow-engine";
 import { FilePersistence } from "../engine/file-persistence";
 import { SystemClock } from "../engine/system-clock";
@@ -10,13 +10,11 @@ import { PromptBuilderImpl } from "../prompts/prompt-builder";
 import { LinearClient } from "../linear/linear-story-repository";
 import { LinearStoryRepository } from "../linear/linear-story-repository";
 import { LinearDocumentRepository } from "../linear/linear-document-repository";
-import { ForgeSidebar } from "../dashboard/forge-sidebar";
-import { ForgeAgentPanel } from "../dashboard/forge-agent-panel";
-import { DashboardEventBridge } from "../dashboard/dashboard-event-bridge";
 import { ForgeSidebarComponent } from "../dashboard/forge-sidebar-component";
 import { TabManager } from "../dashboard/tab-manager";
 import { AgentConversationBuffer } from "../dashboard/agent-conversation-buffer";
 import { ForgeDevDashboard } from "../dashboard/forge-dev-dashboard";
+import { ForgeInceptionDashboard } from "../dashboard/forge-inception-dashboard";
 import { join } from "node:path";
 
 function log(tag: string, msg: string, ...args: unknown[]): void {
@@ -27,7 +25,6 @@ function log(tag: string, msg: string, ...args: unknown[]): void {
 export interface ForgeComposition {
   engine: WorkflowEngine;
   runtime: AgentRuntime;
-  eventBridge: DashboardEventBridge;
   uiState: { ctx: CommandContext | null };
 }
 
@@ -35,6 +32,7 @@ export function createForgeComposition(
   workdir: string,
   runtime: AgentRuntime,
   sessions: SessionManager,
+  sendUserMessage: (content: string) => void,
 ): ForgeComposition {
   log("composition", `createForgeComposition (workdir=${workdir})`);
 
@@ -62,43 +60,144 @@ export function createForgeComposition(
 
   const uiState: { ctx: CommandContext | null } = { ctx: null };
 
-  const sidebar = new ForgeSidebar();
-  const agentPanel = new ForgeAgentPanel();
-  const eventBridge = new DashboardEventBridge(sidebar, agentPanel);
-
   const sidebarComponent = new ForgeSidebarComponent();
   const tabManager = new TabManager();
   const conversationBuffers = new Map<string, AgentConversationBuffer>();
+  const inceptionBuffer = new AgentConversationBuffer("inception");
+  const commandHandlers = new Map<string, CommandHandler>();
+
+  let inceptionDashboard: ForgeInceptionDashboard | null = null;
   let devDashboard: ForgeDevDashboard | null = null;
-  let customHandle: { close: () => void; requestRender: () => void } | null = null;
+  let inceptionHandle: { hide: () => void } | null = null;
+  let devHandle: { hide: () => void } | null = null;
+  let storedTui: { requestRender: () => void } | null = null;
 
   log("composition", "registering tools...");
   setupTools(runtime, engine, artifacts);
 
   log("composition", "registering lifecycle handlers...");
-  setupLifecycleHandlers(runtime, engine, config, uiState, workdir, sidebarComponent);
+  runtime.on("session_start", async (_event: any, ctx: any) => {
+    log("lifecycle", `session_start — cwd=${ctx?.cwd} ui=${!!ctx?.ui}`);
+    uiState.ctx = { cwd: ctx.cwd, ui: ctx.ui };
+    const loaded = config.load();
+    const projectState = engine.getProjectState();
+    const phases = loaded.inception.phases;
+    const phase = phases[projectState.inception.currentPhase - 1];
+    sidebarComponent.setState(projectState, [], phase?.name, phase?.agent);
 
-  log("composition", "registering commands...");
-  setupCommands(runtime, engine, config, stories, uiState);
+    showInceptionDashboard();
 
+    if (!loaded.active) {
+      log("lifecycle", "session_start: config not active, staying dormant");
+      return;
+    }
+    if (projectState.mode === "development") {
+      log("lifecycle", "session_start: starting polling (development mode)");
+      engine.startPolling();
+    }
+  });
+
+  runtime.on("session_shutdown", async (event: any) => {
+    const reason = event?.reason ?? "quit";
+    log("lifecycle", `session_shutdown — reason=${reason}`);
+    hideInceptionDashboard();
+    hideDevDashboard();
+    if (reason === "quit" || reason === "reload") {
+      engine.dispose();
+    }
+  });
+
+  runtime.on("resources_discover", async () => {
+    const skillsPath = join(workdir, "skills");
+    log("lifecycle", `resources_discover: contributing skillPaths=[${skillsPath}]`);
+    return { skillPaths: [skillsPath] };
+  });
+
+  log("composition", "subscribing to pi.dev message events for inception buffer...");
+  runtime.on("message_update", async (event: any) => {
+    if (engine.getProjectState().mode !== "inception") return;
+    const am = event?.assistantMessageEvent;
+    if (am?.type === "text_delta" && am?.delta) {
+      inceptionBuffer.handleEvent({ type: "text_delta", sessionId: "inception", delta: am.delta });
+      inceptionDashboard?.invalidate();
+      storedTui?.requestRender();
+    }
+  });
+
+  runtime.on("message_end", async (event: any) => {
+    if (engine.getProjectState().mode !== "inception") return;
+    const msg = event?.message;
+    if (msg?.role === "assistant") {
+      inceptionBuffer.handleEvent({ type: "message_end", sessionId: "inception" });
+      inceptionDashboard?.invalidate();
+      storedTui?.requestRender();
+    }
+  });
+
+  runtime.on("tool_execution_start", async (event: any) => {
+    if (engine.getProjectState().mode !== "inception") return;
+    inceptionBuffer.handleEvent({ type: "tool_call", sessionId: "inception", toolName: event?.toolName });
+    inceptionDashboard?.invalidate();
+    storedTui?.requestRender();
+  });
+
+  runtime.on("tool_execution_end", async (event: any) => {
+    if (engine.getProjectState().mode !== "inception") return;
+    inceptionBuffer.handleEvent({ type: "tool_result", sessionId: "inception", toolName: event?.toolName, isError: event?.isError });
+    inceptionDashboard?.invalidate();
+    storedTui?.requestRender();
+  });
+
+  log("composition", "subscribing to engine events...");
   events.subscribe((event: any) => {
-    eventBridge.handle(event as any);
-
     if (event?.type === "session_created") {
       tabManager.addTab(event.sessionId, event.storyId, event.agentRole);
       conversationBuffers.set(event.sessionId, new AgentConversationBuffer(event.sessionId));
       sidebarComponent.setState(engine.getProjectState(), engine.getActiveSessions());
+      hideInceptionDashboard();
       showDevDashboard();
     }
     if (event?.type === "story_claimed" || event?.type === "story_halted") {
       sidebarComponent.setState(engine.getProjectState(), engine.getActiveSessions());
+      inceptionDashboard?.invalidate();
+      storedTui?.requestRender();
     }
     if (event?.type === "phase_started") {
       const phases = config.load().inception.phases;
       const phase = phases[event.phase - 1];
       sidebarComponent.setState(engine.getProjectState(), [], phase?.name, phase?.agent);
+      inceptionDashboard?.invalidate();
+      storedTui?.requestRender();
     }
   });
+
+  log("composition", "registering commands...");
+  setupCommands(runtime, engine, config, stories, uiState, commandHandlers);
+
+  function showInceptionDashboard(): void {
+    if (inceptionDashboard || !uiState.ctx) return;
+    const ui = (uiState.ctx as any)?.ui;
+    if (!ui?.custom) return;
+    inceptionDashboard = new ForgeInceptionDashboard(sidebarComponent, inceptionBuffer);
+    inceptionDashboard.setOnSend((text: string) => sendUserMessage(text));
+    inceptionDashboard.setOnCommand((name: string, args: string) => {
+      const handler = commandHandlers.get(name);
+      if (handler) {
+        handler(args, { cwd: uiState.ctx!.cwd, ui: uiState.ctx!.ui, sendUserMessage } as CommandContext);
+      }
+    });
+    inceptionDashboard.setOnExit(() => hideInceptionDashboard());
+    log("composition", "showing ForgeInceptionDashboard via ctx.ui.custom()");
+    void ui.custom(
+      (tui: any, _theme: any) => { storedTui = tui; return inceptionDashboard!; },
+      { overlay: true, onHandle: (h: any) => { inceptionHandle = h; } },
+    );
+  }
+
+  function hideInceptionDashboard(): void {
+    if (inceptionHandle) { inceptionHandle.hide(); inceptionHandle = null; }
+    inceptionDashboard = null;
+  }
 
   function showDevDashboard(): void {
     if (devDashboard || !uiState.ctx) return;
@@ -109,22 +208,21 @@ export function createForgeComposition(
       const session = (sessions as any).activeMap?.get(sessionId);
       if (session?.steer) session.steer(text);
     });
-    devDashboard.setOnExit(() => {
-      if (customHandle) {
-        customHandle.close();
-        customHandle = null;
-      }
-      devDashboard = null;
-    });
+    devDashboard.setOnExit(() => hideDevDashboard());
     log("composition", "showing ForgeDevDashboard via ctx.ui.custom()");
-    customHandle = ui.custom(devDashboard, { overlay: true });
+    void ui.custom(
+      (tui: any, _theme: any) => { storedTui = tui; return devDashboard!; },
+      { overlay: true, onHandle: (h: any) => { devHandle = h; } },
+    );
   }
 
-  log("composition", "setting up dashboard notifications...");
-  setupDashboardNotifications(events, uiState);
+  function hideDevDashboard(): void {
+    if (devHandle) { devHandle.hide(); devHandle = null; }
+    devDashboard = null;
+  }
 
   log("composition", "createForgeComposition complete");
-  return { engine, runtime, eventBridge, uiState };
+  return { engine, runtime, uiState };
 }
 
 function setupTools(
@@ -152,25 +250,24 @@ function setupTools(
     name: "forge_complete_ac",
     label: "Complete AC",
     description: "Mark an acceptance criterion as complete with git proof. The engine verifies the commit before accepting.",
-    parameters: { type: "object", properties: { storyId: { type: "string" }, acNumber: { type: "number" }, summary: { type: "string" } } },
+    parameters: { type: "object", properties: { storyId: { type: "string" }, acNumber: { type: "number" }, commitSha: { type: "string" } } },
     execute: async (_id: string, params: unknown) => {
-      const p = params as { storyId: string; acNumber: number; summary: string };
-      log("tool", `forge_complete_ac: storyId=${p.storyId} ac=${p.acNumber}`);
-      const result = await engine.completeAc(p.storyId, p.acNumber, p.summary);
-      log("tool", `forge_complete_ac: success=${result.success}`);
-      return result.success
-        ? { content: [{ type: "text" as const, text: `AC${p.acNumber} completed` }], details: result, isError: false }
-        : { content: [{ type: "text" as const, text: result.error ?? "unknown error" }], details: result, isError: true };
+      const p = params as { storyId: string; acNumber: number; commitSha: string };
+      log("tool", `forge_complete_ac: storyId=${p.storyId} ac=${p.acNumber} sha=${p.commitSha}`);
+      const ok = await engine.completeAc(p.storyId, p.acNumber, p.commitSha);
+      return ok
+        ? { content: [{ type: "text" as const, text: `AC ${p.acNumber} for ${p.storyId} completed` }], details: { ok }, isError: false }
+        : { content: [{ type: "text" as const, text: `Git proof failed for AC ${p.acNumber}` }], details: { ok: false }, isError: true };
     },
   });
 
   runtime.registerTool({
     name: "forge_handoff",
-    label: "Handoff Story",
+    label: "Handoff",
     description: "Hand off a story to the next stage in the pipeline. The engine validates the transition and posts the handoff comment.",
     parameters: { type: "object", properties: { storyId: { type: "string" }, agentRole: { type: "string" }, targetState: { type: "string" }, accomplishments: { type: "string" }, remaining: { type: "string" }, testLocations: { type: "string" }, blockers: { type: "string" } } },
     execute: async (_id: string, params: unknown) => {
-      const p = params as { storyId: string; agentRole: AgentRole; targetState: string; accomplishments: string; remaining: string; testLocations: string; blockers?: string };
+      const p = params as { storyId: string; agentRole: string; targetState: string; accomplishments: string; remaining: string; testLocations: string; blockers?: string };
       log("tool", `forge_handoff: storyId=${p.storyId} targetState=${p.targetState}`);
       const result = await engine.handoff(p.storyId, p.agentRole as AgentRole, {
         targetState: p.targetState as any,
@@ -181,34 +278,29 @@ function setupTools(
       });
       log("tool", `forge_handoff: success=${result.success}`);
       return result.success
-        ? { content: [{ type: "text" as const, text: `Handed off to ${p.targetState}` }], details: result, isError: false }
-        : { content: [{ type: "text" as const, text: result.error ?? "handoff failed" }], details: result, isError: true };
+        ? { content: [{ type: "text" as const, text: `Handed off ${p.storyId} to ${p.targetState}` }], details: result, isError: false }
+        : { content: [{ type: "text" as const, text: `Handoff failed: ${result.error ?? "unknown"}` }], details: result, isError: true };
     },
   });
 
   runtime.registerTool({
     name: "forge_create_artifact",
     label: "Create Artifact",
-    description: "Create a document artifact in Linear. Both title and content are required.",
-    parameters: { type: "object", properties: { title: { type: "string" }, content: { type: "string" } }, required: ["title", "content"] },
+    description: "Create an artifact document (e.g., lean-canvas.md, architecture.md) in Linear.",
+    parameters: { type: "object", properties: { title: { type: "string" }, content: { type: "string" } } },
     execute: async (_id: string, params: unknown) => {
       const p = params as { title: string; content: string };
-      if (!p?.title || typeof p.title !== "string" || p.title.trim().length === 0) {
-        log("tool", "forge_create_artifact: missing or empty title");
-        return { content: [{ type: "text" as const, text: "Error: title is required and must be a non-empty string" }], details: null, isError: true };
-      }
-      if (!p?.content || typeof p.content !== "string" || p.content.trim().length === 0) {
-        log("tool", "forge_create_artifact: missing or empty content");
-        return { content: [{ type: "text" as const, text: "Error: content is required and must be a non-empty string" }], details: null, isError: true };
+      if (!p.title || !p.content) {
+        return { content: [{ type: "text" as const, text: "title and content are required" }], details: null, isError: true };
       }
       log("tool", `forge_create_artifact: title=${p.title}`);
       try {
-        const artifactId = await artifacts.createArtifact(p.title, p.content);
-        log("tool", `forge_create_artifact: created ${artifactId}`);
-        return { content: [{ type: "text" as const, text: `Artifact created: ${artifactId}` }], details: { artifactId }, isError: false };
+        const id = await artifacts.createArtifact(p.title, p.content);
+        return { content: [{ type: "text" as const, text: `Artifact created: ${id}` }], details: { id }, isError: false };
       } catch (err) {
-        log("tool", `forge_create_artifact ERROR: ${(err as Error).message}`);
-        return { content: [{ type: "text" as const, text: `Error creating artifact: ${(err as Error).message}` }], details: null, isError: true };
+        const msg = (err as Error).message;
+        log("tool", `forge_create_artifact ERROR: ${msg}`);
+        return { content: [{ type: "text" as const, text: `Failed to create artifact: ${msg}` }], details: { error: msg }, isError: true };
       }
     },
   });
@@ -216,7 +308,7 @@ function setupTools(
   runtime.registerTool({
     name: "forge_log_progress",
     label: "Log Progress",
-    description: "Log progress on the current story. The engine records this for audit and dashboard display.",
+    description: "Log a progress message to the forge dashboard.",
     parameters: { type: "object", properties: { message: { type: "string" } } },
     execute: async (_id: string, params: unknown) => {
       const p = params as { message: string };
@@ -226,81 +318,15 @@ function setupTools(
   });
 }
 
-function setupLifecycleHandlers(
-  runtime: AgentRuntime,
-  engine: WorkflowEngine,
-  config: YamlConfig,
-  uiState: { ctx: CommandContext | null },
-  workdir: string,
-  sidebarComponent: ForgeSidebarComponent,
-): void {
-  runtime.on("session_start", async (_event: any, ctx: any) => {
-    log("lifecycle", `session_start — cwd=${ctx?.cwd} ui=${!!ctx?.ui}`);
-    uiState.ctx = { cwd: ctx.cwd, ui: ctx.ui };
-    const loaded = config.load();
-    const projectState = engine.getProjectState();
-
-    const phases = loaded.inception.phases;
-    const phase = phases[projectState.inception.currentPhase - 1];
-    sidebarComponent.setState(projectState, [], phase?.name, phase?.agent);
-
-    if (ctx.ui?.setWidget) {
-      log("lifecycle", "session_start: registering sidebar widget");
-      ctx.ui.setWidget("forge-sidebar", (_tui: any, _theme: any) => {
-        return {
-          render: (width: number) => sidebarComponent.render(width),
-          invalidate: () => sidebarComponent.invalidate(),
-          handleInput: (_data: string) => {},
-        };
-      }, { placement: "aboveEditor" });
-    }
-
-    if (ctx.ui?.setStatus) {
-      if (projectState.mode === "inception") {
-        const p = phases[projectState.inception.currentPhase - 1];
-        ctx.ui.setStatus("forge", `Inception Phase ${projectState.inception.currentPhase}/8${p ? ` — ${p.name} (${p.agent})` : ""}`);
-      } else if (loaded.active) {
-        const n = engine.activeSessionCount;
-        ctx.ui.setStatus("forge", n > 0 ? `${n} active session${n > 1 ? "s" : ""}` : "Development mode — polling");
-      }
-    }
-
-    if (!loaded.active) {
-      log("lifecycle", "session_start: config not active, staying dormant");
-      return;
-    }
-    if (projectState.mode === "development") {
-      log("lifecycle", "session_start: starting polling (development mode)");
-      engine.startPolling();
-    }
-  });
-
-  runtime.on("session_shutdown", async (event: any) => {
-    const reason = event?.reason ?? "quit";
-    log("lifecycle", `session_shutdown — reason=${reason}`);
-    const ui = (uiState.ctx as any)?.ui;
-    if (ui?.setWidget) ui.setWidget("forge-sidebar", undefined);
-    if (ui?.setStatus) ui.setStatus("forge", undefined);
-    if (reason === "quit" || reason === "reload") {
-      engine.dispose();
-    }
-  });
-
-  runtime.on("resources_discover", async (_event: any, _ctx: any) => {
-    const skillsPath = join(workdir, "skills");
-    log("lifecycle", `resources_discover: contributing skillPaths=[${skillsPath}]`);
-    return { skillPaths: [skillsPath] };
-  });
-}
-
 function setupCommands(
   runtime: AgentRuntime,
   engine: WorkflowEngine,
   config: YamlConfig,
   stories: LinearStoryRepository,
   _uiState: { ctx: CommandContext | null },
+  commandHandlers: Map<string, CommandHandler>,
 ): void {
-  runtime.registerCommand("forge-new", async (_args: string, ctx: CommandContext & { ui?: any }) => {
+  const forgeNew: CommandHandler = async (_args: string, ctx: CommandContext & { ui?: any }) => {
     log("cmd", "/forge-new invoked");
     try {
       const loaded = config.load();
@@ -341,9 +367,11 @@ function setupCommands(
       ctx.ui?.notify(`Forge error: ${msg}`, "error");
       console.error("[forge-new] error:", err);
     }
-  });
+  };
+  runtime.registerCommand("forge-new", forgeNew);
+  commandHandlers.set("forge-new", forgeNew);
 
-  runtime.registerCommand("forge-next", async (_args: string, ctx: CommandContext & { ui?: any }) => {
+  const forgeNext: CommandHandler = async (_args: string, ctx: CommandContext & { ui?: any }) => {
     log("cmd", "/forge-next invoked");
     try {
       const loaded = config.load();
@@ -379,9 +407,11 @@ function setupCommands(
       ctx.ui?.notify(`Forge error: ${msg}`, "error");
       console.error("[forge-next] error:", err);
     }
-  });
+  };
+  runtime.registerCommand("forge-next", forgeNext);
+  commandHandlers.set("forge-next", forgeNext);
 
-  runtime.registerCommand("forge-status", async (_args: string, ctx: CommandContext & { ui?: any }) => {
+  const forgeStatus: CommandHandler = async (_args: string, ctx: CommandContext & { ui?: any }) => {
     log("cmd", "/forge-status invoked");
     const loaded = config.load();
     const state = engine.getProjectState();
@@ -399,16 +429,20 @@ function setupCommands(
     }
     log("cmd", `/forge-status: active=${loaded.active} mode=${state.mode} sessions=${sessions.length}`);
     ctx.ui?.notify(lines.join("\n"), "info");
-  });
+  };
+  runtime.registerCommand("forge-status", forgeStatus);
+  commandHandlers.set("forge-status", forgeStatus);
 
-  runtime.registerCommand("forge-stop", async (_args: string, ctx: CommandContext & { ui?: any }) => {
+  const forgeStop: CommandHandler = async (_args: string, ctx: CommandContext & { ui?: any }) => {
     log("cmd", "/forge-stop invoked");
     config.save({ active: false });
     engine.dispose();
     ctx.ui?.notify("Forge stopped. Active sessions will finish naturally.", "info");
-  });
+  };
+  runtime.registerCommand("forge-stop", forgeStop);
+  commandHandlers.set("forge-stop", forgeStop);
 
-  runtime.registerCommand("forge-approve", async (args: string, ctx: CommandContext & { ui?: any }) => {
+  const forgeApprove: CommandHandler = async (args: string, ctx: CommandContext & { ui?: any }) => {
     const storyId = args.trim();
     log("cmd", `/forge-approve invoked: storyId=${storyId}`);
     if (!storyId) {
@@ -425,37 +459,7 @@ function setupCommands(
     log("cmd", `/forge-approve: dispatching devops-agent for ${storyId}`);
     await engine.dispatchAgentPublic(storyId, "devops-agent", devopsConfig);
     ctx.ui?.notify(`DevOps agent dispatched for ${storyId}`, "info");
-  });
-}
-
-function setupDashboardNotifications(
-  events: EngineEventBus,
-  uiState: { ctx: CommandContext | null },
-): void {
-  const notify = (msg: string, type: "info" | "warning" | "error" = "info") => {
-    const ui = (uiState.ctx as any)?.ui;
-    if (ui?.notify) {
-      ui.notify(msg, type);
-    } else {
-      log("dashboard", `notify (no ui): ${msg}`);
-    }
   };
-
-  events.subscribe((event: any) => {
-    log("events", `engine event: ${event?.type}`, { storyId: event?.storyId, agentRole: event?.agentRole });
-    switch (event?.type) {
-      case "story_claimed":
-        notify(`Claimed ${event.storyId} for ${event.agentRole}`);
-        break;
-      case "session_created":
-        notify(`${event.storyId} → ${event.agentRole} session started`);
-        break;
-      case "story_halted":
-        notify(`${event.storyId} halted: ${event.reason}`, "error");
-        break;
-      case "phase_started":
-        notify(`Inception Phase ${event.phase}: ${event.name}`);
-        break;
-    }
-  });
+  runtime.registerCommand("forge-approve", forgeApprove);
+  commandHandlers.set("forge-approve", forgeApprove);
 }

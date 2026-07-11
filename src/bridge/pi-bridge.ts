@@ -24,16 +24,17 @@ export async function piBridge(api: unknown): Promise<unknown> {
   const cwd = process.cwd();
   const runtime = new PiDevRuntime(piApi);
   const sessions = new PiDevSessionManager(cwd);
+  const sendUserMessage = (content: string) => piApi.sendUserMessage(content);
 
   log("bridge", "calling createForgeComposition");
-  const { engine, eventBridge, uiState } = createForgeComposition(cwd, runtime, sessions);
+  const { engine, uiState } = createForgeComposition(cwd, runtime, sessions, sendUserMessage);
   log("bridge", "createForgeComposition done", {
     projectMode: engine.getProjectState().mode,
     activeSessions: engine.activeSessionCount,
   });
 
   log("bridge", "piBridge complete — returning");
-  return { engine, eventBridge, uiState };
+  return { engine, uiState };
 }
 
 export default piBridge;

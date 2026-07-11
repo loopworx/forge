@@ -90,4 +90,31 @@ describe("AgentConversationBuffer", () => {
     buf.clear();
     expect(buf.getLines()).toEqual([]);
   });
+
+  it("addUserMessage adds a user line to the buffer", () => {
+    const buf = new AgentConversationBuffer("session-1");
+    buf.addUserMessage("Hello agent");
+    const lines = buf.getLines();
+    expect(lines.length).toBe(1);
+    expect(lines[0]).toContain("user:");
+    expect(lines[0]).toContain("Hello agent");
+  });
+
+  it("addUserMessage flushes pending agent text before adding user line", () => {
+    const buf = new AgentConversationBuffer("session-1");
+    buf.handleEvent({ type: "text_delta", sessionId: "session-1", delta: "agent text" } as SessionEvent);
+    buf.addUserMessage("user reply");
+    const lines = buf.getLines();
+    expect(lines.length).toBe(2);
+    expect(lines[0]).toContain("agent:");
+    expect(lines[0]).toContain("agent text");
+    expect(lines[1]).toContain("user:");
+    expect(lines[1]).toContain("user reply");
+  });
+
+  it("addUserMessage does not mark important activity", () => {
+    const buf = new AgentConversationBuffer("session-1");
+    buf.addUserMessage("hello");
+    expect(buf.hasImportantActivity()).toBe(false);
+  });
 });

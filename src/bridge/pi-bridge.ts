@@ -32,24 +32,6 @@ export async function piBridge(api: unknown): Promise<unknown> {
     activeSessions: engine.activeSessionCount,
   });
 
-  const _sidebar = eventBridge.sidebar;
-  const _agentPanel = eventBridge.agentPanel;
-
-  log("bridge", "starting dashboard widget timer (5s interval)");
-  const _timer = setInterval(() => {
-    const ui = (uiState.ctx as any)?.ui;
-    if (!ui?.setWidget) return;
-    const lines: string[] = [];
-    lines.push("Forge Dashboard");
-    lines.push(`Mode: ${engine.getProjectState().mode}`);
-    const activeSessions = engine.getActiveSessions();
-    lines.push(`Active sessions: ${activeSessions.length}`);
-    for (const s of activeSessions) {
-      lines.push(`  ${s.storyId} — ${s.agentRole} (${s.workflowState})`);
-    }
-    ui.setWidget("forge", lines);
-  }, 5000);
-
   log("bridge", "piBridge complete — returning");
   return { engine, eventBridge, uiState };
 }

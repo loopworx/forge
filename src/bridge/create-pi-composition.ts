@@ -1,5 +1,5 @@
 import type { AgentRole } from "../engine/types";
-import type { AgentRuntime, SessionManager } from "../engine/interfaces";
+import type { AgentRuntime, SessionManager, CommandContext } from "../engine/interfaces";
 import { WorkflowEngine } from "../engine/workflow-engine";
 import { FilePersistence } from "../engine/file-persistence";
 import { SystemClock } from "../engine/system-clock";
@@ -13,8 +13,11 @@ import { LinearDocumentRepository } from "../linear/linear-document-repository";
 import { ForgeSidebar } from "../dashboard/forge-sidebar";
 import { ForgeAgentPanel } from "../dashboard/forge-agent-panel";
 import { DashboardEventBridge } from "../dashboard/dashboard-event-bridge";
+import { ForgeSidebarComponent } from "../dashboard/forge-sidebar-component";
+import { TabManager } from "../dashboard/tab-manager";
+import { AgentConversationBuffer } from "../dashboard/agent-conversation-buffer";
+import { ForgeDevDashboard } from "../dashboard/forge-dev-dashboard";
 import { join } from "node:path";
-import type { CommandContext } from "../engine/interfaces";
 
 function log(tag: string, msg: string, ...args: unknown[]): void {
   const ts = new Date().toISOString();
@@ -59,20 +62,63 @@ export function createForgeComposition(
 
   const uiState: { ctx: CommandContext | null } = { ctx: null };
 
-  log("composition", "registering tools...");
-  setupTools(runtime, engine, artifacts);
-  log("composition", "registering lifecycle handlers...");
-  setupLifecycleHandlers(runtime, engine, config, uiState, workdir);
-  log("composition", "registering commands...");
-  setupCommands(runtime, engine, config, stories, uiState);
-
   const sidebar = new ForgeSidebar();
   const agentPanel = new ForgeAgentPanel();
   const eventBridge = new DashboardEventBridge(sidebar, agentPanel);
 
-  events.subscribe((event) => {
+  const sidebarComponent = new ForgeSidebarComponent();
+  const tabManager = new TabManager();
+  const conversationBuffers = new Map<string, AgentConversationBuffer>();
+  let devDashboard: ForgeDevDashboard | null = null;
+  let customHandle: { close: () => void; requestRender: () => void } | null = null;
+
+  log("composition", "registering tools...");
+  setupTools(runtime, engine, artifacts);
+
+  log("composition", "registering lifecycle handlers...");
+  setupLifecycleHandlers(runtime, engine, config, uiState, workdir, sidebarComponent);
+
+  log("composition", "registering commands...");
+  setupCommands(runtime, engine, config, stories, uiState);
+
+  events.subscribe((event: any) => {
     eventBridge.handle(event as any);
+
+    if (event?.type === "session_created") {
+      tabManager.addTab(event.sessionId, event.storyId, event.agentRole);
+      conversationBuffers.set(event.sessionId, new AgentConversationBuffer(event.sessionId));
+      sidebarComponent.setState(engine.getProjectState(), engine.getActiveSessions());
+      showDevDashboard();
+    }
+    if (event?.type === "story_claimed" || event?.type === "story_halted") {
+      sidebarComponent.setState(engine.getProjectState(), engine.getActiveSessions());
+    }
+    if (event?.type === "phase_started") {
+      const phases = config.load().inception.phases;
+      const phase = phases[event.phase - 1];
+      sidebarComponent.setState(engine.getProjectState(), [], phase?.name, phase?.agent);
+    }
   });
+
+  function showDevDashboard(): void {
+    if (devDashboard || !uiState.ctx) return;
+    const ui = (uiState.ctx as any)?.ui;
+    if (!ui?.custom) return;
+    devDashboard = new ForgeDevDashboard(tabManager, sidebarComponent, conversationBuffers);
+    devDashboard.setOnSteer((sessionId: string, text: string) => {
+      const session = (sessions as any).activeMap?.get(sessionId);
+      if (session?.steer) session.steer(text);
+    });
+    devDashboard.setOnExit(() => {
+      if (customHandle) {
+        customHandle.close();
+        customHandle = null;
+      }
+      devDashboard = null;
+    });
+    log("composition", "showing ForgeDevDashboard via ctx.ui.custom()");
+    customHandle = ui.custom(devDashboard, { overlay: true });
+  }
 
   log("composition", "setting up dashboard notifications...");
   setupDashboardNotifications(events, uiState);
@@ -186,17 +232,43 @@ function setupLifecycleHandlers(
   config: YamlConfig,
   uiState: { ctx: CommandContext | null },
   workdir: string,
+  sidebarComponent: ForgeSidebarComponent,
 ): void {
   runtime.on("session_start", async (_event: any, ctx: any) => {
     log("lifecycle", `session_start — cwd=${ctx?.cwd} ui=${!!ctx?.ui}`);
     uiState.ctx = { cwd: ctx.cwd, ui: ctx.ui };
     const loaded = config.load();
+    const projectState = engine.getProjectState();
+
+    const phases = loaded.inception.phases;
+    const phase = phases[projectState.inception.currentPhase - 1];
+    sidebarComponent.setState(projectState, [], phase?.name, phase?.agent);
+
+    if (ctx.ui?.setWidget) {
+      log("lifecycle", "session_start: registering sidebar widget");
+      ctx.ui.setWidget("forge-sidebar", (_tui: any, _theme: any) => {
+        return {
+          render: (width: number) => sidebarComponent.render(width),
+          invalidate: () => sidebarComponent.invalidate(),
+          handleInput: (_data: string) => {},
+        };
+      }, { placement: "aboveEditor" });
+    }
+
+    if (ctx.ui?.setStatus) {
+      if (projectState.mode === "inception") {
+        const p = phases[projectState.inception.currentPhase - 1];
+        ctx.ui.setStatus("forge", `Inception Phase ${projectState.inception.currentPhase}/8${p ? ` — ${p.name} (${p.agent})` : ""}`);
+      } else if (loaded.active) {
+        const n = engine.activeSessionCount;
+        ctx.ui.setStatus("forge", n > 0 ? `${n} active session${n > 1 ? "s" : ""}` : "Development mode — polling");
+      }
+    }
+
     if (!loaded.active) {
       log("lifecycle", "session_start: config not active, staying dormant");
       return;
     }
-    const projectState = engine.getProjectState();
-    log("lifecycle", `session_start: mode=${projectState.mode} phase=${projectState.inception?.currentPhase}`);
     if (projectState.mode === "development") {
       log("lifecycle", "session_start: starting polling (development mode)");
       engine.startPolling();
@@ -206,6 +278,9 @@ function setupLifecycleHandlers(
   runtime.on("session_shutdown", async (event: any) => {
     const reason = event?.reason ?? "quit";
     log("lifecycle", `session_shutdown — reason=${reason}`);
+    const ui = (uiState.ctx as any)?.ui;
+    if (ui?.setWidget) ui.setWidget("forge-sidebar", undefined);
+    if (ui?.setStatus) ui.setStatus("forge", undefined);
     if (reason === "quit" || reason === "reload") {
       engine.dispose();
     }

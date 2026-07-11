@@ -101,7 +101,7 @@ describe("createForgeComposition", () => {
   it("returns an engine and a runtime", () => {
     const runtime = new StubRuntime();
     const sessions = new StubSessionManager();
-    const result = createForgeComposition(TEST_DIR, runtime, sessions, () => {});
+    const result = createForgeComposition(TEST_DIR, runtime, sessions, () => {}, () => []);
 
     expect(result.engine).toBeDefined();
     expect(result.runtime).toBe(runtime);
@@ -110,7 +110,7 @@ describe("createForgeComposition", () => {
   it("registers all forge_* custom tools with the runtime", () => {
     const runtime = new StubRuntime();
     const sessions = new StubSessionManager();
-    createForgeComposition(TEST_DIR, runtime, sessions, () => {});
+    createForgeComposition(TEST_DIR, runtime, sessions, () => {}, () => []);
 
     const toolNames = runtime.registeredTools.map(t => t.name).sort();
     expect(toolNames).toContain("forge_claim_story");
@@ -123,7 +123,7 @@ describe("createForgeComposition", () => {
   it("subscribes to session_start and session_shutdown lifecycle events", () => {
     const runtime = new StubRuntime();
     const sessions = new StubSessionManager();
-    createForgeComposition(TEST_DIR, runtime, sessions, () => {});
+    createForgeComposition(TEST_DIR, runtime, sessions, () => {}, () => []);
 
     const eventTypes = runtime.registeredEvents.map(e => e.event).sort();
     expect(eventTypes).toContain("session_start");
@@ -133,7 +133,7 @@ describe("createForgeComposition", () => {
   it("does NOT subscribe to duplicate agent_settled or output events", () => {
     const runtime = new StubRuntime();
     const sessions = new StubSessionManager();
-    createForgeComposition(TEST_DIR, runtime, sessions, () => {});
+    createForgeComposition(TEST_DIR, runtime, sessions, () => {}, () => []);
 
     const eventTypes = runtime.registeredEvents.map(e => e.event);
     expect(eventTypes).not.toContain("agent_settled");
@@ -148,7 +148,7 @@ describe("createForgeComposition", () => {
       runtime.registeredCommands.push(name);
     };
     const sessions = new StubSessionManager();
-    createForgeComposition(TEST_DIR, runtime as any, sessions, () => {});
+    createForgeComposition(TEST_DIR, runtime as any, sessions, () => {}, () => []);
 
     expect(runtime.registeredCommands).toContain("forge-new");
     expect(runtime.registeredCommands).toContain("forge-next");
@@ -160,7 +160,7 @@ describe("createForgeComposition", () => {
   it("loads config from forge.yaml in the working directory", () => {
     const runtime = new StubRuntime();
     const sessions = new StubSessionManager();
-    const result = createForgeComposition(TEST_DIR, runtime, sessions, () => {});
+    const result = createForgeComposition(TEST_DIR, runtime, sessions, () => {}, () => []);
 
     const state = result.engine.getProjectState();
     expect(state.mode).toBe("inception");
@@ -169,7 +169,7 @@ describe("createForgeComposition", () => {
   it("reads auth from .forge/auth.json", () => {
     const runtime = new StubRuntime();
     const sessions = new StubSessionManager();
-    const result = createForgeComposition(TEST_DIR, runtime, sessions, () => {});
+    const result = createForgeComposition(TEST_DIR, runtime, sessions, () => {}, () => []);
 
     expect(result.engine).toBeDefined();
   });
@@ -177,7 +177,7 @@ describe("createForgeComposition", () => {
   it("subscribes to message_update, message_end, tool_execution_start, tool_execution_end for inception buffer", () => {
     const runtime = new StubRuntime();
     const sessions = new StubSessionManager();
-    createForgeComposition(TEST_DIR, runtime, sessions, () => {});
+    createForgeComposition(TEST_DIR, runtime, sessions, () => {}, () => []);
 
     const eventTypes = runtime.registeredEvents.map(e => e.event);
     expect(eventTypes).toContain("message_update");

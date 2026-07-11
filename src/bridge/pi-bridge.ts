@@ -12,6 +12,7 @@ interface PiDevExtensionApi {
   on(event: string, handler: (event: unknown) => void | Promise<void>): void;
   registerCommand(name: string, opts: unknown): void;
   sendUserMessage(content: string | unknown[], options?: unknown): void;
+  getCommands?(): Array<{ name: string }>;
 }
 
 export async function piBridge(api: unknown): Promise<unknown> {
@@ -25,9 +26,10 @@ export async function piBridge(api: unknown): Promise<unknown> {
   const runtime = new PiDevRuntime(piApi);
   const sessions = new PiDevSessionManager(cwd);
   const sendUserMessage = (content: string) => piApi.sendUserMessage(content);
+  const getCommands = () => (piApi.getCommands?.() ?? []).map((c: any) => c.name);
 
   log("bridge", "calling createForgeComposition");
-  const { engine, uiState } = createForgeComposition(cwd, runtime, sessions, sendUserMessage);
+  const { engine, uiState } = createForgeComposition(cwd, runtime, sessions, sendUserMessage, getCommands);
   log("bridge", "createForgeComposition done", {
     projectMode: engine.getProjectState().mode,
     activeSessions: engine.activeSessionCount,

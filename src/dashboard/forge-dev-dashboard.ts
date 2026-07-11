@@ -75,6 +75,10 @@ export class ForgeDevDashboard {
             mainLines.push(truncate(` ${cl}`, mainWidth));
           }
         }
+        const toolName = buf.getCurrentToolName();
+        if (toolName) {
+          mainLines.push(truncate(` \u2699 ${toolName}...`, mainWidth));
+        }
       } else {
         mainLines.push(truncate(" (no buffer for session)", mainWidth));
       }

@@ -5,6 +5,7 @@ const MAX_LINES = 500;
 export class AgentConversationBuffer {
   private lines: string[] = [];
   private currentAgentText = "";
+  private currentToolName: string | null = null;
   private important = false;
 
   constructor(public readonly sessionId: string) {}
@@ -21,23 +22,21 @@ export class AgentConversationBuffer {
         break;
       case "tool_call":
         this.flushAgentText();
-        this.lines.push(`[tool] ${event.toolName ?? "unknown"}`);
+        this.currentToolName = event.toolName ?? "unknown";
         this.important = true;
-        this.trim();
         break;
       case "tool_result":
         this.flushAgentText();
         if (event.isError) {
-          this.lines.push(`[result] ERROR`);
-        } else {
-          this.lines.push(`[result] ${event.toolName ?? "ok"}`);
+          this.lines.push(`\u2717 ${event.toolName ?? "unknown"} failed`);
+          this.trim();
         }
+        this.currentToolName = null;
         this.important = true;
-        this.trim();
         break;
       case "agent_error":
         this.flushAgentText();
-        this.lines.push(`[ERROR] agent error`);
+        this.lines.push(`\u2717 agent error`);
         this.important = true;
         this.trim();
         break;
@@ -53,6 +52,10 @@ export class AgentConversationBuffer {
     return [...this.lines];
   }
 
+  getCurrentToolName(): string | null {
+    return this.currentToolName;
+  }
+
   hasImportantActivity(): boolean {
     return this.important;
   }
@@ -64,18 +67,19 @@ export class AgentConversationBuffer {
   clear(): void {
     this.lines = [];
     this.currentAgentText = "";
+    this.currentToolName = null;
     this.important = false;
   }
 
   addUserMessage(text: string): void {
     this.flushAgentText();
-    this.lines.push(`user: ${text}`);
+    this.lines.push(`> ${text}`);
     this.trim();
   }
 
   private flushAgentText(): void {
     if (this.currentAgentText.length > 0) {
-      this.lines.push(`agent: ${this.currentAgentText}`);
+      this.lines.push(this.currentAgentText);
       this.currentAgentText = "";
       this.trim();
     }

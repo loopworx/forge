@@ -11,10 +11,13 @@ function padTo(text: string, width: number): string {
   return text + " ".repeat(width - text.length);
 }
 
+const MAX_AUTOCOMPLETE = 5;
+
 export class ForgeInceptionDashboard {
   private cachedWidth: number | undefined;
   private cachedLines: string[] = [];
   private chatInput = "";
+  private autocompleteIndex = -1;
   private onSend: ((text: string) => void) | null = null;
   private onCommand: ((name: string, args: string) => void) | null = null;
   private onExit: (() => void) | null = null;
@@ -22,6 +25,7 @@ export class ForgeInceptionDashboard {
   constructor(
     private sidebar: ForgeSidebarComponent,
     private buffer: AgentConversationBuffer,
+    private getCommands: () => string[],
   ) {}
 
   setOnSend(handler: (text: string) => void): void {
@@ -34,6 +38,17 @@ export class ForgeInceptionDashboard {
 
   setOnExit(handler: () => void): void {
     this.onExit = handler;
+  }
+
+  private getAutocompleteItems(): string[] {
+    if (!this.chatInput.startsWith("/")) return [];
+    const prefix = this.chatInput.slice(1).toLowerCase();
+    const all = this.getCommands();
+    return all.filter(c => c.toLowerCase().startsWith(prefix)).slice(0, MAX_AUTOCOMPLETE);
+  }
+
+  private isAutocompleteShowing(): boolean {
+    return this.chatInput.startsWith("/") && this.getAutocompleteItems().length > 0;
   }
 
   render(width: number): string[] {
@@ -56,11 +71,25 @@ export class ForgeInceptionDashboard {
       }
     }
 
+    const toolName = this.buffer.getCurrentToolName();
+    if (toolName) {
+      mainLines.push(truncate(` \u2699 ${toolName}...`, mainWidth));
+    }
+
     while (mainLines.length < 15) {
       mainLines.push("");
     }
 
-    mainLines.push("─".repeat(mainWidth));
+    mainLines.push("\u2500".repeat(mainWidth));
+
+    const acItems = this.getAutocompleteItems();
+    if (acItems.length > 0) {
+      for (let i = 0; i < acItems.length; i++) {
+        const marker = i === this.autocompleteIndex ? ">" : " ";
+        mainLines.push(truncate(` ${marker} /${acItems[i]}`, mainWidth));
+      }
+    }
+
     const chatPrompt = this.chatInput.length > 0
       ? `> ${this.chatInput}`
       : "> _";
@@ -73,7 +102,7 @@ export class ForgeInceptionDashboard {
     for (let i = 0; i < maxLines; i++) {
       const ml = i < mainLines.length ? mainLines[i] : "";
       const sl = i < sidebarLines.length ? sidebarLines[i] : "";
-      combined.push(padTo(ml, mainWidth) + "│" + padTo(sl, sidebarWidth));
+      combined.push(padTo(ml, mainWidth) + "\u2502" + padTo(sl, sidebarWidth));
     }
 
     this.cachedWidth = width;
@@ -86,10 +115,39 @@ export class ForgeInceptionDashboard {
       this.onExit?.();
       return;
     }
+
+    if (this.isAutocompleteShowing()) {
+      if (data === "\x1b[B") {
+        const items = this.getAutocompleteItems();
+        this.autocompleteIndex = Math.min(this.autocompleteIndex + 1, items.length - 1);
+        this.invalidate();
+        return;
+      }
+      if (data === "\x1b[A") {
+        this.autocompleteIndex = Math.max(this.autocompleteIndex - 1, -1);
+        this.invalidate();
+        return;
+      }
+      if (data === "\t") {
+        const items = this.getAutocompleteItems();
+        const idx = this.autocompleteIndex >= 0 ? this.autocompleteIndex : 0;
+        if (items[idx]) {
+          this.chatInput = `/${items[idx]}`;
+          this.autocompleteIndex = -1;
+        }
+        this.invalidate();
+        return;
+      }
+    }
+
     if (data === "\r" || data === "\n") {
       const text = this.chatInput.trim();
       this.chatInput = "";
-      if (!text) return;
+      this.autocompleteIndex = -1;
+      if (!text) {
+        this.invalidate();
+        return;
+      }
       if (text.startsWith("/")) {
         const sp = text.indexOf(" ");
         const name = sp > 0 ? text.slice(1, sp) : text.slice(1);
@@ -104,11 +162,13 @@ export class ForgeInceptionDashboard {
     }
     if (data === "\x7f" || data === "\b") {
       this.chatInput = this.chatInput.slice(0, -1);
+      this.autocompleteIndex = -1;
       this.invalidate();
       return;
     }
     if (data.length === 1 && data.charCodeAt(0) >= 32) {
       this.chatInput += data;
+      this.autocompleteIndex = -1;
       this.invalidate();
     }
   }

@@ -10,6 +10,7 @@ interface PiDevApi {
   on(event: string, handler: (event: unknown) => void | Promise<void>): void;
   registerCommand(name: string, opts: unknown): void;
   sendUserMessage(content: string | unknown[], options?: unknown): void;
+  getCommands?(): Array<{ name: string }>;
 }
 
 export class PiDevRuntime implements AgentRuntime {

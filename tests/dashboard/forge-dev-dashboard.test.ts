@@ -144,4 +144,35 @@ describe("ForgeDevDashboard", () => {
     const dash = new ForgeDevDashboard(tm, sidebar, new Map());
     expect(() => dash.dispose()).not.toThrow();
   });
+
+  it("renders spinner when selected session has active tool call", () => {
+    const tm = new TabManager();
+    tm.addTab("s1", "FOR-5", "developer-agent");
+    const sidebar = new ForgeSidebarComponent();
+    sidebar.setState(mockProjectState("development"), [], undefined, undefined);
+    const buffers = new Map<string, AgentConversationBuffer>();
+    const buf = new AgentConversationBuffer("s1");
+    buf.handleEvent({ type: "tool_call", sessionId: "s1", toolName: "bash" } as any);
+    buffers.set("s1", buf);
+
+    const dash = new ForgeDevDashboard(tm, sidebar, buffers);
+    const lines = dash.render(80);
+    const joined = lines.join("\n");
+    expect(joined).toContain("\u2699");
+    expect(joined).toContain("bash");
+  });
+
+  it("does not render spinner when no tool is active", () => {
+    const tm = new TabManager();
+    tm.addTab("s1", "FOR-5", "developer-agent");
+    const sidebar = new ForgeSidebarComponent();
+    sidebar.setState(mockProjectState("development"), [], undefined, undefined);
+    const buffers = new Map<string, AgentConversationBuffer>();
+    buffers.set("s1", new AgentConversationBuffer("s1"));
+
+    const dash = new ForgeDevDashboard(tm, sidebar, buffers);
+    const lines = dash.render(80);
+    const joined = lines.join("\n");
+    expect(joined).not.toContain("\u2699");
+  });
 });

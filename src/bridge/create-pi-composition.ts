@@ -33,6 +33,7 @@ export function createForgeComposition(
   runtime: AgentRuntime,
   sessions: SessionManager,
   sendUserMessage: (content: string) => void,
+  getCommands: () => string[],
 ): ForgeComposition {
   log("composition", `createForgeComposition (workdir=${workdir})`);
 
@@ -68,8 +69,8 @@ export function createForgeComposition(
 
   let inceptionDashboard: ForgeInceptionDashboard | null = null;
   let devDashboard: ForgeDevDashboard | null = null;
-  let inceptionHandle: { hide: () => void } | null = null;
-  let devHandle: { hide: () => void } | null = null;
+  let inceptionDone: ((result: unknown) => void) | null = null;
+  let devDone: ((result: unknown) => void) | null = null;
   let storedTui: { requestRender: () => void } | null = null;
 
   log("composition", "registering tools...");
@@ -178,24 +179,32 @@ export function createForgeComposition(
     if (inceptionDashboard || !uiState.ctx) return;
     const ui = (uiState.ctx as any)?.ui;
     if (!ui?.custom) return;
-    inceptionDashboard = new ForgeInceptionDashboard(sidebarComponent, inceptionBuffer);
+    inceptionDashboard = new ForgeInceptionDashboard(sidebarComponent, inceptionBuffer, getCommands);
     inceptionDashboard.setOnSend((text: string) => sendUserMessage(text));
     inceptionDashboard.setOnCommand((name: string, args: string) => {
       const handler = commandHandlers.get(name);
       if (handler) {
         handler(args, { cwd: uiState.ctx!.cwd, ui: uiState.ctx!.ui, sendUserMessage } as CommandContext);
+      } else {
+        inceptionBuffer.addUserMessage(`/${name} ${args}`.trim());
+        inceptionBuffer.handleEvent({ type: "agent_error", sessionId: "inception" } as any);
+        inceptionDashboard?.invalidate();
+        storedTui?.requestRender();
       }
     });
     inceptionDashboard.setOnExit(() => hideInceptionDashboard());
     log("composition", "showing ForgeInceptionDashboard via ctx.ui.custom()");
     void ui.custom(
-      (tui: any, _theme: any) => { storedTui = tui; return inceptionDashboard!; },
-      { overlay: true, onHandle: (h: any) => { inceptionHandle = h; } },
+      (tui: any, _theme: any, _kb: any, done: (result: unknown) => void) => {
+        storedTui = tui;
+        inceptionDone = done;
+        return inceptionDashboard!;
+      },
     );
   }
 
   function hideInceptionDashboard(): void {
-    if (inceptionHandle) { inceptionHandle.hide(); inceptionHandle = null; }
+    if (inceptionDone) { inceptionDone(null); inceptionDone = null; }
     inceptionDashboard = null;
   }
 
@@ -211,13 +220,16 @@ export function createForgeComposition(
     devDashboard.setOnExit(() => hideDevDashboard());
     log("composition", "showing ForgeDevDashboard via ctx.ui.custom()");
     void ui.custom(
-      (tui: any, _theme: any) => { storedTui = tui; return devDashboard!; },
-      { overlay: true, onHandle: (h: any) => { devHandle = h; } },
+      (tui: any, _theme: any, _kb: any, done: (result: unknown) => void) => {
+        storedTui = tui;
+        devDone = done;
+        return devDashboard!;
+      },
     );
   }
 
   function hideDevDashboard(): void {
-    if (devHandle) { devHandle.hide(); devHandle = null; }
+    if (devDone) { devDone(null); devDone = null; }
     devDashboard = null;
   }
 

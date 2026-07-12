@@ -11,7 +11,6 @@ export class ProjectInitializer {
   constructor(
     private templatesDir: string,
     private persistence: Persistence,
-    private bundleDir?: string,
   ) {}
 
   initProject(cwd: string, opts: InitOptions = {}): void {
@@ -30,8 +29,9 @@ export class ProjectInitializer {
     writeFileSync(join(cwd, "forge.yaml"), yaml);
 
     const skillsSrc = join(this.templatesDir, "skills");
-    const skillsDst = join(cwd, "skills");
+    const skillsDst = join(cwd, ".agents", "skills");
     if (existsSync(skillsSrc)) {
+      mkdirSync(join(cwd, ".agents"), { recursive: true });
       cpSync(skillsSrc, skillsDst, { recursive: true });
     }
 
@@ -46,18 +46,7 @@ export class ProjectInitializer {
     mkdirSync(join(cwd, "design-system"), { recursive: true });
     mkdirSync(join(cwd, "docs"), { recursive: true });
 
-    const extDir = join(cwd, ".pi", "extensions");
-    mkdirSync(extDir, { recursive: true });
-    const bundlePath = this.bundleDir ? join(this.bundleDir, "pi-bridge.js") : null;
-    if (bundlePath && existsSync(bundlePath)) {
-      cpSync(bundlePath, join(extDir, "forge.js"));
-    } else {
-      const extContent = `import { piBridge } from "@loopworx/forge";
-
-export default piBridge;
-`;
-      writeFileSync(join(extDir, "forge.ts"), extContent);
-    }
+    this.ensureGitignore(cwd);
 
     this.persistence.write("project-state", {
       mode: "inception",
@@ -68,6 +57,18 @@ export default piBridge;
         artifacts: {} as Record<number, string>,
       },
     });
+  }
+
+  private ensureGitignore(cwd: string): void {
+    const gitignorePath = join(cwd, ".gitignore");
+    if (!existsSync(gitignorePath)) {
+      writeFileSync(gitignorePath, ".forge/\n");
+    } else {
+      const content = readFileSync(gitignorePath, "utf-8");
+      if (!content.includes(".forge")) {
+        writeFileSync(gitignorePath, content.trimEnd() + "\n.forge/\n");
+      }
+    }
   }
 
   isInitialized(cwd: string): boolean {

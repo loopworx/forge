@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach, afterEach } from "bun:test";
 import { ProjectInitializer } from "../../src/cli/project-initializer";
-import { existsSync, readFileSync, rmSync, mkdirSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, rmSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import type { Persistence } from "../../src/engine/interfaces";
 import { MemoryPersistence } from "../../src/engine/memory-persistence";
@@ -52,11 +52,11 @@ describe("ProjectInitializer", () => {
       expect(yamlContent).toContain('teamName: "my-team"');
     });
 
-    it("copies skills directory from templates", () => {
+    it("copies skills directory from templates to .agents/skills", () => {
       const init = new ProjectInitializer(TEMPLATES_DIR, persistence);
       init.initProject(TEST_PROJECT_DIR);
 
-      const skillsDir = join(TEST_PROJECT_DIR, "skills");
+      const skillsDir = join(TEST_PROJECT_DIR, ".agents", "skills");
       expect(existsSync(skillsDir)).toBe(true);
       expect(existsSync(join(skillsDir, "using-forge", "SKILL.md"))).toBe(true);
       expect(existsSync(join(skillsDir, "using-forge", "LOOP.md"))).toBe(true);
@@ -90,35 +90,34 @@ describe("ProjectInitializer", () => {
       expect((state as Record<string, unknown>).mode).toBe("inception");
     });
 
-    it("creates .pi/extensions directory", () => {
+    it("creates .gitignore with .forge/ if not exists", () => {
       const init = new ProjectInitializer(TEMPLATES_DIR, persistence);
       init.initProject(TEST_PROJECT_DIR);
-      expect(existsSync(join(TEST_PROJECT_DIR, ".pi", "extensions"))).toBe(true);
+      const gitignore = readFileSync(join(TEST_PROJECT_DIR, ".gitignore"), "utf-8");
+      expect(gitignore).toContain(".forge/");
     });
 
-    it("creates .pi/extensions/forge.ts fallback when no bundle dir", () => {
+    it("appends .forge/ to existing .gitignore", () => {
+      writeFileSync(join(TEST_PROJECT_DIR, ".gitignore"), "node_modules/\n");
       const init = new ProjectInitializer(TEMPLATES_DIR, persistence);
       init.initProject(TEST_PROJECT_DIR);
-      const extFile = join(TEST_PROJECT_DIR, ".pi", "extensions", "forge.ts");
-      expect(existsSync(extFile)).toBe(true);
-      const content = readFileSync(extFile, "utf-8");
-      expect(content).toContain("piBridge");
-      expect(content).toContain("export default");
+      const gitignore = readFileSync(join(TEST_PROJECT_DIR, ".gitignore"), "utf-8");
+      expect(gitignore).toContain("node_modules/");
+      expect(gitignore).toContain(".forge/");
+      expect(gitignore.indexOf("node_modules/")).toBeLessThan(gitignore.indexOf(".forge"));
     });
 
-    it("copies dist/pi-bridge.js to .pi/extensions/forge.js when bundleDir provided", () => {
-      const distDir = join(import.meta.dir, "..", "..", "dist");
-      if (!existsSync(join(distDir, "pi-bridge.js"))) {
-        // dist/ doesn't exist in CI test step (only built in build step)
-        // Skip this test — the copy logic is covered by the fallback test
-        return;
-      }
-      const init = new ProjectInitializer(TEMPLATES_DIR, persistence, distDir);
+    it("does not create .pi/extensions directory", () => {
+      const init = new ProjectInitializer(TEMPLATES_DIR, persistence);
       init.initProject(TEST_PROJECT_DIR);
-      const extFile = join(TEST_PROJECT_DIR, ".pi", "extensions", "forge.js");
-      expect(existsSync(extFile)).toBe(true);
-      const content = readFileSync(extFile, "utf-8");
-      expect(content).toContain("piBridge");
+      expect(existsSync(join(TEST_PROJECT_DIR, ".pi"))).toBe(false);
+    });
+
+    it("copies skills to .agents/skills/ (not ./skills/)", () => {
+      const init = new ProjectInitializer(TEMPLATES_DIR, persistence);
+      init.initProject(TEST_PROJECT_DIR);
+      expect(existsSync(join(TEST_PROJECT_DIR, ".agents", "skills"))).toBe(true);
+      expect(existsSync(join(TEST_PROJECT_DIR, "skills"))).toBe(false);
     });
   });
 

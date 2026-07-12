@@ -31,7 +31,7 @@ describe("ChatView", () => {
   });
 
   it("clears spinner when tool ends", async () => {
-    const { renderer, renderOnce, captureCharFrame } = await createTestRenderer({ width: 60, height: 20 });
+    const { renderer, renderOnce } = await createTestRenderer({ width: 60, height: 20 });
     const chat = new ChatView();
     chat.mount(renderer);
     chat.handleEvent({ type: "tool_start", toolName: "bash" } as ForgeEvent);

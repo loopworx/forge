@@ -27,7 +27,7 @@
 - Global provider config stored in `~/.config/forge/forge.yaml`
 - `forge` (TUI launch) refuses to start if `~/.config/forge/forge.yaml` is missing
 - `.forge/` added to `.gitignore` on `forge init`
-- Skills copied from `templates/skills/` to `./skills/` on `forge init`
+- Skills copied from `templates/skills/` to `./.agents/skills/` on `forge init` (SDK auto-discovers from `.agents/skills/` with project trust)
 - No pi.dev, pi-tui, or `.pi/extensions/` dependency
 - Frequent commits after each passing test
 
@@ -82,8 +82,8 @@ tests/
 
 ```
 src/
-  cli/project-initializer.ts  — Add .gitignore handling, per-agent model assignment, remove .pi/extensions
-  config/config-loader.ts     — Add agentModels field to ForgeConfig type, update generateForgeYaml
+  cli/project-initializer.ts  — Add .gitignore handling, change skills to .agents/skills/, remove .pi/extensions
+  config/config-loader.ts     — Add agentModels field to ForgeConfig type, update generateForgeYaml, remove dashboard field
   engine/types.ts             — Add agentModels to ForgeConfig, add AgentModelConfig type
 bin/forge.ts                  — Add setup command, add TUI launch with guard
 package.json                  — Move deps, add @opentui/core, remove pi-tui peerDep
@@ -1019,13 +1019,15 @@ export class AgentSessionManager implements SessionManager {
 
     const loader = new DefaultResourceLoader({
       cwd: config.cwd,
-      noExtensions: true,
-      noSkills: false,
+      agentDir: forgeAgentDir,           // ~/.config/forge/agent
+      noExtensions: true,                // no pi.dev extensions
+      noSkills: false,                   // YES — auto-discover from .agents/skills/
       noPromptTemplates: true,
       noThemes: true,
-      noContextFiles: false,
+      noContextFiles: false,             // AGENTS.md etc.
     });
-    await loader.reload();
+    // Auto-trust project so .agents/skills/ is discovered without user prompt
+    await loader.reload({ resolveProjectTrust: async () => true });
 
     const { session } = await createAgentSession({
       cwd: config.cwd,
@@ -1443,6 +1445,13 @@ it("does not create .pi/extensions directory", () => {
   init.initProject(tmpDir, {});
   expect(existsSync(join(tmpDir, ".pi"))).toBe(false);
 });
+
+it("copies skills to .agents/skills/ (not ./skills/)", () => {
+  const init = new ProjectInitializer(TEMPLATES_DIR, persistence);
+  init.initProject(tmpDir, {});
+  expect(existsSync(join(tmpDir, ".agents", "skills"))).toBe(true);
+  expect(existsSync(join(tmpDir, "skills"))).toBe(false);
+});
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -1452,7 +1461,7 @@ Expected: FAIL (no .gitignore creation, .pi/extensions still created)
 
 - [ ] **Step 3: Update `src/cli/project-initializer.ts`**
 
-Remove the `.pi/extensions` creation block (lines 49-60). Add `.gitignore` handling:
+Remove the `.pi/extensions` creation block (lines 49-60). Change skills destination from `./skills/` to `./.agents/skills/`. Add `.gitignore` handling:
 
 ```typescript
 private ensureGitignore(cwd: string): void {

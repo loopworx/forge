@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { parse, stringify } from "yaml";
-import type { ForgeConfig, AgentRole, AgentConfig, InceptionPhase, WorkflowState } from "../engine/types";
+import type { ForgeConfig, AgentRole, AgentConfig, AgentModelConfig, InceptionPhase, WorkflowState } from "../engine/types";
 import type { Config } from "../engine/interfaces";
 
 export function generateForgeYaml(): string {
@@ -15,9 +15,6 @@ linear:
   pollIntervalSeconds: 10
   teamId: ""
   teamName: ""
-
-dashboard:
-  sidebarWidth: 40
 
 agents:
   po-agent:
@@ -189,6 +186,19 @@ function normalizeConfig(parsed: unknown): ForgeConfig {
     output: ph.output as string,
   }));
 
+  let agentModels: Record<string, AgentModelConfig> | undefined;
+  const rawAgentModels = p.agent_models ?? p.agentModels;
+  if (rawAgentModels) {
+    agentModels = {};
+    for (const [role, entry] of Object.entries(rawAgentModels)) {
+      const m = entry as Record<string, any>;
+      agentModels[role] = {
+        model: (m.model ?? m.name ?? "") as string,
+        thinkingLevel: (m.thinking_level ?? m.thinkingLevel ?? "medium") as string,
+      };
+    }
+  }
+
   return {
     active: p.active ?? false,
     maxConcurrentStories: p.max_concurrent_stories ?? p.maxConcurrentStories ?? 5,
@@ -199,8 +209,6 @@ function normalizeConfig(parsed: unknown): ForgeConfig {
     },
     agents,
     inception: { phases },
-    dashboard: {
-      sidebarWidth: p.dashboard?.sidebar_width ?? p.dashboard?.sidebarWidth ?? 40,
-    },
+    ...(agentModels ? { agentModels } : {}),
   };
 }

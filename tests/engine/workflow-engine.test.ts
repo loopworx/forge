@@ -110,7 +110,6 @@ class MockConfig implements Config {
         "secops-agent": { name: "secops-agent", pullStates: [], activeState: "in-analysis", primarySkill: "modeling-threats", interactive: false, humanGate: false },
       },
       inception: { phases: [{ phase: 1, name: "Lean Canvas", skill: "facilitating-inception", agent: "po-agent", output: "docs/lean-canvas.md" }] },
-      dashboard: { sidebarWidth: 40 },
       ...config,
     };
   }

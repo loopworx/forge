@@ -46,13 +46,16 @@ export interface ForgeConfig {
     teamId: string;
     teamName: string;
   };
+  agentModels?: Record<string, AgentModelConfig>;
   agents: Record<AgentRole, AgentConfig>;
   inception: {
     phases: InceptionPhase[];
   };
-  dashboard: {
-    sidebarWidth: number;
-  };
+}
+
+export interface AgentModelConfig {
+  model: string;
+  thinkingLevel: string;
 }
 
 export interface AgentSessionMeta {

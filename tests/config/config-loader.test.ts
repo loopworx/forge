@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, afterEach } from "bun:test";
-import { rmSync, writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { YamlConfig } from "../../src/config/config-loader";
 import { generateForgeYaml } from "../../src/config/config-loader";
@@ -160,6 +160,35 @@ inception:
       const errors = config.validate(loaded);
       expect(errors.length).toBeGreaterThan(0);
       expect(errors[0]).toContain("phases");
+    });
+  });
+
+  describe("agentModels", () => {
+    it("loads agentModels from yaml", () => {
+      const yaml = `active: false
+maxConcurrentStories: 1
+linear: { pollIntervalSeconds: 30, teamId: "T1", teamName: "test" }
+agentModels:
+  po-agent:
+    model: "synthetic/glm-5.2"
+    thinkingLevel: "high"
+  developer-agent:
+    model: "opencode-go/deepseek-v4-pro"
+    thinkingLevel: "high"
+agents: {}
+inception: { phases: [] }
+`;
+      const tmpDir = join(import.meta.dir, "..", ".test-config-models");
+      if (existsSync(tmpDir)) rmSync(tmpDir, { recursive: true, force: true });
+      mkdirSync(tmpDir, { recursive: true });
+      writeFileSync(join(tmpDir, "config-models.yaml"), yaml);
+      const cfg = new YamlConfig(join(tmpDir, "config-models.yaml"));
+      const loaded = cfg.load();
+      expect(loaded.agentModels).toBeDefined();
+      expect(loaded.agentModels!["po-agent"].model).toBe("synthetic/glm-5.2");
+      expect(loaded.agentModels!["po-agent"].thinkingLevel).toBe("high");
+      expect(loaded.agentModels!["developer-agent"].model).toBe("opencode-go/deepseek-v4-pro");
+      if (existsSync(tmpDir)) rmSync(tmpDir, { recursive: true, force: true });
     });
   });
 });

@@ -23,11 +23,7 @@
     "xp",
     "ci-cd"
   ],
-  "main": "dist/pi-bridge.js",
-  "exports": {
-    ".": "./dist/pi-bridge.js",
-    "./forge-bridge": "./dist/forge-bridge.js"
-  },
+  "main": "dist/forge.js",
   "bin": {
     "forge": "./dist/forge.js"
   },
@@ -35,7 +31,6 @@
     "test": "bun test",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint src/ tests/",
-    "build": "bun build src/bridge/pi-bridge.ts --outfile dist/pi-bridge.js --external @earendil-works/pi-coding-agent --external @earendil-works/pi-tui --external typebox --external 'node:*' && bun build src/bridge/forge-bridge.ts --outfile dist/forge-bridge.js --external @earendil-works/pi-coding-agent --external @earendil-works/pi-tui --external typebox --external 'node:*' && bun build bin/forge.ts --outfile dist/forge.js --external @earendil-works/pi-coding-agent --external @earendil-works/pi-tui --external typebox --external 'node:*' && bun -e \"const fs=require('fs');const f='dist/forge.js';let c=fs.readFileSync(f,'utf8');if(!c.startsWith('#!'))fs.writeFileSync(f,'#!/usr/bin/env bun\\n'+c);fs.chmodSync(f,0o755)\"",
     "init": "bun run bin/forge.ts init",
     "prepublishOnly": "bun run typecheck && bun test && bun run build"
   },
@@ -52,11 +47,7 @@
     "open": "^11.0.0",
     "yaml": "^2.9.0"
   },
-  "peerDependencies": {
-    "@earendil-works/pi-coding-agent": ">=0.80.0",
-    "@earendil-works/pi-tui": ">=0.32.0",
-    "typebox": ">=0.32.0"
-  },
+  "peerDependencies": {},
   "devDependencies": {
     "@types/bun": "latest",
     "oxlint": "^1.72.0",

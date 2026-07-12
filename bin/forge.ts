@@ -50,12 +50,8 @@ async function main() {
   }
 
   if (!command || command === "help") {
-    if (!existsSync(join(FORGE_CONFIG_DIR, "forge.yaml"))) {
-      console.error("Forge is not configured. Run 'forge setup' first.");
-      process.exit(1);
-    }
-    console.log("Launching Forge TUI... (not yet implemented)");
-    process.exit(0);
+    await launchTui();
+    return;
   }
 
   console.error(`Unknown command: ${command}`);
@@ -150,6 +146,121 @@ async function runInit(cwd: string, skipAuth: boolean, reAuth: boolean): Promise
   console.log("\nForge initialized successfully.");
   console.log("Run 'forge' to start the TUI.");
   process.exit(0);
+}
+
+async function launchTui(): Promise<void> {
+  if (!existsSync(join(FORGE_CONFIG_DIR, "forge.yaml"))) {
+    console.error("Forge is not configured. Run 'forge setup' first.");
+    process.exit(1);
+  }
+
+  const { join: joinPath } = await import("node:path");
+  const workdir = process.cwd();
+
+  const projectYamlPath = joinPath(workdir, "forge.yaml");
+  if (!existsSync(projectYamlPath)) {
+    console.error("No forge.yaml found in the current directory. Run 'forge init' first.");
+    process.exit(1);
+  }
+
+  const { createForgeRenderer } = await import("../src/tui/renderer");
+  const { ForgeApp } = await import("../src/tui/app");
+  const { WorkflowEngine } = await import("../src/engine/workflow-engine");
+  const { EngineEventBus } = await import("../src/engine/events");
+  const { SystemClock } = await import("../src/engine/system-clock");
+  const { FilePersistence } = await import("../src/engine/file-persistence");
+  const { GitProofValidator } = await import("../src/engine/git-proof-validator");
+  const { YamlConfig } = await import("../src/config/config-loader");
+  const { PromptBuilderImpl } = await import("../src/prompts/prompt-builder");
+  const { AgentSessionManager } = await import("../src/agent/session-manager");
+  const { ModelResolver } = await import("../src/agent/model-resolver");
+  const { ToolRegistry } = await import("../src/agent/tool-registry");
+  const { CommandRegistry } = await import("../src/agent/command-registry");
+  const { LinearClient, LinearStoryRepository } = await import("../src/linear/linear-story-repository");
+  const { LinearDocumentRepository } = await import("../src/linear/linear-document-repository");
+
+  const config = new YamlConfig(projectYamlPath);
+  const forgeConfig = config.load();
+  const validationErrors = config.validate(forgeConfig);
+  if (validationErrors.length > 0) {
+    console.error(`Invalid forge.yaml:\n  ${validationErrors.join("\n  ")}`);
+    process.exit(1);
+  }
+
+  const persistenceDir = joinPath(workdir, ".forge");
+  const persistence = new FilePersistence(persistenceDir);
+
+  const authPath = joinPath(persistenceDir, "auth.json");
+  const linear = new LinearClient({ authPath });
+  if (forgeConfig.linear.teamId) linear.teamId = forgeConfig.linear.teamId;
+  if (forgeConfig.linear.teamName) linear.teamName = forgeConfig.linear.teamName;
+
+  const stories = new LinearStoryRepository(linear);
+  const artifacts = new LinearDocumentRepository(linear);
+
+  const events = new EngineEventBus();
+  const clock = new SystemClock();
+  const proof = new GitProofValidator(workdir);
+  const prompts = new PromptBuilderImpl();
+
+  const agentDir = joinPath(FORGE_CONFIG_DIR, "agent");
+  const modelResolver = new ModelResolver(agentDir);
+  const agentModels = forgeConfig.agentModels ?? {};
+  const sessions = new AgentSessionManager(workdir, agentModels, modelResolver);
+
+  const engine = new WorkflowEngine(
+    stories,
+    artifacts,
+    persistence,
+    sessions,
+    proof,
+    prompts,
+    config,
+    clock,
+    events,
+    null as any,
+    workdir,
+  );
+
+  const tools = new ToolRegistry();
+  tools.registerForgeTools(engine, artifacts);
+
+  const commands = new CommandRegistry();
+  commands.register("forge-next", async () => {
+    const state = engine.getProjectState();
+    if (state.mode === "inception") {
+      const next = state.inception.currentPhase + 1;
+      const cfg = config.load();
+      const lastPhase = cfg.inception.phases.at(-1)?.phase ?? 0;
+      if (next > lastPhase) {
+        engine.transitionToDevelopment();
+      } else {
+        engine.markInceptionPhaseStarted(next);
+      }
+    }
+  });
+  commands.register("forge-status", async () => {});
+  commands.register("help", async () => {});
+
+  const projectState = engine.getProjectState();
+  const mode = projectState.mode;
+
+  const renderer = await createForgeRenderer();
+
+  const app = new ForgeApp({ renderer, engine, sessions, commands, mode });
+  app.layout();
+
+  events.subscribe((event) => {
+    app.handleEngineEvent(event);
+  });
+
+  if (mode === "development") {
+    engine.startPolling();
+  }
+
+  renderer.on("destroy", () => {
+    engine.dispose();
+  });
 }
 
 main().catch((e) => {

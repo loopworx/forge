@@ -33,7 +33,7 @@ export class AgentSessionManager implements SessionManager {
     const { homedir } = await import("node:os");
 
     const forgeAgentDir = join(homedir(), ".config", "forge", "agent");
-    const resolved = this.modelResolver.resolveAgentModel(
+    const _resolved = this.modelResolver.resolveAgentModel(
       config.agentRole,
       this.agentModels,
     );

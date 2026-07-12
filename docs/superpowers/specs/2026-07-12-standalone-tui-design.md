@@ -480,34 +480,90 @@ The `Persistence` interface is designed to support SQLite later if needed (swap 
 
 ## Testing Strategy
 
+### TUI Testing — All via OpenTUI VirtualTerminal (headless renderer)
+
+All TUI component tests use `createTestRenderer` from `@opentui/core/testing`. No real terminal output. Tests are deterministic, fast, and run in CI.
+
+```typescript
+import { createTestRenderer } from "@opentui/core/testing"
+import { Text } from "@opentui/core"
+
+const { renderer, renderOnce, captureCharFrame, mockInput, resize } =
+  await createTestRenderer({ width: 80, height: 24 })
+
+renderer.root.add(chatView)
+await renderOnce()
+expect(captureCharFrame()).toContain("Welcome to Phase 1")
+
+mockInput({ name: "return" })
+await renderOnce()
+expect(captureCharFrame()).toContain("...")
+```
+
+**Test helpers available:**
+
+| Helper | Purpose |
+|---|---|
+| `renderer` | CliRenderer instance (no real terminal) |
+| `renderOnce()` | Run one render pass |
+| `flush()` | Wait until scheduled rendering settles |
+| `waitFor(predicate)` | Retry until condition passes |
+| `waitForFrame(predicate)` | Retry against captured frame text |
+| `waitForVisualIdle()` | Wait for quiet native frames |
+| `captureCharFrame()` | Read current frame as text (assert on content) |
+| `captureSpans()` | Read styled span lines + cursor state (assert on colors/styles) |
+| `mockInput(key)` | Simulate keyboard input (KeyEvent) |
+| `mockMouse(event)` | Simulate mouse input |
+| `resize(width, height)` | Simulate terminal resize |
+
+**Key principle:** Every TUI test renders to a virtual frame buffer, asserts on `captureCharFrame()` or `captureSpans()`, and simulates input via `mockInput()`. No real terminal, no flakiness, deterministic.
+
+### Test Coverage by Layer
+
 | Layer | Test Focus | Framework |
 |---|---|---|
 | `src/engine/` | Unchanged — existing tests stay | `bun test` |
-| `src/agent/` | Session manager, tool registry, command registry, event adapter | `bun test` + mocks |
-| `src/tui/` | Component rendering, input handling, autocomplete, tab cycling | `bun test` + OpenTUI VirtualTerminal |
+| `src/agent/` | Session manager, tool registry, command registry, event adapter, model resolver | `bun test` + mocks |
+| `src/tui/` | Component rendering, input handling, autocomplete, tab cycling — all via OpenTUI VirtualTerminal | `bun test` + `@opentui/core/testing` |
 | `src/cli/` | `forge init`, `forge setup` flows | `bun test` + temp dirs |
 | Integration | Engine → agent → tool dispatch → event flow | `bun test` + stubs |
 
-New test files:
+### New Test Files
+
 ```
 tests/
   agent/
-    session-manager.test.ts
-    tool-registry.test.ts
-    command-registry.test.ts
-    event-adapter.test.ts
-    model-resolver.test.ts
+    session-manager.test.ts       — createAgentSession wrapper, model resolution
+    tool-registry.test.ts         — forge tools call engine correctly
+    command-registry.test.ts      — slash commands dispatch to engine
+    event-adapter.test.ts         — SDK events → Forge events translation
+    model-resolver.test.ts        — Provider registration, model discovery, per-agent resolution
   tui/
-    app.test.ts
-    chat-view.test.ts
-    input-bar.test.ts
-    sidebar.test.ts
-    tab-bar.test.ts
-    status-bar.test.ts
+    app.test.ts                   — Mode switching (inception ↔ development), engine event → TUI update
+    chat-view.test.ts             — Conversation rendering, markdown, sticky scroll, spinner display
+    input-bar.test.ts             — Text input, Enter submit, slash command autocomplete, Tab complete, Shift+Enter newline
+    sidebar.test.ts               — Phase/agent/sessions/guardians rendering, collapse toggle
+    tab-bar.test.ts               — Session tabs, auto/manual cycling, auto-switch on important activity
+    status-bar.test.ts            — Agent (orange), model (white), provider (gray), thinking (orange), tokens, mode
+    autocomplete.test.ts          — `/` triggers popup, filtering, arrow navigation, Tab complete, Enter dispatch
   cli/
-    forge-setup.test.ts
-    forge-init.test.ts
+    forge-setup.test.ts           — Provider setup, model discovery
+    forge-init.test.ts            — Project init, per-agent model assignment, .gitignore handling
 ```
+
+### What Gets Deleted
+
+- `tests/bridge/` — all tests (bridge/ deleted)
+- `tests/dashboard/` — all tests (dashboard/ deleted)
+- `tests/integration/engine-dashboard-flow.test.ts` — rewritten without dashboard deps
+
+### What Stays
+
+- All `tests/engine/` — unchanged
+- All `tests/linear/` — unchanged
+- All `tests/config/` — unchanged
+- All `tests/prompts/` — unchanged
+- `tests/cli/project-initializer.test.ts` — updated for new init flow
 
 ## Package & Distribution
 

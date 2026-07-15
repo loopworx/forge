@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, afterEach } from "bun:test";
-import { existsSync, mkdirSync, rmSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { $ } from "bun";
 
@@ -28,5 +28,14 @@ describe("forge setup", () => {
     await $`bun run ${FORGE_BIN} setup`.env({ HOME: TMP_HOME }).quiet();
     const yaml = readFileSync(join(configDir, "forge.yaml"), "utf-8");
     expect(yaml).toContain("providers:");
+  });
+
+  it("does not overwrite existing config", async () => {
+    const configDir = join(TMP_HOME, ".config", "forge");
+    mkdirSync(configDir, { recursive: true });
+    writeFileSync(join(configDir, "forge.yaml"), "existing: config\n");
+    const result = await $`bun run ${FORGE_BIN} setup`.env({ HOME: TMP_HOME }).quiet();
+    expect(result.exitCode).toBe(0);
+    expect(readFileSync(join(configDir, "forge.yaml"), "utf-8")).toBe("existing: config\n");
   });
 });

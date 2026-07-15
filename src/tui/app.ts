@@ -24,6 +24,7 @@ export class ForgeApp {
   private tabBar: TabBar;
   private sidebar: Sidebar;
   private statusBar: StatusBar;
+  private sidebarBox: BoxRenderable | null = null;
 
   constructor(private opts: ForgeAppOptions) {
     this.chatView = new ChatView();
@@ -83,6 +84,7 @@ export class ForgeApp {
     for (const line of this.sidebar.getText()) {
       sidebarBox.add(new TextRenderable(renderer, { content: line, fg: THEME.text }));
     }
+    this.sidebarBox = sidebarBox;
     root.add(sidebarBox);
 
     renderer.root.add(root);
@@ -110,10 +112,35 @@ export class ForgeApp {
 
   handleForgeEvent(event: ForgeEvent): void {
     this.chatView.handleEvent(event);
+    if (event.type === "agent_settled") {
+      const state = this.opts.engine.getProjectState();
+      this.statusBar.setInfo(
+        "agent",
+        "model",
+        "provider",
+        "high",
+        0,
+        1000000,
+        state.mode,
+      );
+    }
   }
 
   handleEngineEvent(_event: any): void {
     const state = this.opts.engine.getProjectState();
     this.sidebar.setState(state, this.opts.engine.getActiveSessions());
+
+    if (this.sidebarBox) {
+      while (this.sidebarBox.getChildrenCount() > 0) {
+        const [first] = this.sidebarBox.getChildren();
+        if (!first) break;
+        this.sidebarBox.remove(first);
+      }
+      for (const line of this.sidebar.getText()) {
+        this.sidebarBox.add(
+          new TextRenderable(this.opts.renderer, { content: line, fg: THEME.text }),
+        );
+      }
+    }
   }
 }

@@ -10,10 +10,14 @@ const TEMPLATES_DIR = join(import.meta.dir, "..", "..", "templates");
 const TEST_PROJECT_DIR = join(import.meta.dir, "..", ".test-init-project");
 const FORGE_BIN = join(import.meta.dir, "..", "..", "bin", "forge.ts");
 const TMP_HOME = join(import.meta.dir, "..", ".test-init-home");
+const TEST_AGENT_DIR = join(import.meta.dir, "..", ".test-init-agent-dir");
 
 function cleanProjectDir() {
   if (existsSync(TEST_PROJECT_DIR)) {
     rmSync(TEST_PROJECT_DIR, { recursive: true, force: true });
+  }
+  if (existsSync(TEST_AGENT_DIR)) {
+    rmSync(TEST_AGENT_DIR, { recursive: true, force: true });
   }
 }
 
@@ -73,6 +77,36 @@ describe("ProjectInitializer", () => {
       expect(existsSync(agentsDir)).toBe(true);
       expect(existsSync(join(agentsDir, "developer-agent.md"))).toBe(true);
       expect(existsSync(join(agentsDir, "po-agent.md"))).toBe(true);
+    });
+
+    it("copies agents to opts.agentDir when provided", () => {
+      const init = new ProjectInitializer(TEMPLATES_DIR, persistence);
+      init.initProject(TEST_PROJECT_DIR, { agentDir: TEST_AGENT_DIR });
+
+      expect(existsSync(TEST_AGENT_DIR)).toBe(true);
+      expect(existsSync(join(TEST_AGENT_DIR, "po-agent.md"))).toBe(true);
+      expect(existsSync(join(TEST_AGENT_DIR, "developer-agent.md"))).toBe(true);
+    });
+
+    it("creates agentDir if it does not exist", () => {
+      const nestedAgentDir = join(TEST_AGENT_DIR, "nested", "deeper");
+      expect(existsSync(nestedAgentDir)).toBe(false);
+
+      const init = new ProjectInitializer(TEMPLATES_DIR, persistence);
+      init.initProject(TEST_PROJECT_DIR, { agentDir: nestedAgentDir });
+
+      expect(existsSync(nestedAgentDir)).toBe(true);
+      expect(existsSync(join(nestedAgentDir, "po-agent.md"))).toBe(true);
+    });
+
+    it("falls back to cwd/agents when agentDir not provided", () => {
+      const init = new ProjectInitializer(TEMPLATES_DIR, persistence);
+      init.initProject(TEST_PROJECT_DIR);
+
+      const agentsDir = join(TEST_PROJECT_DIR, "agents");
+      expect(existsSync(agentsDir)).toBe(true);
+      expect(existsSync(join(agentsDir, "po-agent.md"))).toBe(true);
+      expect(existsSync(TEST_AGENT_DIR)).toBe(false);
     });
 
     it("creates project subdirectories", () => {

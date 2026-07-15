@@ -5,6 +5,7 @@ import type { Persistence } from "../engine/interfaces";
 export interface InitOptions {
   teamId?: string;
   teamName?: string;
+  agentDir?: string;
 }
 
 export class ProjectInitializer {
@@ -36,8 +37,9 @@ export class ProjectInitializer {
     }
 
     const agentsSrc = join(this.templatesDir, "agents");
-    const agentsDst = join(cwd, "agents");
+    const agentsDst = opts.agentDir ?? join(cwd, "agents");
     if (existsSync(agentsSrc)) {
+      mkdirSync(agentsDst, { recursive: true });
       cpSync(agentsSrc, agentsDst, { recursive: true });
     }
 

@@ -116,7 +116,7 @@ async function runInit(cwd: string, skipAuth: boolean, reAuth: boolean): Promise
   }
 
   console.log("Initializing Forge project...");
-  init.initProject(cwd, {});
+  init.initProject(cwd, { agentDir: join(FORGE_CONFIG_DIR, "agent") });
 
   if (!skipAuth) {
     console.log("\nLinear Authentication");

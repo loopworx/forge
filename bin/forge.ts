@@ -62,19 +62,41 @@ async function runSetup(): Promise<void> {
   console.log("Forge Setup — Global Configuration");
   console.log("==================================");
   console.log("");
-  console.log("This will configure your AI providers and discover available models.");
-  console.log("(Full setup wizard coming soon — for now, create ~/.config/forge/forge.yaml manually)");
-  console.log("");
-  console.log("Example config:");
-  console.log("  providers:");
-  console.log("    synthetic:");
-  console.log('      baseUrl: "https://api.synthetic.dev/v1"');
-  console.log('      apiKey: "$SYNTHETIC_API_KEY"');
-  console.log('      api: "openai-responses"');
-  console.log("");
+
   mkdirSync(FORGE_CONFIG_DIR, { recursive: true });
-  console.log(`Config directory: ${FORGE_CONFIG_DIR}`);
-  console.log("Run 'forge init' in your project directory after setup.");
+
+  const configPath = join(FORGE_CONFIG_DIR, "forge.yaml");
+  if (existsSync(configPath)) {
+    console.log(`Config already exists: ${configPath}`);
+    console.log("Edit it manually to add providers.");
+    process.exit(0);
+  }
+
+  const defaultConfig = `# ~/.config/forge/forge.yaml — Global Forge Configuration
+# Fill in your AI provider details below, then run 'forge init' in your project.
+
+providers:
+  # Example: uncomment and fill in your provider
+  # synthetic:
+  #   baseUrl: "https://api.synthetic.dev/v1"
+  #   apiKey: "$SYNTHETIC_API_KEY"
+  #   api: "openai-responses"
+  # opencode-go:
+  #   baseUrl: "https://api.opencode.ai/v1"
+  #   apiKey: "$OPENCODE_API_KEY"
+  #   api: "openai-responses"
+
+# Default model for inception (provider/modelId format)
+defaultModel: ""
+defaultThinkingLevel: "high"
+`;
+
+  writeFileSync(configPath, defaultConfig);
+  console.log(`Config written to: ${configPath}`);
+  console.log("");
+  console.log("Next steps:");
+  console.log("1. Edit the config to add your AI provider and API key");
+  console.log("2. Run 'forge init' in your project directory");
   process.exit(0);
 }
 

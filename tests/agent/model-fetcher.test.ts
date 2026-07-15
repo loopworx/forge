@@ -30,6 +30,28 @@ describe("fetchModels", () => {
     ]);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect((fetchMock.mock.calls[0] as unknown[])[0]).toBe("https://api.test.com/v1/models");
+
+    // Authorization header per brief: "Must call {baseUrl}/models with
+    // Authorization: Bearer {apiKey} header".
+    const options = (fetchMock.mock.calls[0] as unknown[])[1] as {
+      headers: { Authorization: string };
+    };
+    expect(options.headers.Authorization).toBe("Bearer test-key");
+  });
+
+  it("returns empty array on timeout", async () => {
+    // The 5 s AbortController timeout is exercised by mocking fetch to reject
+    // (simulating an aborted request) and verifying the catch returns [].
+    const fetchMock = mock(() => Promise.reject(new Error("aborted")));
+    globalThis.fetch = fetchMock as any;
+
+    const result = await fetchModels("https://api.test.com/v1", "test-key");
+
+    expect(result).toEqual([]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    // Verify fetch was called with an AbortSignal so the timeout is wired up.
+    const options = (fetchMock.mock.calls[0] as unknown[])[1] as { signal: AbortSignal };
+    expect(options.signal).toBeInstanceOf(AbortSignal);
   });
 
   it("returns empty array on 404", async () => {

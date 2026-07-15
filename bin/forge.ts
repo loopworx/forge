@@ -204,7 +204,9 @@ async function launchTui(): Promise<void> {
   const { YamlConfig } = await import("../src/config/config-loader");
   const { PromptBuilderImpl } = await import("../src/prompts/prompt-builder");
   const { AgentSessionManager } = await import("../src/agent/session-manager");
-  const { ModelResolver } = await import("../src/agent/model-resolver");
+  const { AuthStorage, ModelRegistry } = await import("@earendil-works/pi-coding-agent");
+  const { getBuiltinProviders } = await import("@earendil-works/pi-ai/providers/all");
+  const { fetchModels } = await import("../src/agent/model-fetcher");
   const { ToolRegistry } = await import("../src/agent/tool-registry");
   const { CommandRegistry } = await import("../src/agent/command-registry");
   const { LinearClient, LinearStoryRepository } = await import("../src/linear/linear-story-repository");
@@ -233,7 +235,7 @@ async function launchTui(): Promise<void> {
   const proof = new GitProofValidator(workdir);
   const prompts = new PromptBuilderImpl();
 
-  // --- ModelResolver + register providers from global config (Issue 2) ---
+  // --- AuthStorage + ModelRegistry (replaces ModelResolver) ---
   const globalYamlPath = joinPath(FORGE_CONFIG_DIR, "forge.yaml");
   const globalRaw = readFile(globalYamlPath, "utf-8");
   const globalConfig = parseYaml(globalRaw) as {
@@ -241,15 +243,49 @@ async function launchTui(): Promise<void> {
     defaultModel?: string;
     defaultThinkingLevel?: string;
   };
-  const agentDir = joinPath(FORGE_CONFIG_DIR, "agent");
-  const modelResolver = new ModelResolver(agentDir);
+
+  const authStorage = AuthStorage.inMemory();
+  const modelRegistry = ModelRegistry.inMemory(authStorage);
+
+  const builtinProviders = getBuiltinProviders();
+
   if (globalConfig.providers) {
     for (const [name, providerConfig] of Object.entries(globalConfig.providers)) {
-      if (providerConfig.baseUrl && providerConfig.apiKey) {
-        modelResolver.registerProvider(name, {
+      if (!providerConfig.baseUrl || !providerConfig.apiKey) continue;
+
+      authStorage.setRuntimeApiKey(name, providerConfig.apiKey);
+
+      if (builtinProviders.includes(name as any)) {
+        // Built-in provider — catalog already loaded, just override baseUrl + apiKey
+        modelRegistry.registerProvider(name, {
+          apiKey: providerConfig.apiKey,
+          baseUrl: providerConfig.baseUrl,
+        });
+      } else {
+        // Custom provider — fetch models from /models endpoint
+        const fetched = await fetchModels(providerConfig.baseUrl, providerConfig.apiKey);
+        const modelDefs = fetched.map((m) => ({
+          id: m.id,
+          name: m.name,
+          api: providerConfig.api as any,
+          provider: name,
+          baseUrl: providerConfig.baseUrl,
+          reasoning: true,
+          input: ["text"] as ("text" | "image")[],
+          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+          contextWindow: 1000000,
+          maxTokens: 16384,
+        }));
+
+        if (modelDefs.length === 0) {
+          console.error(`Warning: No models found for provider "${name}" at ${providerConfig.baseUrl}/models. Sessions using this provider will fail.`);
+        }
+
+        modelRegistry.registerProvider(name, {
           baseUrl: providerConfig.baseUrl,
           apiKey: providerConfig.apiKey,
-          api: providerConfig.api,
+          api: providerConfig.api as any,
+          models: modelDefs,
         });
       }
     }
@@ -257,7 +293,13 @@ async function launchTui(): Promise<void> {
 
   // --- AgentSessionManager (engine needs to exist before forge tools, see below) ---
   const agentModels = forgeConfig.agentModels ?? {};
-  const sessions = new AgentSessionManager(workdir, agentModels, modelResolver);
+  const sessions = new AgentSessionManager(
+    workdir,
+    agentModels,
+    modelRegistry,
+    globalConfig.defaultModel || undefined,
+    globalConfig.defaultThinkingLevel || undefined,
+  );
 
   // --- WorkflowEngine (Issue 14: null as any for unused _runtime param — acceptable) ---
   const engine = new WorkflowEngine(

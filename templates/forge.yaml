@@ -10,8 +10,16 @@ linear:
   teamId: ""
   teamName: ""
 
-dashboard:
-  sidebarWidth: 40
+# Per-agent model + thinking level (provider/modelId format)
+# Example:
+# agentModels:
+#   po-agent:
+#     model: "synthetic/glm-5.2"
+#     thinkingLevel: "high"
+#   developer-agent:
+#     model: "opencode-go/deepseek-v4-pro"
+#     thinkingLevel: "high"
+agentModels:
 
 agents:
   po-agent:

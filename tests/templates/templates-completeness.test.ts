@@ -129,6 +129,6 @@ describe("templates completeness", () => {
     expect(content).toContain("linear:");
     expect(content).toContain("agents:");
     expect(content).toContain("inception:");
-    expect(content).toContain("dashboard:");
+    expect(content).toContain("agentModels:");
   });
 });

@@ -101,6 +101,11 @@ defaultThinkingLevel: "high"
 }
 
 async function runInit(cwd: string, skipAuth: boolean, reAuth: boolean): Promise<void> {
+  if (!existsSync(join(FORGE_CONFIG_DIR, "forge.yaml"))) {
+    console.error("Forge is not configured. Run 'forge setup' first.");
+    process.exit(1);
+  }
+
   const persistenceDir = join(cwd, ".forge");
   const persistence = new FilePersistence(persistenceDir);
   const init = new ProjectInitializer(TEMPLATES_DIR, persistence);

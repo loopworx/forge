@@ -119,6 +119,16 @@ describe("ProjectInitializer", () => {
       expect(existsSync(join(TEST_PROJECT_DIR, ".agents", "skills"))).toBe(true);
       expect(existsSync(join(TEST_PROJECT_DIR, "skills"))).toBe(false);
     });
+
+    it("forge.yaml template has no dashboard section", () => {
+      const templateYaml = readFileSync(join(TEMPLATES_DIR, "forge.yaml"), "utf-8");
+      expect(templateYaml).not.toContain("dashboard:");
+    });
+
+    it("forge.yaml template has agentModels section", () => {
+      const templateYaml = readFileSync(join(TEMPLATES_DIR, "forge.yaml"), "utf-8");
+      expect(templateYaml).toContain("agentModels");
+    });
   });
 
   describe("isInitialized", () => {

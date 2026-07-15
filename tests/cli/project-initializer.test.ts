@@ -2,11 +2,14 @@ import { describe, expect, it, beforeEach, afterEach } from "bun:test";
 import { ProjectInitializer } from "../../src/cli/project-initializer";
 import { existsSync, readFileSync, writeFileSync, rmSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
+import { $ } from "bun";
 import type { Persistence } from "../../src/engine/interfaces";
 import { MemoryPersistence } from "../../src/engine/memory-persistence";
 
 const TEMPLATES_DIR = join(import.meta.dir, "..", "..", "templates");
 const TEST_PROJECT_DIR = join(import.meta.dir, "..", ".test-init-project");
+const FORGE_BIN = join(import.meta.dir, "..", "..", "bin", "forge.ts");
+const TMP_HOME = join(import.meta.dir, "..", ".test-init-home");
 
 function cleanProjectDir() {
   if (existsSync(TEST_PROJECT_DIR)) {
@@ -148,5 +151,29 @@ describe("ProjectInitializer", () => {
       init.initProject(TEST_PROJECT_DIR);
       expect(init.isInitialized(TEST_PROJECT_DIR)).toBe(true);
     });
+  });
+});
+
+describe("forge init CLI guard", () => {
+  beforeEach(() => {
+    if (existsSync(TMP_HOME)) rmSync(TMP_HOME, { recursive: true });
+    mkdirSync(TMP_HOME, { recursive: true });
+  });
+
+  afterEach(() => {
+    if (existsSync(TMP_HOME)) rmSync(TMP_HOME, { recursive: true });
+  });
+
+  it("exits with code 1 when the global forge config is missing", async () => {
+    expect(existsSync(join(TMP_HOME, ".config", "forge", "forge.yaml"))).toBe(false);
+
+    const result = await $`bun run ${FORGE_BIN} init`
+      .env({ HOME: TMP_HOME })
+      .cwd(TMP_HOME)
+      .quiet()
+      .nothrow();
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr.toString()).toContain("Forge is not configured");
   });
 });

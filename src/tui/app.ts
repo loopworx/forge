@@ -88,6 +88,26 @@ export class ForgeApp {
     renderer.root.add(root);
   }
 
+  getInputBar(): InputBar {
+    return this.inputBar;
+  }
+
+  getChatView(): ChatView {
+    return this.chatView;
+  }
+
+  getTabBar(): TabBar {
+    return this.tabBar;
+  }
+
+  getSidebar(): Sidebar {
+    return this.sidebar;
+  }
+
+  getStatusBar(): StatusBar {
+    return this.statusBar;
+  }
+
   handleForgeEvent(event: ForgeEvent): void {
     this.chatView.handleEvent(event);
   }

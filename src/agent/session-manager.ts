@@ -19,6 +19,7 @@ export class AgentSessionManager implements SessionManager {
     private cwd: string,
     private agentModels: Record<string, { model: string; thinkingLevel: string }>,
     private modelResolver: ModelResolver,
+    private customTools?: any[],
   ) {}
 
   async createSession(config: SessionConfig): Promise<Session> {
@@ -54,6 +55,7 @@ export class AgentSessionManager implements SessionManager {
       resourceLoader: loader,
       sessionManager: SdkSessionManager.inMemory(),
       settingsManager: SettingsManager.inMemory(),
+      customTools: this.customTools ?? [],
       tools: config.tools,
     });
 
@@ -87,6 +89,21 @@ export class AgentSessionManager implements SessionManager {
       isBusy: false,
       elapsedTime: now,
     }));
+  }
+
+  getSession(sessionId: string): Session | undefined {
+    return this.sessions.get(sessionId);
+  }
+
+  /**
+   * Set the custom tool definitions forwarded to `createAgentSession({ customTools })`.
+   * Exists because of a construction-order cycle: the engine needs `sessions` in
+   * its constructor, forge tools need the engine to exist, and we want those tool
+   * defs on the session manager — so the manager is constructed first (empty),
+   * the engine is built, tools are registered, then defs are injected here.
+   */
+  setCustomTools(defs: any[]): void {
+    this.customTools = defs;
   }
 
   async terminateSession(sessionId: string): Promise<void> {

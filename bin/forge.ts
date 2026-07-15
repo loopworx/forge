@@ -176,20 +176,24 @@ async function runInit(cwd: string, skipAuth: boolean, reAuth: boolean): Promise
 }
 
 async function launchTui(): Promise<void> {
+  // --- Guard: global config (Issue 2 source) ---
   if (!existsSync(join(FORGE_CONFIG_DIR, "forge.yaml"))) {
     console.error("Forge is not configured. Run 'forge setup' first.");
     process.exit(1);
   }
 
+  // --- Guard: project config ---
   const { join: joinPath } = await import("node:path");
   const workdir = process.cwd();
-
   const projectYamlPath = joinPath(workdir, "forge.yaml");
   if (!existsSync(projectYamlPath)) {
     console.error("No forge.yaml found in the current directory. Run 'forge init' first.");
     process.exit(1);
   }
 
+  // --- Dynamic imports ---
+  const { readFileSync: readFile } = await import("node:fs");
+  const { parse: parseYaml } = await import("yaml");
   const { createForgeRenderer } = await import("../src/tui/renderer");
   const { ForgeApp } = await import("../src/tui/app");
   const { WorkflowEngine } = await import("../src/engine/workflow-engine");
@@ -206,6 +210,7 @@ async function launchTui(): Promise<void> {
   const { LinearClient, LinearStoryRepository } = await import("../src/linear/linear-story-repository");
   const { LinearDocumentRepository } = await import("../src/linear/linear-document-repository");
 
+  // --- Engine setup ---
   const config = new YamlConfig(projectYamlPath);
   const forgeConfig = config.load();
   const validationErrors = config.validate(forgeConfig);
@@ -216,12 +221,10 @@ async function launchTui(): Promise<void> {
 
   const persistenceDir = joinPath(workdir, ".forge");
   const persistence = new FilePersistence(persistenceDir);
-
   const authPath = joinPath(persistenceDir, "auth.json");
   const linear = new LinearClient({ authPath });
   if (forgeConfig.linear.teamId) linear.teamId = forgeConfig.linear.teamId;
   if (forgeConfig.linear.teamName) linear.teamName = forgeConfig.linear.teamName;
-
   const stories = new LinearStoryRepository(linear);
   const artifacts = new LinearDocumentRepository(linear);
 
@@ -230,11 +233,33 @@ async function launchTui(): Promise<void> {
   const proof = new GitProofValidator(workdir);
   const prompts = new PromptBuilderImpl();
 
+  // --- ModelResolver + register providers from global config (Issue 2) ---
+  const globalYamlPath = joinPath(FORGE_CONFIG_DIR, "forge.yaml");
+  const globalRaw = readFile(globalYamlPath, "utf-8");
+  const globalConfig = parseYaml(globalRaw) as {
+    providers?: Record<string, { baseUrl: string; apiKey: string; api: string }>;
+    defaultModel?: string;
+    defaultThinkingLevel?: string;
+  };
   const agentDir = joinPath(FORGE_CONFIG_DIR, "agent");
   const modelResolver = new ModelResolver(agentDir);
+  if (globalConfig.providers) {
+    for (const [name, providerConfig] of Object.entries(globalConfig.providers)) {
+      if (providerConfig.baseUrl && providerConfig.apiKey) {
+        modelResolver.registerProvider(name, {
+          baseUrl: providerConfig.baseUrl,
+          apiKey: providerConfig.apiKey,
+          api: providerConfig.api,
+        });
+      }
+    }
+  }
+
+  // --- AgentSessionManager (engine needs to exist before forge tools, see below) ---
   const agentModels = forgeConfig.agentModels ?? {};
   const sessions = new AgentSessionManager(workdir, agentModels, modelResolver);
 
+  // --- WorkflowEngine (Issue 14: null as any for unused _runtime param — acceptable) ---
   const engine = new WorkflowEngine(
     stories,
     artifacts,
@@ -249,42 +274,127 @@ async function launchTui(): Promise<void> {
     workdir,
   );
 
-  const tools = new ToolRegistry();
-  tools.registerForgeTools(engine, artifacts);
+  // --- ToolRegistry: register forge tools with REAL engine reference, then pass defs to sessions (Issue 3) ---
+  // Construction-order cycle: engine needs `sessions`; forge tools need `engine`.
+  // So build sessions (empty) -> engine -> register tools -> inject defs into sessions via setter.
+  const toolRegistry = new ToolRegistry();
+  const customTools = toolRegistry.registerForgeTools(engine, artifacts);
+  sessions.setCustomTools(customTools);
 
+  // --- CommandRegistry with ALL 5 commands (Issue 7, 8) ---
   const commands = new CommandRegistry();
+
+  // Track the active inception session across commands
+  let inceptionSessionId: string | null = null;
+
+  commands.register("forge-new", async () => {
+    // Build the inception prompt for phase 0, then create a session and dispatch (Issues 4, 8)
+    const prompt = engine.buildInceptionPrompt(0, workdir);
+    if (!prompt) {
+      console.error("No inception phases configured.");
+      return;
+    }
+    engine.markInceptionPhaseStarted(0);
+    const session = await sessions.createSession({
+      cwd: workdir,
+      tools: ["read", "bash", "edit", "write", "grep", "glob", "forge_claim_story", "forge_complete_ac", "forge_handoff", "forge_create_artifact", "forge_log_progress"],
+      agentRole: "po-agent" as any,
+    });
+    inceptionSessionId = session.sessionId;
+    // Forward session events into the chat view (Issue 6)
+    session.subscribe((event) => {
+      app.handleForgeEvent(event as any);
+    });
+    await session.prompt(prompt);
+  });
+
   commands.register("forge-next", async () => {
     const state = engine.getProjectState();
-    if (state.mode === "inception") {
-      const next = state.inception.currentPhase + 1;
-      const cfg = config.load();
-      const lastPhase = cfg.inception.phases.at(-1)?.phase ?? 0;
-      if (next > lastPhase) {
-        engine.transitionToDevelopment();
-      } else {
-        engine.markInceptionPhaseStarted(next);
-      }
+    if (state.mode !== "inception") return;
+    const loadedConfig = config.load();
+    const nextPhase = state.inception.currentPhase + 1;
+    if (nextPhase >= loadedConfig.inception.phases.length) {
+      engine.transitionToDevelopment();
+      engine.startPolling();
+      return;
+    }
+    // Build the prompt for the next phase and dispatch to the existing session (Issues 7, 8)
+    const prompt = engine.buildInceptionPrompt(nextPhase, workdir);
+    if (!prompt || !inceptionSessionId) return;
+    engine.markInceptionPhaseStarted(nextPhase);
+    const session = sessions.getSession(inceptionSessionId);
+    if (session) {
+      await session.prompt(prompt);
     }
   });
-  commands.register("forge-status", async () => {});
-  commands.register("help", async () => {});
 
+  commands.register("forge-status", async () => {
+    const state = engine.getProjectState();
+    const sessionsList = engine.getActiveSessions();
+    console.error(`Mode: ${state.mode}, Phase: ${state.inception.currentPhase}, Sessions: ${sessionsList.length}`);
+  });
+
+  commands.register("forge-stop", async () => {
+    config.save({ active: false });
+    engine.dispose();
+  });
+
+  commands.register("forge-approve", async (args: string) => {
+    const storyId = args.trim();
+    if (!storyId) {
+      console.error("Usage: /forge-approve <story-id>");
+      return;
+    }
+    const loadedConfig = config.load();
+    const devopsConfig = loadedConfig.agents["devops-agent"];
+    if (devopsConfig) {
+      await engine.dispatchAgentPublic(storyId, "devops-agent" as any, devopsConfig);
+    }
+  });
+
+  // --- Create ForgeApp and layout ---
   const projectState = engine.getProjectState();
   const mode = projectState.mode;
-
   const renderer = await createForgeRenderer();
-
   const app = new ForgeApp({ renderer, engine, sessions, commands, mode });
   app.layout();
 
+  // --- Wire InputBar callbacks (Issue 5) ---
+  app.getInputBar().setOnSend(async (text: string) => {
+    if (inceptionSessionId) {
+      const session = sessions.getSession(inceptionSessionId);
+      if (session) {
+        await session.prompt(text);
+      }
+    } else {
+      console.error("No active inception session. Type /forge-new to start.");
+    }
+  });
+
+  app.getInputBar().setOnCommand((name: string, args: string) => {
+    const handler = commands.get(name);
+    if (handler) {
+      handler(args, { cwd: workdir } as any).catch((err: Error) => {
+        console.error(`Command /${name} failed: ${err.message}`);
+      });
+    } else {
+      console.error(`Unknown command: /${name}`);
+    }
+  });
+
+  app.getInputBar().focus();
+
+  // --- Wire engine events to TUI (sidebar/statusbar refresh) ---
   events.subscribe((event) => {
     app.handleEngineEvent(event);
   });
 
+  // --- Start polling if development mode ---
   if (mode === "development") {
     engine.startPolling();
   }
 
+  // --- Cleanup ---
   renderer.on("destroy", () => {
     engine.dispose();
   });

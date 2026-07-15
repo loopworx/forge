@@ -4,7 +4,7 @@ import type {
   SessionEvent,
 } from "../engine/interfaces";
 import type { AgentRole, SessionConfig, SessionInfo } from "../engine/types";
-import type { ModelResolver } from "./model-resolver";
+import type { ModelRegistry } from "@earendil-works/pi-coding-agent";
 import { adaptSdkEvent } from "./event-adapter";
 
 interface TrackedSession extends Session {
@@ -18,9 +18,36 @@ export class AgentSessionManager implements SessionManager {
   constructor(
     private cwd: string,
     private agentModels: Record<string, { model: string; thinkingLevel: string }>,
-    private modelResolver: ModelResolver,
+    private modelRegistry: ModelRegistry,
+    private defaultModelRef?: string,
+    private defaultThinkingLevel?: string,
     private customTools?: any[],
   ) {}
+
+  /**
+   * Resolve a model + thinkingLevel for the given agent role.
+   *
+   * Looks up `agentModels[role]` first, falling back to `defaultModelRef` /
+   * `defaultThinkingLevel`, and finally to `"medium"`. A model ref of the form
+   * `"provider/modelId"` is split into provider + modelId; a bare id (no
+   * slash) is resolved against the empty provider. Throws with a clear,
+   * config-pointing message when the registry has no match.
+   */
+  resolveModel(role: string): { model: any; thinkingLevel: string } {
+    const modelRef = this.agentModels[role]?.model ?? this.defaultModelRef ?? "";
+    const thinkingLevel =
+      this.agentModels[role]?.thinkingLevel ?? this.defaultThinkingLevel ?? "medium";
+    const slashIndex = modelRef.indexOf("/");
+    const providerName = slashIndex < 0 ? "" : modelRef.slice(0, slashIndex);
+    const modelId = slashIndex < 0 ? modelRef : modelRef.slice(slashIndex + 1);
+    const model = this.modelRegistry.find(providerName, modelId);
+    if (!model) {
+      throw new Error(
+        `Model "${modelId}" not found for provider "${providerName}". Check your forge.yaml agentModels config.`,
+      );
+    }
+    return { model, thinkingLevel };
+  }
 
   async createSession(config: SessionConfig): Promise<Session> {
     // Lazy import — only loaded when actually creating sessions
@@ -34,10 +61,7 @@ export class AgentSessionManager implements SessionManager {
     const { homedir } = await import("node:os");
 
     const forgeAgentDir = join(homedir(), ".config", "forge", "agent");
-    const _resolved = this.modelResolver.resolveAgentModel(
-      config.agentRole,
-      this.agentModels,
-    );
+    const { model, thinkingLevel } = this.resolveModel(config.agentRole);
 
     const loader = new DefaultResourceLoader({
       cwd: config.cwd,
@@ -57,6 +81,8 @@ export class AgentSessionManager implements SessionManager {
       settingsManager: SettingsManager.inMemory(),
       customTools: this.customTools ?? [],
       tools: config.tools,
+      model,
+      thinkingLevel: thinkingLevel as any,
     });
 
     const tracked: TrackedSession = {

@@ -46,6 +46,27 @@ export function buildProviderList(
   return options;
 }
 
+export interface SelectChoice {
+  name: string;
+  value: string;
+}
+
+export type SelectItem = SelectChoice | { type: "separator" };
+
+export function buildSelectChoices(options: ProviderOption[]): SelectItem[] {
+  const items: SelectItem[] = [];
+  for (const o of options) {
+    if (o.id === "custom") {
+      items.push({ type: "separator" });
+    }
+    items.push({
+      name: o.id === "custom" ? o.name : `${o.name}${o.modelCount > 0 ? ` (${o.modelCount} models)` : ""}`,
+      value: o.id,
+    });
+  }
+  return items;
+}
+
 export interface TestApiKeyResult {
   success: boolean;
   models: ModelChoice[];

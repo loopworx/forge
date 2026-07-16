@@ -6,7 +6,7 @@ import { ProjectInitializer } from "../src/cli/project-initializer";
 import { FilePersistence } from "../src/engine/file-persistence";
 import { LinearClient } from "../src/linear/linear-story-repository";
 import { runOAuth } from "../src/linear/linear-oauth";
-import { buildProviderList, testApiKey, mergeConfig, configToYaml, type ProviderEntry, type ModelChoice, type ConfigYaml } from "../src/cli/setup-wizard";
+import { buildProviderList, buildSelectChoices, testApiKey, mergeConfig, configToYaml, type ProviderEntry, type ModelChoice, type ConfigYaml } from "../src/cli/setup-wizard";
 
 const TEMPLATES_DIR = join(import.meta.dir, "..", "templates");
 const FORGE_CONFIG_DIR = join(homedir(), ".config", "forge");
@@ -152,16 +152,17 @@ async function runSetup(nonInteractive: boolean): Promise<void> {
   const providerDefaults: { configKey: string; providerName: string; modelId: string; modelName: string }[] = [];
 
   // 3. Add-provider loop.
+  const providerChoices = [
+    ...buildSelectChoices(providerOptions),
+    { name: "Done adding providers", value: "__done__" },
+  ];
+
   while (true) {
     const providerChoice = await select<string>({
       message: "Select a provider to configure:",
-      choices: [
-        ...providerOptions.map((o) => ({
-          name: `${o.name}${o.modelCount > 0 ? ` (${o.modelCount} models)` : ""}`,
-          value: o.id,
-        })),
-        { name: "Done adding providers", value: "__done__" },
-      ],
+      choices: providerChoices as any,
+      pageSize: Math.min(providerChoices.length, 30),
+      loop: false,
     });
 
     if (providerChoice === "__done__") break;
@@ -211,6 +212,7 @@ async function runSetup(nonInteractive: boolean): Promise<void> {
       const modelId = await select<string>({
         message: `Select default model for ${displayName}:`,
         choices: testResult.models.map((m) => ({ name: m.name, value: m.id })),
+        loop: false,
       });
       const chosen = testResult.models.find((m) => m.id === modelId);
       providerDefaults.push({
@@ -272,6 +274,7 @@ async function runSetup(nonInteractive: boolean): Promise<void> {
       message: "Select your default model:",
       default: initialDefault,
       choices: defaultModelChoices,
+      loop: false,
     });
   } else {
     defaultModel = existingDefault;
@@ -284,6 +287,7 @@ async function runSetup(nonInteractive: boolean): Promise<void> {
     message: "Thinking level:",
     default: (THINKING_LEVELS as readonly string[]).includes(currentThinking) ? currentThinking : "high",
     choices: THINKING_LEVELS.map((lvl) => ({ name: lvl, value: lvl })),
+    loop: false,
   });
 
   // 7-8. Merge and write.

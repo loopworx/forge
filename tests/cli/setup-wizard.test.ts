@@ -2,6 +2,7 @@ import { describe, expect, it, afterEach, mock } from "bun:test";
 import { parse } from "yaml";
 import {
   buildProviderList,
+  buildSelectChoices,
   testApiKey,
   mergeConfig,
   configToYaml,
@@ -63,6 +64,93 @@ describe("buildProviderList", () => {
     const result = buildProviderList(mockProviders as RawProvider[], getModels);
     expect(result).toHaveLength(3);
     expect(result.map((o) => o.id)).toEqual(["openai", "anthropic", "custom"]);
+  });
+
+  it("returns at least 28 providers + custom when given the full SDK catalog", () => {
+    // Simulate the real SDK output: 35 providers, 28 with baseUrl
+    const manyProviders: RawProvider[] = [];
+    const knownIds = [
+      "amazon-bedrock", "ant-ling", "anthropic", "azure-openai-responses",
+      "cerebras", "cloudflare-ai-gateway", "cloudflare-workers-ai", "deepseek",
+      "fireworks", "github-copilot", "google", "google-vertex", "groq",
+      "huggingface", "kimi-coding", "minimax", "minimax-cn", "mistral",
+      "moonshotai", "moonshotai-cn", "nvidia", "openai", "openai-codex",
+      "opencode", "opencode-go", "openrouter", "together", "vercel-ai-gateway",
+      "xai", "xiaomi", "xiaomi-token-plan-ams", "xiaomi-token-plan-cn",
+      "xiaomi-token-plan-sgp", "zai", "zai-coding-cn",
+    ];
+    for (const id of knownIds) {
+      // opencode-go has undefined baseUrl in the real catalog
+      manyProviders.push({
+        id,
+        name: id.charAt(0).toUpperCase() + id.slice(1),
+        baseUrl: id === "opencode-go" ? undefined : `https://api.${id}.com/v1`,
+      });
+    }
+    const result = buildProviderList(manyProviders, () => []);
+    expect(result.length).toBeGreaterThanOrEqual(29); // 28 with baseUrl + custom
+    expect(result[result.length - 1].id).toBe("custom");
+  });
+});
+
+describe("buildSelectChoices", () => {
+  const options = [
+    { id: "openai", name: "OpenAI", baseUrl: "https://api.openai.com/v1", modelCount: 45 },
+    { id: "anthropic", name: "Anthropic", baseUrl: "https://api.anthropic.com", modelCount: 14 },
+    { id: "custom", name: "Custom Provider", baseUrl: "", modelCount: 0 },
+  ];
+
+  it("produces choices for inquirer select with name, value pairs", () => {
+    const choices = buildSelectChoices(options);
+    expect(choices).toHaveLength(4);
+    expect(choices[0]).toEqual({ name: "OpenAI (45 models)", value: "openai" });
+    expect(choices[1]).toEqual({ name: "Anthropic (14 models)", value: "anthropic" });
+    expect(choices[2]).toEqual({ type: "separator" });
+    expect(choices[3]).toEqual({ name: "Custom Provider", value: "custom" });
+  });
+
+  it("does not show model count for custom provider", () => {
+    const choices = buildSelectChoices(options);
+    expect(choices[3]).toEqual({ name: "Custom Provider", value: "custom" });
+  });
+
+  it("returns enough items for a large pageSize", () => {
+    const bigOptions = Array.from({ length: 30 }, (_, i) => ({
+      id: `provider-${i}`,
+      name: `Provider ${i}`,
+      baseUrl: `https://api.${i}.com`,
+      modelCount: i,
+    }));
+    bigOptions.push({ id: "custom", name: "Custom Provider", baseUrl: "", modelCount: 0 });
+    const choices = buildSelectChoices(bigOptions);
+    // 30 providers + separator + custom = 32
+    expect(choices.length).toBe(32);
+  });
+
+  it("inserts a separator before the Custom Provider option", () => {
+    const choices = buildSelectChoices(options);
+    // Should be: [openai, anthropic, separator, custom]
+    expect(choices).toHaveLength(4);
+    expect(choices[0]).toEqual({ name: "OpenAI (45 models)", value: "openai" });
+    expect(choices[1]).toEqual({ name: "Anthropic (14 models)", value: "anthropic" });
+    expect(choices[2]).toEqual({ type: "separator" });
+    expect(choices[3]).toEqual({ name: "Custom Provider", value: "custom" });
+  });
+
+  it("places separator before custom even with many providers", () => {
+    const bigOptions = Array.from({ length: 28 }, (_, i) => ({
+      id: `provider-${i}`,
+      name: `Provider ${i}`,
+      baseUrl: `https://api.${i}.com`,
+      modelCount: i,
+    }));
+    bigOptions.push({ id: "custom", name: "Custom Provider", baseUrl: "", modelCount: 0 });
+    const choices = buildSelectChoices(bigOptions);
+    // 28 providers + separator + custom = 30
+    expect(choices).toHaveLength(30);
+    expect(choices[27]).toEqual({ name: "Provider 27 (27 models)", value: "provider-27" });
+    expect(choices[28]).toEqual({ type: "separator" });
+    expect(choices[29]).toEqual({ name: "Custom Provider", value: "custom" });
   });
 });
 

@@ -6,73 +6,12 @@ import { ProjectInitializer } from "../src/cli/project-initializer";
 import { FilePersistence } from "../src/engine/file-persistence";
 import { LinearClient } from "../src/linear/linear-story-repository";
 import { runOAuth } from "../src/linear/linear-oauth";
+import { buildProviderList, testApiKey, mergeConfig, configToYaml, type ProviderEntry, type ModelChoice, type ConfigYaml } from "../src/cli/setup-wizard";
 
 const TEMPLATES_DIR = join(import.meta.dir, "..", "templates");
 const FORGE_CONFIG_DIR = join(homedir(), ".config", "forge");
 
-function printUsage(): never {
-  console.log(`Usage: forge <command> [options]
-
-Commands:
-  init    Initialize a new Forge project
-  setup   Configure global AI providers (run once)
-  (none)  Launch the Forge TUI
-
-Options:
-  --cwd <path>       Project directory (default: current directory)
-  --skip-auth        Skip Linear OAuth flow (init only)
-  --re-auth          Re-authenticate with Linear (init only)
-`);
-  process.exit(1);
-}
-
-async function main() {
-  const args = parseArgs({
-    args: Bun.argv.slice(2),
-    allowPositionals: true,
-    options: {
-      cwd: { type: "string" },
-      "skip-auth": { type: "boolean", default: false },
-      "re-auth": { type: "boolean", default: false },
-    },
-  });
-
-  const command = args.positionals[0];
-
-  if (command === "setup") {
-    await runSetup();
-    return;
-  }
-
-  if (command === "init") {
-    await runInit(args.values.cwd ?? process.cwd(), args.values["skip-auth"] ?? false, args.values["re-auth"] ?? false);
-    return;
-  }
-
-  if (!command || command === "help") {
-    await launchTui();
-    return;
-  }
-
-  console.error(`Unknown command: ${command}`);
-  printUsage();
-}
-
-async function runSetup(): Promise<void> {
-  console.log("Forge Setup — Global Configuration");
-  console.log("==================================");
-  console.log("");
-
-  mkdirSync(FORGE_CONFIG_DIR, { recursive: true });
-
-  const configPath = join(FORGE_CONFIG_DIR, "forge.yaml");
-  if (existsSync(configPath)) {
-    console.log(`Config already exists: ${configPath}`);
-    console.log("Edit it manually to add providers.");
-    process.exit(0);
-  }
-
-  const defaultConfig = `# ~/.config/forge/forge.yaml — Global Forge Configuration
+const TEMPLATE_CONFIG = `# ~/.config/forge/forge.yaml — Global Forge Configuration
 # Fill in your AI provider details below, then run 'forge init' in your project.
 
 providers:
@@ -91,12 +30,269 @@ defaultModel: ""
 defaultThinkingLevel: "high"
 `;
 
-  writeFileSync(configPath, defaultConfig);
-  console.log(`Config written to: ${configPath}`);
+function printUsage(): never {
+  console.log(`Usage: forge <command> [options]
+
+Commands:
+  init    Initialize a new Forge project
+  setup   Configure global AI providers (run once)
+  (none)  Launch the Forge TUI
+
+Options:
+  --cwd <path>       Project directory (default: current directory)
+  --skip-auth        Skip Linear OAuth flow (init only)
+  --re-auth          Re-authenticate with Linear (init only)
+  --non-interactive  Write a template config without prompts (setup only, CI/tests)
+`);
+  process.exit(1);
+}
+
+async function main() {
+  const args = parseArgs({
+    args: Bun.argv.slice(2),
+    allowPositionals: true,
+    options: {
+      cwd: { type: "string" },
+      "skip-auth": { type: "boolean", default: false },
+      "re-auth": { type: "boolean", default: false },
+      "non-interactive": { type: "boolean", default: false },
+    },
+  });
+
+  const command = args.positionals[0];
+
+  if (command === "setup") {
+    await runSetup(args.values["non-interactive"] ?? false);
+    return;
+  }
+
+  if (command === "init") {
+    await runInit(args.values.cwd ?? process.cwd(), args.values["skip-auth"] ?? false, args.values["re-auth"] ?? false);
+    return;
+  }
+
+  if (!command || command === "help") {
+    await launchTui();
+    return;
+  }
+
+  console.error(`Unknown command: ${command}`);
+  printUsage();
+}
+
+async function runSetup(nonInteractive: boolean): Promise<void> {
+  mkdirSync(FORGE_CONFIG_DIR, { recursive: true });
+  const configPath = join(FORGE_CONFIG_DIR, "forge.yaml");
+
+  // Non-interactive path: write the template config for CI/tests.
+  if (nonInteractive) {
+    if (existsSync(configPath)) {
+      console.log(`Config already exists: ${configPath}`);
+      console.log("Edit it manually to add providers, or re-run 'forge setup' (interactive) to merge new providers.");
+      process.exit(0);
+    }
+    writeFileSync(configPath, TEMPLATE_CONFIG);
+    console.log(`Config written to: ${configPath}`);
+    console.log("");
+    console.log("Next steps:");
+    console.log("1. Edit the config to add your AI provider and API key");
+    console.log("2. Run 'forge init' in your project directory");
+    process.exit(0);
+  }
+
+  const { select, password, confirm, input } = await import("@inquirer/prompts");
+  const { builtinProviders, getBuiltinModels } = await import("@earendil-works/pi-ai/providers/all");
+
+  console.log("Forge Setup — Global Configuration");
+  console.log("==================================");
   console.log("");
-  console.log("Next steps:");
-  console.log("1. Edit the config to add your AI provider and API key");
-  console.log("2. Run 'forge init' in your project directory");
+
+  // 1. Read existing config (if any) so new providers can be merged in.
+  let existingConfig: ConfigYaml | null = null;
+  if (existsSync(configPath)) {
+    try {
+      const { parse: parseYaml } = await import("yaml");
+      const raw = readFileSync(configPath, "utf-8");
+      const parsed = parseYaml(raw) as Partial<ConfigYaml> | null;
+      if (parsed && parsed.providers) {
+        existingConfig = {
+          providers: parsed.providers as Record<string, ProviderEntry>,
+          defaultModel: parsed.defaultModel ?? "",
+          defaultThinkingLevel: parsed.defaultThinkingLevel ?? "high",
+        };
+        console.log(`Found existing config: ${configPath}`);
+        console.log("New providers will be merged with existing ones.\n");
+      }
+    } catch {
+      console.log("Existing config is unreadable; starting fresh.\n");
+    }
+  }
+
+  // 2. Build the provider option list from the built-in catalog.
+  const allProviders = builtinProviders();
+  const providerOptions = buildProviderList(
+    allProviders as { id: string; name: string; baseUrl?: string }[],
+    (id: string) => getBuiltinModels(id as never) as unknown[],
+  );
+
+  // Convert a built-in provider's catalog to ModelChoice[] for the testApiKey fallback.
+  const catalogToChoices = (id: string): ModelChoice[] => {
+    const models = getBuiltinModels(id as never);
+    return models.map((m) => ({
+      id: m.id,
+      name: m.name,
+      providerId: id,
+      api: m.api as string,
+    }));
+  };
+
+  const THINKING_LEVELS = ["minimal", "low", "medium", "high", "xhigh", "max"] as const;
+
+  const newProviders: Record<string, ProviderEntry> = {};
+  const providerDefaults: { configKey: string; providerName: string; modelId: string; modelName: string }[] = [];
+
+  // 3. Add-provider loop.
+  while (true) {
+    const providerChoice = await select<string>({
+      message: "Select a provider to configure:",
+      choices: [
+        ...providerOptions.map((o) => ({
+          name: `${o.name}${o.modelCount > 0 ? ` (${o.modelCount} models)` : ""}`,
+          value: o.id,
+        })),
+        { name: "Done adding providers", value: "__done__" },
+      ],
+    });
+
+    if (providerChoice === "__done__") break;
+
+    const isCustom = providerChoice === "custom";
+    const selected = providerOptions.find((o) => o.id === providerChoice);
+    const displayName = isCustom ? "Custom Provider" : (selected?.name ?? providerChoice);
+
+    let baseUrl: string;
+    let api: string;
+    let configKey: string;
+
+    if (isCustom) {
+      // 3b. Custom provider: prompt for Base URL, API type, and a config key.
+      baseUrl = (await input({
+        message: "Base URL:",
+        validate: (v) => (v.trim() ? true : "Required"),
+      })).trim();
+
+      api = (await input({
+        message: "API type",
+        default: "openai-responses",
+        validate: (v) => (v.trim() ? true : "Required"),
+      })).trim() || "openai-responses";
+
+      configKey = (await input({
+        message: "Provider name (key in config):",
+        default: "custom",
+        validate: (v) => (v.trim() ? true : "Required"),
+      })).trim();
+    } else {
+      // Built-in provider: baseUrl + api come from the catalog.
+      baseUrl = selected!.baseUrl;
+      const catalog = getBuiltinModels(providerChoice as never);
+      api = catalog.length > 0 ? (catalog[0].api as string) : "openai-responses";
+      configKey = selected!.id;
+    }
+
+    // 3c-d. Enter and test the API key.
+    const apiKey = await password({ message: `Enter API key for ${displayName}:` });
+
+    console.log("Testing API key...");
+    const testResult = await testApiKey(baseUrl, apiKey, configKey, isCustom ? undefined : catalogToChoices);
+
+    if (testResult.success && testResult.models.length > 0) {
+      // 3f. Select this provider's default model.
+      const modelId = await select<string>({
+        message: `Select default model for ${displayName}:`,
+        choices: testResult.models.map((m) => ({ name: m.name, value: m.id })),
+      });
+      const chosen = testResult.models.find((m) => m.id === modelId);
+      providerDefaults.push({
+        configKey,
+        providerName: displayName,
+        modelId,
+        modelName: chosen?.name ?? modelId,
+      });
+      newProviders[configKey] = { baseUrl, apiKey, api };
+      console.log(`✓ ${displayName} configured with model ${modelId}\n`);
+    } else if (testResult.success) {
+      // 3g. Key works but no models surfaced.
+      console.log("API key works but no models found.\n");
+      newProviders[configKey] = { baseUrl, apiKey, api };
+    } else {
+      // 3h. Key test failed — optionally keep anyway.
+      console.error(`API key test failed: ${testResult.error ?? "unknown error"}`);
+      const keep = await confirm({ message: "Continue anyway?", default: false });
+      if (keep) {
+        newProviders[configKey] = { baseUrl, apiKey, api };
+      }
+    }
+
+    // 3i. Add another provider?
+    if (!(await confirm({ message: "Add another provider?", default: true }))) break;
+  }
+
+  // 4. No providers configured.
+  if (Object.keys(newProviders).length === 0) {
+    console.log("No providers configured. Run 'forge setup' again to add providers.");
+    const minimal = mergeConfig(
+      existingConfig,
+      {},
+      existingConfig?.defaultModel ?? "",
+      existingConfig?.defaultThinkingLevel ?? "high",
+    );
+    writeFileSync(configPath, configToYaml(minimal));
+    console.log(`Config written to: ${configPath}`);
+    process.exit(0);
+  }
+
+  // 5. Select the global default model from each provider's selected model.
+  const defaultModelChoices = providerDefaults.map((d) => ({
+    name: `${d.providerName} / ${d.modelName}`,
+    value: `${d.configKey}/${d.modelId}`,
+  }));
+  const existingDefault = existingConfig?.defaultModel ?? "";
+  if (existingDefault && !defaultModelChoices.some((c) => c.value === existingDefault)) {
+    defaultModelChoices.unshift({ name: `${existingDefault} (current)`, value: existingDefault });
+  }
+
+  let defaultModel: string;
+  if (defaultModelChoices.length > 0) {
+    const initialDefault =
+      existingDefault && defaultModelChoices.some((c) => c.value === existingDefault)
+        ? existingDefault
+        : undefined;
+    defaultModel = await select<string>({
+      message: "Select your default model:",
+      default: initialDefault,
+      choices: defaultModelChoices,
+    });
+  } else {
+    defaultModel = existingDefault;
+    console.log("No models available to select; keeping existing default.");
+  }
+
+  // 6. Thinking level.
+  const currentThinking = existingConfig?.defaultThinkingLevel ?? "high";
+  const thinkingLevel = await select<string>({
+    message: "Thinking level:",
+    default: (THINKING_LEVELS as readonly string[]).includes(currentThinking) ? currentThinking : "high",
+    choices: THINKING_LEVELS.map((lvl) => ({ name: lvl, value: lvl })),
+  });
+
+  // 7-8. Merge and write.
+  const merged = mergeConfig(existingConfig, newProviders, defaultModel, thinkingLevel);
+  writeFileSync(configPath, configToYaml(merged));
+
+  // 9-10. Success.
+  console.log(`\n✓ Config written to ${configPath}`);
+  console.log("Next steps: Run 'forge init' in your project directory");
   process.exit(0);
 }
 

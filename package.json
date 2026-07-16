@@ -45,11 +45,12 @@
     "access": "public"
   },
   "dependencies": {
-    "@opentui/core": "^0.4.3",
-    "@earendil-works/pi-coding-agent": ">=0.80.0",
     "@earendil-works/pi-ai": ">=0.80.0",
-    "typebox": ">=0.32.0",
+    "@earendil-works/pi-coding-agent": ">=0.80.0",
+    "@inquirer/prompts": "^8.5.2",
+    "@opentui/core": "^0.4.3",
     "open": "^11.0.0",
+    "typebox": ">=0.32.0",
     "yaml": "^2.9.0"
   },
   "peerDependencies": {},

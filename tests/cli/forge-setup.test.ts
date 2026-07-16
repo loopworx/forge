@@ -18,14 +18,14 @@ describe("forge setup", () => {
 
   it("writes forge.yaml in ~/.config/forge/", async () => {
     const configDir = join(TMP_HOME, ".config", "forge");
-    const result = await $`bun run ${FORGE_BIN} setup`.env({ HOME: TMP_HOME }).quiet();
+    const result = await $`bun run ${FORGE_BIN} setup --non-interactive`.env({ HOME: TMP_HOME }).quiet();
     expect(result.exitCode).toBe(0);
     expect(existsSync(join(configDir, "forge.yaml"))).toBe(true);
   });
 
   it("writes a providers section with example provider", async () => {
     const configDir = join(TMP_HOME, ".config", "forge");
-    await $`bun run ${FORGE_BIN} setup`.env({ HOME: TMP_HOME }).quiet();
+    await $`bun run ${FORGE_BIN} setup --non-interactive`.env({ HOME: TMP_HOME }).quiet();
     const yaml = readFileSync(join(configDir, "forge.yaml"), "utf-8");
     expect(yaml).toContain("providers:");
   });
@@ -34,7 +34,7 @@ describe("forge setup", () => {
     const configDir = join(TMP_HOME, ".config", "forge");
     mkdirSync(configDir, { recursive: true });
     writeFileSync(join(configDir, "forge.yaml"), "existing: config\n");
-    const result = await $`bun run ${FORGE_BIN} setup`.env({ HOME: TMP_HOME }).quiet();
+    const result = await $`bun run ${FORGE_BIN} setup --non-interactive`.env({ HOME: TMP_HOME }).quiet();
     expect(result.exitCode).toBe(0);
     expect(readFileSync(join(configDir, "forge.yaml"), "utf-8")).toBe("existing: config\n");
   });

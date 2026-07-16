@@ -354,7 +354,8 @@ async function launchTui(): Promise<void> {
       agentRole: agentRole as any,
     });
     inceptionSessionId = session.sessionId;
-    // Forward session events into the chat view (Issue 6)
+    const { model, thinkingLevel } = sessions.resolveModel(agentRole);
+    app.setModelInfo(agentRole, model.id, model.provider, thinkingLevel, model.maxTokens);
     session.subscribe((event) => {
       app.handleForgeEvent(event as any);
     });

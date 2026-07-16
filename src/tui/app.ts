@@ -25,6 +25,7 @@ export class ForgeApp {
   private sidebar: Sidebar;
   private statusBar: StatusBar;
   private sidebarBox: BoxRenderable | null = null;
+  private modelInfo = { agent: "", model: "", provider: "", thinkingLevel: "medium", maxTokens: 16384 };
 
   constructor(private opts: ForgeAppOptions) {
     this.chatView = new ChatView();
@@ -110,17 +111,21 @@ export class ForgeApp {
     return this.statusBar;
   }
 
+  setModelInfo(agent: string, model: string, provider: string, thinkingLevel: string, maxTokens: number): void {
+    this.modelInfo = { agent, model, provider, thinkingLevel, maxTokens };
+  }
+
   handleForgeEvent(event: ForgeEvent): void {
     this.chatView.handleEvent(event);
     if (event.type === "agent_settled") {
       const state = this.opts.engine.getProjectState();
       this.statusBar.setInfo(
-        "agent",
-        "model",
-        "provider",
-        "high",
+        this.modelInfo.agent,
+        this.modelInfo.model,
+        this.modelInfo.provider,
+        this.modelInfo.thinkingLevel,
         0,
-        1000000,
+        this.modelInfo.maxTokens,
         state.mode,
       );
     }

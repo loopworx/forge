@@ -267,7 +267,7 @@ async function launchTui(): Promise<void> {
         const modelDefs = fetched.map((m) => ({
           id: m.id,
           name: m.name,
-          api: providerConfig.api as any,
+          api: (providerConfig.api || "openai-responses") as any,
           provider: name,
           baseUrl: providerConfig.baseUrl,
           reasoning: true,
@@ -284,7 +284,7 @@ async function launchTui(): Promise<void> {
         modelRegistry.registerProvider(name, {
           baseUrl: providerConfig.baseUrl,
           apiKey: providerConfig.apiKey,
-          api: providerConfig.api as any,
+          api: (providerConfig.api || "openai-responses") as any,
           models: modelDefs,
         });
       }
@@ -330,17 +330,28 @@ async function launchTui(): Promise<void> {
   let inceptionSessionId: string | null = null;
 
   commands.register("forge-new", async () => {
-    // Build the inception prompt for phase 0, then create a session and dispatch (Issues 4, 8)
-    const prompt = engine.buildInceptionPrompt(0, workdir);
+    // Resolve the inception phase to start/resume from (Task 2: previously hardcoded phase 0 + "po-agent")
+    const { resolveInceptionPhase } = await import("../src/cli/inception-resolver");
+    const state = engine.getProjectState();
+    const loadedConfig = config.load();
+    let resolution;
+    try {
+      resolution = resolveInceptionPhase(state, loadedConfig.inception.phases);
+    } catch (err) {
+      console.error((err as Error).message);
+      return;
+    }
+    const { phaseIndex, agentRole } = resolution;
+    const prompt = engine.buildInceptionPrompt(phaseIndex, workdir);
     if (!prompt) {
       console.error("No inception phases configured.");
       return;
     }
-    engine.markInceptionPhaseStarted(0);
+    engine.markInceptionPhaseStarted(phaseIndex);
     const session = await sessions.createSession({
       cwd: workdir,
       tools: ["read", "bash", "edit", "write", "grep", "glob", "forge_claim_story", "forge_complete_ac", "forge_handoff", "forge_create_artifact", "forge_log_progress"],
-      agentRole: "po-agent" as any,
+      agentRole: agentRole as any,
     });
     inceptionSessionId = session.sessionId;
     // Forward session events into the chat view (Issue 6)

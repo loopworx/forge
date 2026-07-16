@@ -38,4 +38,9 @@ describe("forge setup", () => {
     expect(result.exitCode).toBe(0);
     expect(readFileSync(join(configDir, "forge.yaml"), "utf-8")).toBe("existing: config\n");
   });
+
+  it("non-interactive mode returns quickly (does not hang)", async () => {
+    const result = await $`bun run ${FORGE_BIN} setup --non-interactive`.env({ HOME: TMP_HOME }).quiet();
+    expect(result.exitCode).toBe(0);
+  }, 5000);
 });

@@ -52,6 +52,11 @@ export class ChatView {
     this.updateContent();
   }
 
+  displayMessage(text: string): void {
+    this.lines.push(text);
+    this.updateContent();
+  }
+
   getCurrentToolName(): string | null {
     return this.currentToolName;
   }

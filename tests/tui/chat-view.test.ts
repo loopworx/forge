@@ -49,4 +49,13 @@ describe("ChatView", () => {
     await renderOnce();
     expect(captureCharFrame()).toContain("failed");
   });
+
+  it("displayMessage adds a line and renders it", async () => {
+    const { renderer, renderOnce, captureCharFrame } = await createTestRenderer({ width: 100, height: 30 });
+    const chatView = new ChatView();
+    chatView.mount(renderer);
+    chatView.displayMessage("Welcome to Forge");
+    await renderOnce();
+    expect(captureCharFrame()).toContain("Welcome to Forge");
+  });
 });

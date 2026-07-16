@@ -401,6 +401,12 @@ async function launchTui(): Promise<void> {
   const app = new ForgeApp({ renderer, engine, sessions, commands, mode });
   app.layout();
 
+  // --- /help command (needs app reference to display in ChatView) ---
+  commands.register("help", async () => {
+    const allCommands = commands.getAll().sort();
+    app.getChatView().displayMessage("Available commands: " + allCommands.map(c => `/${c}`).join(", "));
+  });
+
   // --- Wire InputBar callbacks (Issue 5) ---
   app.getInputBar().setOnSend(async (text: string) => {
     if (inceptionSessionId) {

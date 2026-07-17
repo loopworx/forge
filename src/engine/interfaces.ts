@@ -97,6 +97,21 @@ export interface Session {
   steer(text: string): Promise<void>;
   subscribe(listener: (event: SessionEvent) => void): () => void;
   abort(): Promise<void>;
+  /**
+   * Live context usage from the SDK's `getContextUsage()`. Optional — only
+   * implemented by sessions backed by `AgentSession` from
+   * `@earendil-works/pi-coding-agent`. The TUI polls this every ~750ms while
+   * a session is active to surface real token usage + percentage, instead of
+   * the static "0.0%" we used to show.
+   *
+   * Returns `undefined` when the SDK has no usage data yet (e.g. before the
+   * first assistant message).
+   */
+  getContextUsage?: () => {
+    tokens: number | null;
+    contextWindow: number;
+    percent: number | null;
+  } | undefined;
 }
 
 export interface SessionEvent {

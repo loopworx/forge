@@ -112,6 +112,53 @@ describe("ChatView", () => {
     expect(brailleChars.some(c => frame.includes(c))).toBe(true);
   });
 
+  it("spinner shows 'Thinking' label with dots", async () => {
+    const { renderer, renderOnce, captureCharFrame } = await createTestRenderer({ width: 60, height: 20 });
+    const chat = new ChatView();
+    chat.mount(renderer);
+    chat.setThinking(true);
+    await renderOnce();
+    const frame = captureCharFrame();
+    expect(frame).toContain("Thinking");
+    // Should contain at least one dot
+    expect(frame).toContain(".");
+  });
+
+  it("spinner renderable is live so the renderer keeps animating it", async () => {
+    const { renderer, renderOnce } = await createTestRenderer({ width: 60, height: 20 });
+    const chat = new ChatView();
+    chat.mount(renderer);
+    chat.setThinking(true);
+    await renderOnce();
+    // The spinnerText renderable must have live=true so the renderer keeps
+    // ticking it at targetFps. Without live, renderAfter only fires during
+    // dirty render passes — which never happen between events, freezing
+    // the spinner on its first frame (issue #1).
+    const spinnerText = (chat as any).spinnerText;
+    expect(spinnerText).toBeTruthy();
+    expect(spinnerText.live).toBe(true);
+  });
+
+  it("spinner renderAfter advances the spinner and updates label", async () => {
+    const { renderer, renderOnce, captureCharFrame } = await createTestRenderer({ width: 60, height: 20 });
+    const chat = new ChatView();
+    chat.mount(renderer);
+    chat.setThinking(true);
+    await renderOnce();
+    // Capture the initial label, then render more frames.
+    const initial = captureCharFrame();
+    expect(initial).toContain("Thinking");
+    // Multiple render passes — the renderAfter should run each pass because
+    // live=true keeps the renderable in the active render list. The dot
+    // cycle (.→..→...) is unit-tested in spinner.test.ts; here we just
+    // verify the spinner text persists with the Thinking label and the
+    // renderable is still attached and live.
+    for (let i = 0; i < 3; i++) await renderOnce();
+    const after = captureCharFrame();
+    expect(after).toContain("Thinking");
+    expect((chat as any).spinnerText.live).toBe(true);
+  });
+
   it("spinner hides on agent_settled", async () => {
     const { renderer, renderOnce, captureCharFrame } = await createTestRenderer({ width: 60, height: 20 });
     const chat = new ChatView();

@@ -683,6 +683,24 @@ async function launchTui(): Promise<void> {
       app.handleForgeEvent(event as any);
     });
     app.getChatView().setThinking(true);
+
+    // --- Context usage poller: refreshes the right-aligned status segment ---
+    // The SDK exposes `session.getContextUsage()` returning
+    // `{ tokens, contextWindow, percent }`. We poll every 750ms while a
+    // session is active and reflect the live numbers in the status bar
+    // (replaces the static "0.0%" that used to be shown).
+    const usageTimer = setInterval(() => {
+      try {
+        const usage = session.getContextUsage?.();
+        if (usage && usage.tokens !== null && usage.percent !== null) {
+          app.updateContextUsage(usage.tokens, usage.contextWindow, usage.percent);
+        }
+      } catch (err) {
+        logger.debug(`usage poller: ${(err as Error).message}`);
+      }
+    }, 750);
+    logger.info("forge-new: usage poller started");
+
     logger.info("forge-new: sending prompt to agent...");
     try {
       await session.prompt(prompt);
@@ -691,6 +709,16 @@ async function launchTui(): Promise<void> {
       const msg = (err as Error).message;
       app.getChatView().displayMessage(`\u2717 Agent prompt failed: ${msg}`);
       logger.error(`forge-new: prompt failed: ${msg}`, err as Error);
+    } finally {
+      // One final synchronous poll so the status bar reflects the latest
+      // usage snapshot after `agent_settled` before tearing down the timer.
+      try {
+        const usage = session.getContextUsage?.();
+        if (usage && usage.tokens !== null && usage.percent !== null) {
+          app.updateContextUsage(usage.tokens, usage.contextWindow, usage.percent);
+        }
+      } catch {}
+      clearInterval(usageTimer);
     }
   });
 

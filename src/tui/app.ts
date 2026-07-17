@@ -25,7 +25,8 @@ export class ForgeApp {
   private sidebar: Sidebar;
   private statusBar: StatusBar;
   private sidebarBox: BoxRenderable | null = null;
-  private statusText: TextRenderable | null = null;
+  private leftStatusText: TextRenderable | null = null;
+  private rightStatusText: TextRenderable | null = null;
   private modelInfo = { agent: "", model: "", provider: "", thinkingLevel: "medium", maxTokens: 16384 };
 
   constructor(private opts: ForgeAppOptions) {
@@ -72,12 +73,23 @@ export class ForgeApp {
       paddingLeft: 1,
       paddingTop: 0,
       paddingBottom: 0,
+      alignItems: "center",
     });
-    this.statusText = new TextRenderable(renderer, {
-      content: this.statusBar.getText(),
+    this.leftStatusText = new TextRenderable(renderer, {
+      content: this.statusBar.getPlainText(),
       fg: THEME.textMuted,
     });
-    statusBarBox.add(this.statusText);
+    const spacer = new TextRenderable(renderer, {
+      content: "",
+      flexGrow: 1,
+    });
+    this.rightStatusText = new TextRenderable(renderer, {
+      content: this.buildRightText(),
+      fg: THEME.textMuted,
+    });
+    statusBarBox.add(this.leftStatusText);
+    statusBarBox.add(spacer);
+    statusBarBox.add(this.rightStatusText);
     mainColumn.add(statusBarBox);
 
     root.add(mainColumn);
@@ -132,6 +144,23 @@ export class ForgeApp {
     this.onQuestionCallback = callback;
   }
 
+  /**
+   * Update context usage from the SDK's `getContextUsage()` and refresh the
+   * rendered right-aligned status segment. Called by the polling interval
+   * started in bin/forge.ts after `sessions.createSession()`.
+   */
+  updateContextUsage(tokens: number, contextWindow: number, percent: number): void {
+    this.statusBar.setContext(tokens, contextWindow, percent);
+    if (this.rightStatusText) {
+      this.rightStatusText.content = this.buildRightText();
+    }
+  }
+
+  private buildRightText(): string {
+    const chunks = this.statusBar.getRightChunks();
+    return chunks.map(c => c.text).join("");
+  }
+
   handleForgeEvent(event: ForgeEvent): void {
     this.chatView.handleEvent(event);
     if (event.type === "agent_settled") {
@@ -145,8 +174,11 @@ export class ForgeApp {
         this.modelInfo.maxTokens,
         state.mode,
       );
-      if (this.statusText) {
-        this.statusText.content = this.statusBar.getText();
+      if (this.leftStatusText) {
+        this.leftStatusText.content = this.statusBar.getPlainText();
+      }
+      if (this.rightStatusText) {
+        this.rightStatusText.content = this.buildRightText();
       }
       const lastAgentMsg = this.chatView.getLastAgentMessage();
       if (lastAgentMsg && this.onQuestionCallback) {

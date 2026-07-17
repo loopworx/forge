@@ -1,11 +1,12 @@
 import { createCliRenderer } from "@opentui/core";
+import { THEME } from "./theme";
 
 export async function createForgeRenderer() {
   const renderer = await createCliRenderer({
     exitOnCtrlC: true,
     screenMode: "alternate-screen",
     targetFps: 30,
-    backgroundColor: "#1a1a1a",
+    backgroundColor: THEME.background,
   });
   return renderer;
 }

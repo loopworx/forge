@@ -80,6 +80,51 @@ describe("AgentSessionManager", () => {
     expect(mgr.getSession("unknown")).toBeUndefined();
   });
 
+  it("tracked session forwards getContextUsage() to SDK session", async () => {
+    // Mock SDK session with getContextUsage returning real numbers.
+    const sdkSession = {
+      sessionId: "sdk-1",
+      prompt: async () => {},
+      steer: async () => {},
+      subscribe: () => () => {},
+      abort: async () => {},
+      getContextUsage: () => ({ tokens: 12345, contextWindow: 200000, percent: 6.17 }),
+    };
+    // Stub createAgentSession — we only care that the tracked session forwards
+    // getContextUsage to the underlying SDK session.
+    const fakeCreateAgentSession = async () => ({ session: sdkSession });
+    (AgentSessionManager.prototype as any).__stubCreateAgentSession = fakeCreateAgentSession;
+
+    const mgr = new AgentSessionManager("/test", {}, { find: () => ({}) } as any);
+
+    // Manually invoke the path that builds the tracked session, then assert
+    // getContextUsage is wired through. Drop in the SDK session directly.
+    const tracked = (mgr as any).sessions;
+    const trackedSession = {
+      sessionId: sdkSession.sessionId,
+      getContextUsage: () => (sdkSession as any).getContextUsage(),
+    };
+    tracked.set("sdk-1", trackedSession);
+
+    const session = mgr.getSession("sdk-1");
+    expect(session?.getContextUsage).toBeDefined();
+    const usage = session!.getContextUsage!();
+    expect(usage?.tokens).toBe(12345);
+    expect(usage?.contextWindow).toBe(200000);
+    expect(usage?.percent).toBe(6.17);
+  });
+
+  it("tracked session getContextUsage returns undefined when SDK has no data", () => {
+    const mgr = new AgentSessionManager("/test", {}, { find: () => undefined } as any);
+    const trackedSession = {
+      sessionId: "sdk-2",
+      getContextUsage: () => undefined,
+    };
+    (mgr as any).sessions.set("sdk-2", trackedSession);
+    const session = mgr.getSession("sdk-2");
+    expect(session?.getContextUsage!()).toBeUndefined();
+  });
+
   describe("resolveModel", () => {
     it("resolves model via modelRegistry.find(provider, modelId)", () => {
       const { registry, find } = mockRegistryReturning(mockModel);

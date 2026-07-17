@@ -2,37 +2,166 @@ import { describe, expect, it } from "bun:test";
 import { StatusBar } from "../../src/tui/status-bar";
 
 describe("StatusBar", () => {
-  it("formats agent, model, provider, thinking, tokens, mode", () => {
-    const bar = new StatusBar();
-    bar.setInfo("po-agent", "glm-5.2", "synthetic", "high", 12000, 1000000, "inception");
-    const text = bar.getText();
-    expect(text).toContain("po-agent");
-    expect(text).toContain("glm-5.2");
-    expect(text).toContain("synthetic");
-    expect(text).toContain("high");
-    expect(text).toContain("1.2%");
-    expect(text).toContain("inception");
+  describe("getPlainText (legacy)", () => {
+    it("formats agent, model, provider, thinking, tokens, mode", () => {
+      const bar = new StatusBar();
+      bar.setInfo("po-agent", "glm-5.2", "synthetic", "high", 12000, 1000000, "inception");
+      const text = bar.getPlainText();
+      expect(text).toContain("po-agent");
+      expect(text).toContain("glm-5.2");
+      expect(text).toContain("synthetic");
+      expect(text).toContain("high");
+      expect(text).toContain("1.2%");
+      expect(text).toContain("inception");
+    });
+
+    it("handles zero tokens", () => {
+      const bar = new StatusBar();
+      bar.setInfo("developer-agent", "deepseek-v4-pro", "opencode-go", "high", 0, 1000000, "development");
+      const text = bar.getPlainText();
+      expect(text).toContain("0.0%");
+      expect(text).toContain("development");
+    });
+
+    it("shows 'Not configured' message when no model is set", () => {
+      const bar = new StatusBar();
+      const text = bar.getPlainText();
+      expect(text).toContain("Not configured");
+      expect(text).toContain("/forge-new");
+    });
   });
 
-  it("handles zero tokens", () => {
-    const bar = new StatusBar();
-    bar.setInfo("developer-agent", "deepseek-v4-pro", "opencode-go", "high", 0, 1000000, "development");
-    const text = bar.getText();
-    expect(text).toContain("0.0%");
-    expect(text).toContain("development");
+  describe("getLeft chunks", () => {
+    it("returns StyledText with multiple chunks when configured", () => {
+      const bar = new StatusBar();
+      bar.setInfo("po-agent", "glm-5.2", "synthetic", "high", 12000, 1000000, "inception");
+      const chunks = bar.getLeftChunks();
+      expect(chunks.length).toBeGreaterThanOrEqual(4);
+      // The agent chunk should be bold
+      const agentChunk = chunks.find(c => typeof c === "object" && c.text.includes("po-agent"));
+      expect(agentChunk).toBeDefined();
+      expect((agentChunk as any).bold).toBe(true);
+      expect((agentChunk as any).fg?.toLowerCase()).toBe("#fab283");
+    });
+
+    it("agent chunk is bold orange (primary)", () => {
+      const bar = new StatusBar();
+      bar.setInfo("architect-agent", "claude-opus", "anthropic", "medium", 500, 200000, "inception");
+      const chunks = bar.getLeftChunks();
+      const agentChunk = chunks.find(c => typeof c === "object" && "text" in c && c.text.includes("architect-agent")) as any;
+      expect(agentChunk).toBeDefined();
+      expect(agentChunk.bold).toBe(true);
+      expect(agentChunk.fg?.toLowerCase()).toBe("#fab283");
+    });
+
+    it("model chunk is white / text color", () => {
+      const bar = new StatusBar();
+      bar.setInfo("po-agent", "glm-5.2", "synthetic", "high", 12000, 1000000, "inception");
+      const chunks = bar.getLeftChunks();
+      const modelChunk = chunks.find(c => typeof c === "object" && "text" in c && c.text.includes("glm-5.2")) as any;
+      expect(modelChunk).toBeDefined();
+      expect(modelChunk.fg?.toLowerCase()).toBe("#eeeeee");
+      expect(modelChunk.bold).not.toBe(true);
+    });
+
+    it("provider chunk is muted gray", () => {
+      const bar = new StatusBar();
+      bar.setInfo("po-agent", "glm-5.2", "synthetic", "high", 12000, 1000000, "inception");
+      const chunks = bar.getLeftChunks();
+      const providerChunk = chunks.find(c => typeof c === "object" && "text" in c && c.text.includes("synthetic")) as any;
+      expect(providerChunk).toBeDefined();
+      expect(providerChunk.fg?.toLowerCase()).toBe("#808080");
+    });
+
+    it("thinking chunk is bold orange (warning)", () => {
+      const bar = new StatusBar();
+      bar.setInfo("po-agent", "glm-5.2", "synthetic", "high", 12000, 1000000, "inception");
+      const chunks = bar.getLeftChunks();
+      const thinkingChunk = chunks.find(c => typeof c === "object" && "text" in c && c.text.includes("high")) as any;
+      expect(thinkingChunk).toBeDefined();
+      expect(thinkingChunk.bold).toBe(true);
+      expect(thinkingChunk.fg?.toLowerCase()).toBe("#f5a742");
+    });
+
+    it("returns single muted chunk with 'Not configured' when unconfigured", () => {
+      const bar = new StatusBar();
+      const chunks = bar.getLeftChunks();
+      expect(chunks.length).toBe(1);
+      const c = chunks[0] as any;
+      expect(c.text).toContain("Not configured");
+      expect(c.fg?.toLowerCase()).toBe("#808080");
+    });
   });
 
-  it("shows 'Not configured' message when no model is set", () => {
-    const bar = new StatusBar();
-    const text = bar.getText();
-    expect(text).toContain("Not configured");
-    expect(text).toContain("/forge-new");
+  describe("getRight chunks", () => {
+    it("returns chunks containing tokens/max pct and mode", () => {
+      const bar = new StatusBar();
+      bar.setInfo("po-agent", "glm-5.2", "synthetic", "high", 15000, 200000, "inception");
+      const chunks = bar.getRightChunks();
+      expect(chunks.length).toBeGreaterThanOrEqual(1);
+      const text = chunks.map((c: any) => c.text ?? "").join("");
+      expect(text).toContain("7.5%");
+      expect(text).toContain("inception");
+    });
+
+    it("formats tokens in k when >= 1000", () => {
+      const bar = new StatusBar();
+      bar.setInfo("po-agent", "glm-5.2", "synthetic", "high", 12000, 1000000, "inception");
+      const chunks = bar.getRightChunks();
+      const text = chunks.map((c: any) => c.text ?? "").join("");
+      expect(text).toContain("12k");
+    });
+
+    it("formats contextWindow in M when >= 1000000", () => {
+      const bar = new StatusBar();
+      bar.setInfo("po-agent", "glm-5.2", "synthetic", "high", 12000, 1000000, "inception");
+      const chunks = bar.getRightChunks();
+      const text = chunks.map((c: any) => c.text ?? "").join("");
+      expect(text).toContain("1M");
+    });
+
+    it("returns empty chunks when unconfigured", () => {
+      const bar = new StatusBar();
+      const chunks = bar.getRightChunks();
+      expect(chunks.length).toBe(0);
+    });
+
+    it("right chunk is muted gray (dim)", () => {
+      const bar = new StatusBar();
+      bar.setInfo("po-agent", "glm-5.2", "synthetic", "high", 12000, 1000000, "inception");
+      const chunks = bar.getRightChunks();
+      const chunk = chunks[0] as any;
+      expect(chunk.fg?.toLowerCase()).toBe("#808080");
+    });
   });
 
-  it("does not show dots or 0/1 when unconfigured", () => {
-    const bar = new StatusBar();
-    const text = bar.getText();
-    expect(text).not.toContain(" ·   ·  · ");
-    expect(text).not.toContain("0/1");
+  describe("setContext (live context tracking)", () => {
+    it("updates tokens and contextWindow independently", () => {
+      const bar = new StatusBar();
+      bar.setInfo("po-agent", "glm-5.2", "synthetic", "high", 0, 200000, "inception");
+      bar.setContext(18000, 200000, 9.0);
+      const text = bar.getPlainText();
+      expect(text).toContain("9.0%");
+      expect(text).toContain("18k");
+    });
+
+    it("setContext overrides the percentage", () => {
+      const bar = new StatusBar();
+      bar.setInfo("po-agent", "glm-5.2", "synthetic", "high", 1000, 100000, "inception");
+      // 1000/100000 = 1.0% by default calc
+      bar.setContext(5000, 100000, 5.0);
+      const text = bar.getPlainText();
+      expect(text).toContain("5.0%");
+    });
+
+    it("reflects updated context in right chunks", () => {
+      const bar = new StatusBar();
+      bar.setInfo("po-agent", "glm-5.2", "synthetic", "high", 0, 200000, "inception");
+      bar.setContext(25000, 200000, 12.5);
+      const chunks = bar.getRightChunks();
+      const text = chunks.map((c: any) => c.text ?? "").join("");
+      expect(text).toContain("12.5%");
+      expect(text).toContain("25k");
+    });
   });
 });

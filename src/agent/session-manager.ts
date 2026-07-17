@@ -105,6 +105,19 @@ export class AgentSessionManager implements SessionManager {
         });
       },
       abort: () => session.abort(),
+      /**
+       * Forward to the SDK session's `getContextUsage()`. The SDK returns
+       * `{ tokens, contextWindow, percent }` (tokens/percent may be null
+       * right after compaction). We pass through undefined so the TUI can
+       * skip the update when there's nothing to show.
+       */
+      getContextUsage: () => {
+        try {
+          return (session as any).getContextUsage?.();
+        } catch {
+          return undefined;
+        }
+      },
     };
 
     this.sessions.set(tracked.sessionId, tracked);

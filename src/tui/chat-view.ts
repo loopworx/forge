@@ -130,9 +130,18 @@ export class ChatView {
       this.spinnerText = new TextRenderable(this.scrollbox.ctx, {
         content: label,
         fg: THEME.spinner,
+        // `live: true` forces the renderer to continuously re-render this
+        // renderable at targetFps (30). Without it, renderAfter only fires
+        // during a dirty render pass — which never happens between events,
+        // so the spinner freezes on its first frame.
+        live: true,
       });
       this.spinnerText.renderAfter = (_buf, dt) => {
-        this.spinner.advance(dt * 1000);
+        // dt is already in milliseconds (OpenTUI convention — see
+        // `deltaSeconds = deltaTime / 1000` in @opentui/core). The previous
+        // `dt * 1000` scaled 1000× too fast, landing on the same frame each
+        // tick and freezing the visible animation.
+        this.spinner.advance(dt);
         this.spinnerText!.content = this.spinner.getLabel(this.currentToolName);
       };
       content.add(this.spinnerText);

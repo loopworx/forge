@@ -108,9 +108,9 @@ describe("ForgeApp", () => {
     const { renderer } = await createTestRenderer({ width: 100, height: 30 });
     const app = new ForgeApp({ renderer, engine: devEngine(), sessions: {} as any, commands: { getAll: () => [], filterByPrefix: () => [] } as any, mode: "development" });
     app.layout();
-    expect(app.getStatusBar().getText()).not.toContain("development");
+    expect(app.getStatusBar().getPlainText()).not.toContain("development");
     app.handleForgeEvent({ type: "agent_settled" });
-    expect(app.getStatusBar().getText()).toContain("development");
+    expect(app.getStatusBar().getPlainText()).toContain("development");
   });
 
   it("uses stored model info in StatusBar on agent_settled", async () => {
@@ -123,7 +123,7 @@ describe("ForgeApp", () => {
     app.layout();
     app.setModelInfo("po-agent", "glm-5.2", "synthetic", "high", 16384);
     app.handleForgeEvent({ type: "agent_settled" });
-    const statusText = app.getStatusBar().getText();
+    const statusText = app.getStatusBar().getPlainText();
     expect(statusText).toContain("po-agent");
     expect(statusText).toContain("glm-5.2");
     expect(statusText).toContain("synthetic");

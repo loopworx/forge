@@ -118,6 +118,20 @@ export class AgentSessionManager implements SessionManager {
           return undefined;
         }
       },
+      /**
+       * Forward to the SDK session's `sessionManager.buildContextEntries()`.
+       * Returns the active, compaction-aware entry list for the current leaf
+       * — the same view the LLM sees. Used by the TUI's `replaySessionHistory`
+       * when resuming a session so the user sees the full conversation
+       * structure rather than a blank chat.
+       */
+      getHistory: () => {
+        try {
+          return (session as any).sessionManager?.buildContextEntries?.() ?? [];
+        } catch {
+          return [];
+        }
+      },
     };
 
     this.sessions.set(tracked.sessionId, tracked);
@@ -236,6 +250,13 @@ export class AgentSessionManager implements SessionManager {
           return (session as any).getContextUsage?.();
         } catch {
           return undefined;
+        }
+      },
+      getHistory: () => {
+        try {
+          return (session as any).sessionManager?.buildContextEntries?.() ?? [];
+        } catch {
+          return [];
         }
       },
     };

@@ -112,6 +112,23 @@ export interface Session {
     contextWindow: number;
     percent: number | null;
   } | undefined;
+
+  /**
+   * Live session history — entries from the SDK's
+   * `sessionManager.buildContextEntries()`. Optional — only implemented by
+   * sessions backed by `AgentSession` from `@earendil-works/pi-coding-agent`.
+   *
+   * The TUI uses this when resuming a session (`/sessions` command) to feed
+   * the existing conversation (user prompts, assistant responses, tool calls,
+   * compaction summaries, model changes) into ChatView via
+   * `replaySessionHistory()`. Without this, resumed sessions appear blank —
+   * the user only sees the "✓ Session restored" message and nothing else.
+   *
+   * Returns an array of broadly-typed objects (`{ type: string; [k]: unknown }`).
+   * The TUI's session-history module narrows each entry by `type` and casts
+   * to the SDK's discriminated `SessionEntry` union lazily at access time.
+   */
+  getHistory?: () => Array<{ type: string; [key: string]: unknown }>;
 }
 
 export interface SessionEvent {

@@ -921,6 +921,25 @@ async function launchTui(): Promise<void> {
       app.handleForgeEvent(event as any);
     });
 
+    // Replay the existing session history into ChatView so the user sees
+    // the full conversation structure (user prompts, assistant responses,
+    // tool calls, compaction summaries, model changes) — not just a blank
+    // chat. Uses the SDK's sessionManager.buildContextEntries() exposed via
+    // our Session.getHistory() extension.
+    try {
+      const entries = resumedSession.getHistory?.() ?? [];
+      if (entries.length > 0) {
+        const { replaySessionHistory } = await import("../src/tui/session-history");
+        replaySessionHistory(app.getChatView(), entries);
+        logger.info(`sessions: replayed ${entries.length} history entries`);
+      } else {
+        logger.info("sessions: no history entries to replay");
+      }
+    } catch (err) {
+      logger.error(`sessions: history replay failed: ${(err as Error).message}`);
+      app.getChatView().displayMessage(`(history replay failed: ${(err as Error).message})`);
+    }
+
     // Start the context-usage poller for the resumed session.
     const usageTimer = setInterval(() => {
       try {

@@ -114,6 +114,49 @@ describe("AgentSessionManager", () => {
     expect(usage?.percent).toBe(6.17);
   });
 
+  it("tracked session forwards getHistory() to SDK session.sessionManager.buildContextEntries()", () => {
+    const mgr = new AgentSessionManager("/test", {}, { find: () => undefined } as any);
+    const mockEntries = [
+      { type: "message", id: "1", parentId: null, timestamp: "", message: { role: "user", content: "hi", timestamp: 0 } },
+    ];
+    const mockSdkSession = {
+      sessionId: "sdk-h",
+      sessionManager: {
+        buildContextEntries: () => mockEntries,
+      },
+    };
+    // Simulate tracked session backed by a SDK session.
+    const trackedSession = {
+      sessionId: "sdk-h",
+      getHistory: () => (mockSdkSession.sessionManager as any).buildContextEntries?.() ?? [],
+    };
+    (mgr as any).sessions.set("sdk-h", trackedSession);
+
+    const session = mgr.getSession("sdk-h");
+    expect(session?.getHistory).toBeDefined();
+    const entries = session!.getHistory!();
+    expect(entries.length).toBe(1);
+    expect(entries[0].type).toBe("message");
+    expect((entries[0] as any).message.role).toBe("user");
+  });
+
+  it("tracked session getHistory() returns [] when sessionManager is missing", () => {
+    const mgr = new AgentSessionManager("/test", {}, { find: () => undefined } as any);
+    const trackedSession = {
+      sessionId: "sdk-2",
+      getHistory: () => {
+        try {
+          return ({} as any).sessionManager?.buildContextEntries?.() ?? [];
+        } catch {
+          return [];
+        }
+      },
+    };
+    (mgr as any).sessions.set("sdk-2", trackedSession);
+    const session = mgr.getSession("sdk-2");
+    expect(session?.getHistory!()).toEqual([]);
+  });
+
   it("tracked session getContextUsage returns undefined when SDK has no data", () => {
     const mgr = new AgentSessionManager("/test", {}, { find: () => undefined } as any);
     const trackedSession = {

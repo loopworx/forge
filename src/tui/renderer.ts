@@ -5,7 +5,7 @@ export async function createForgeRenderer() {
     exitOnCtrlC: true,
     screenMode: "alternate-screen",
     targetFps: 30,
-    backgroundColor: "transparent",
+    backgroundColor: "#1e1e2e",
   });
   return renderer;
 }

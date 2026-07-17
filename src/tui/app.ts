@@ -25,6 +25,7 @@ export class ForgeApp {
   private sidebar: Sidebar;
   private statusBar: StatusBar;
   private sidebarBox: BoxRenderable | null = null;
+  private statusText: TextRenderable | null = null;
   private modelInfo = { agent: "", model: "", provider: "", thinkingLevel: "medium", maxTokens: 16384 };
 
   constructor(private opts: ForgeAppOptions) {
@@ -69,11 +70,11 @@ export class ForgeApp {
       flexShrink: 0,
       width: "100%",
     });
-    const statusText = new TextRenderable(renderer, {
+    this.statusText = new TextRenderable(renderer, {
       content: this.statusBar.getText(),
       fg: THEME.textMuted,
     });
-    statusBarBox.add(statusText);
+    statusBarBox.add(this.statusText);
     mainColumn.add(statusBarBox);
 
     root.add(mainColumn);
@@ -135,6 +136,9 @@ export class ForgeApp {
         this.modelInfo.maxTokens,
         state.mode,
       );
+      if (this.statusText) {
+        this.statusText.content = this.statusBar.getText();
+      }
     }
   }
 

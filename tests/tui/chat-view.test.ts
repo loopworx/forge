@@ -58,4 +58,28 @@ describe("ChatView", () => {
     await renderOnce();
     expect(captureCharFrame()).toContain("Welcome to Forge");
   });
+
+  it("tool errors show warning symbol and descriptive message", async () => {
+    const { renderer, renderOnce, captureCharFrame } = await createTestRenderer({ width: 100, height: 30 });
+    const chatView = new ChatView();
+    chatView.mount(renderer);
+    chatView.handleEvent({ type: "tool_start", toolName: "read" } as ForgeEvent);
+    chatView.handleEvent({ type: "tool_end", toolName: "read", isError: true } as ForgeEvent);
+    await renderOnce();
+    const frame = captureCharFrame();
+    expect(frame).toContain("\u26a0");
+    expect(frame).toContain("read");
+  });
+
+  it("tool success does not show error symbol", async () => {
+    const { renderer, renderOnce, captureCharFrame } = await createTestRenderer({ width: 100, height: 30 });
+    const chatView = new ChatView();
+    chatView.mount(renderer);
+    chatView.handleEvent({ type: "tool_start", toolName: "read" } as ForgeEvent);
+    chatView.handleEvent({ type: "tool_end", toolName: "read", isError: false } as ForgeEvent);
+    await renderOnce();
+    const frame = captureCharFrame();
+    expect(frame).not.toContain("\u2717");
+    expect(frame).not.toContain("\u26a0");
+  });
 });

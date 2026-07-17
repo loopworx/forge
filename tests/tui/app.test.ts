@@ -130,6 +130,23 @@ describe("ForgeApp", () => {
     expect(statusText).toContain("high");
   });
 
+  it("updates rendered status bar text after agent_settled", async () => {
+    const { renderer, renderOnce, captureCharFrame } = await createTestRenderer({ width: 100, height: 30 });
+    const mockEngine = {
+      getProjectState: () => ({ mode: "inception", inception: { mode: "inception", currentPhase: 0, phaseSessionId: null, artifacts: {} } }),
+      getActiveSessions: () => [],
+    } as any;
+    const app = new ForgeApp({ renderer, engine: mockEngine, sessions: {} as any, commands: {} as any, mode: "inception" });
+    app.layout();
+    await renderOnce();
+    expect(captureCharFrame()).toContain("Not configured");
+    app.setModelInfo("po-agent", "glm-5.2", "synthetic", "high", 16384);
+    app.handleForgeEvent({ type: "agent_settled" });
+    await renderOnce();
+    expect(captureCharFrame()).toContain("glm-5.2");
+    expect(captureCharFrame()).toContain("synthetic");
+  });
+
   it("re-renders sidebar children on engine event", async () => {
     const { renderer, renderOnce } = await createTestRenderer({ width: 100, height: 30 });
     let sessions: any[] = [];

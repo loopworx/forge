@@ -38,7 +38,7 @@ export class ChatView {
       case "tool_end":
         this.flushAgentText();
         if (event.isError) {
-          this.lines.push(`\u2717 ${event.toolName} failed`);
+          this.lines.push(`\u26a0 ${event.toolName}: failed`);
         }
         this.currentToolName = null;
         break;
@@ -89,9 +89,14 @@ export class ChatView {
       this.scrollbox.content.add(placeholder);
     } else {
       for (const line of allLines) {
+        let fg: string = THEME.text;
+        if (line.startsWith("\u2699")) fg = THEME.teal;
+        else if (line.startsWith("\u26a0")) fg = THEME.warning;
+        else if (line.startsWith("\u2713")) fg = THEME.success;
+        else if (line.startsWith("\u2717")) fg = THEME.error;
         const text = new TextRenderable(this.scrollbox.ctx, {
           content: line,
-          fg: line.startsWith("\u2717") ? THEME.error : THEME.text,
+          fg,
         });
         this.scrollbox.content.add(text);
       }

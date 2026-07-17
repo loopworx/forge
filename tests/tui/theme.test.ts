@@ -34,4 +34,14 @@ describe("theme", () => {
     expect(AGENT_COLORS["devops-agent"]).toBeDefined();
     expect(AGENT_COLORS["guardian-agent"]).toBeDefined();
   });
+
+  it("has Catppuccin Mocha extended colors", () => {
+    expect(THEME.peach).toBeDefined();
+    expect(THEME.mauve).toBeDefined();
+    expect(THEME.teal).toBeDefined();
+    expect(THEME.pink).toBeDefined();
+    expect(THEME.surface0).toBeDefined();
+    expect(THEME.surface1).toBeDefined();
+    expect(THEME.overlay0).toBeDefined();
+  });
 });

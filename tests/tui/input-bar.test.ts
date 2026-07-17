@@ -56,4 +56,25 @@ describe("InputBar", () => {
     await renderOnce();
     expect(cmdName).toBe("forge-new");
   });
+
+  it("renders with rounded border", async () => {
+    const { renderer, renderOnce, captureCharFrame } = await createTestRenderer({ width: 60, height: 10 });
+    const commands = new CommandRegistry();
+    const bar = new InputBar(commands);
+    bar.mount(renderer);
+    await renderOnce();
+    const frame = captureCharFrame();
+    expect(frame).toContain("╭");
+    expect(frame).toContain("╰");
+  });
+
+  it("renders orange prompt icon", async () => {
+    const { renderer, renderOnce, captureCharFrame } = await createTestRenderer({ width: 60, height: 10 });
+    const commands = new CommandRegistry();
+    const bar = new InputBar(commands);
+    bar.mount(renderer);
+    await renderOnce();
+    const frame = captureCharFrame();
+    expect(frame).toContain("❯");
+  });
 });

@@ -18,6 +18,8 @@ export class InputBar {
       id: "input-bar-container",
       flexDirection: "column",
       flexShrink: 0,
+      paddingLeft: 1,
+      paddingRight: 1,
     });
 
     this.autocompleteBox = new BoxRenderable(renderer, {
@@ -27,9 +29,27 @@ export class InputBar {
     });
     container.add(this.autocompleteBox);
 
+    const inputWrapper = new BoxRenderable(renderer, {
+      id: "input-wrapper",
+      flexDirection: "row",
+      flexShrink: 0,
+      width: "100%",
+      border: true,
+      borderStyle: "rounded",
+      borderColor: THEME.borderActive,
+      backgroundColor: THEME.backgroundElement,
+      paddingLeft: 1,
+    });
+
+    const promptIcon = new TextRenderable(renderer, {
+      content: "\u276f",
+      fg: THEME.peach,
+    });
+    inputWrapper.add(promptIcon);
+
     this.input = new InputRenderable(renderer, {
       id: "input",
-      width: "100%",
+      flexGrow: 1,
       placeholder: "Type a message or / for commands...",
     });
 
@@ -41,7 +61,8 @@ export class InputBar {
       this.handleSubmit(value);
     });
 
-    container.add(this.input);
+    inputWrapper.add(this.input);
+    container.add(inputWrapper);
     this.container = container;
     renderer.root.add(container);
     return container;

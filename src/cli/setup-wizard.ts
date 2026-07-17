@@ -30,18 +30,58 @@ export interface ConfigYaml {
 
 type RawProvider = { id: string; name: string; baseUrl?: string };
 
+const KNOWN_EXTRA_PROVIDERS: Record<string, { baseUrl: string; api: string; name: string }> = {
+  "opencode-go": { baseUrl: "https://opencode.ai/zen/go/v1", api: "openai-responses", name: "OpenCode Zen Go" },
+  "opencode-zen": { baseUrl: "https://opencode.ai/zen/v1", api: "openai-responses", name: "OpenCode Zen" },
+  "synthetic": { baseUrl: "https://api.synthetic.dev/v1", api: "openai-responses", name: "Synthetic" },
+};
+
 export function buildProviderList(
   providers: RawProvider[],
   getModels: (id: string) => unknown[],
 ): ProviderOption[] {
-  const options: ProviderOption[] = providers
-    .filter((p) => p.baseUrl)
-    .map((p) => ({
+  const seen = new Set<string>();
+  const options: ProviderOption[] = [];
+
+  for (const p of providers) {
+    if (!p.baseUrl) {
+      const extra = KNOWN_EXTRA_PROVIDERS[p.id];
+      if (extra) {
+        options.push({
+          id: p.id,
+          name: p.name,
+          baseUrl: extra.baseUrl,
+          api: extra.api,
+          modelCount: getModels(p.id).length,
+        });
+        seen.add(p.id);
+      }
+      continue;
+    }
+    const models = getModels(p.id);
+    const firstModel = models[0] as { api?: string } | undefined;
+    options.push({
       id: p.id,
       name: p.name,
-      baseUrl: p.baseUrl as string,
-      modelCount: getModels(p.id).length,
-    }));
+      baseUrl: p.baseUrl,
+      api: firstModel?.api,
+      modelCount: models.length,
+    });
+    seen.add(p.id);
+  }
+
+  for (const [id, extra] of Object.entries(KNOWN_EXTRA_PROVIDERS)) {
+    if (!seen.has(id)) {
+      options.push({
+        id,
+        name: extra.name,
+        baseUrl: extra.baseUrl,
+        api: extra.api,
+        modelCount: 0,
+      });
+    }
+  }
+
   options.push({ id: "custom", name: "Custom Provider", baseUrl: "", modelCount: 0 });
   return options;
 }
@@ -60,7 +100,7 @@ export function buildSelectChoices(options: ProviderOption[]): SelectItem[] {
       items.push({ type: "separator" });
     }
     items.push({
-      name: o.id === "custom" ? o.name : `${o.name}${o.modelCount > 0 ? ` (${o.modelCount} models)` : ""}`,
+      name: o.name,
       value: o.id,
     });
   }

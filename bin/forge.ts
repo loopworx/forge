@@ -194,10 +194,8 @@ async function runSetup(nonInteractive: boolean): Promise<void> {
         validate: (v) => (v.trim() ? true : "Required"),
       })).trim();
     } else {
-      // Built-in provider: baseUrl + api come from the catalog.
       baseUrl = selected!.baseUrl;
-      const catalog = getBuiltinModels(providerChoice as never);
-      api = catalog.length > 0 ? (catalog[0].api as string) : "openai-responses";
+      api = selected!.api || "openai-responses";
       configKey = selected!.id;
     }
 

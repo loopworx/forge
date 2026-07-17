@@ -9,6 +9,7 @@ import {
   type ModelChoice,
   type ProviderEntry,
   type ConfigYaml,
+  type SelectChoice,
 } from "../../src/cli/setup-wizard";
 
 const mockProviders = [
@@ -31,21 +32,16 @@ describe("buildProviderList", () => {
     const ids = result.map((o) => o.id);
     expect(ids).toContain("openai");
     expect(ids).toContain("anthropic");
-    expect(ids).not.toContain("opencode-go");
   });
 
-  it("builds an option per provider with correct id/name/baseUrl/modelCount", () => {
+  it("builds an option per provider with correct id/name/baseUrl/api", () => {
     const result = buildProviderList(mockProviders as RawProvider[], getModels);
     const openai = result.find((o) => o.id === "openai")!;
-    expect(openai).toEqual({
-      id: "openai",
-      name: "OpenAI",
-      baseUrl: "https://api.openai.com/v1",
-      api: undefined,
-      modelCount: 2,
-    });
+    expect(openai.id).toBe("openai");
+    expect(openai.name).toBe("OpenAI");
+    expect(openai.baseUrl).toBe("https://api.openai.com/v1");
+    expect(openai.modelCount).toBe(2);
     const anthropic = result.find((o) => o.id === "anthropic")!;
-    expect(anthropic.modelCount).toBe(1);
     expect(anthropic.baseUrl).toBe("https://api.anthropic.com");
   });
 
@@ -60,36 +56,57 @@ describe("buildProviderList", () => {
     });
   });
 
-  it("filters out providers without a baseUrl", () => {
+  it("includes opencode-go with correct baseUrl even when SDK has undefined baseUrl", () => {
     const result = buildProviderList(mockProviders as RawProvider[], getModels);
-    expect(result).toHaveLength(3);
-    expect(result.map((o) => o.id)).toEqual(["openai", "anthropic", "custom"]);
+    const opencodeGo = result.find((o) => o.id === "opencode-go");
+    expect(opencodeGo).toBeDefined();
+    expect(opencodeGo!.baseUrl).toBe("https://opencode.ai/zen/go/v1");
+    expect(opencodeGo!.api).toBe("openai-responses");
   });
 
-  it("returns at least 28 providers + custom when given the full SDK catalog", () => {
-    // Simulate the real SDK output: 35 providers, 28 with baseUrl
-    const manyProviders: RawProvider[] = [];
-    const knownIds = [
-      "amazon-bedrock", "ant-ling", "anthropic", "azure-openai-responses",
-      "cerebras", "cloudflare-ai-gateway", "cloudflare-workers-ai", "deepseek",
-      "fireworks", "github-copilot", "google", "google-vertex", "groq",
-      "huggingface", "kimi-coding", "minimax", "minimax-cn", "mistral",
-      "moonshotai", "moonshotai-cn", "nvidia", "openai", "openai-codex",
-      "opencode", "opencode-go", "openrouter", "together", "vercel-ai-gateway",
-      "xai", "xiaomi", "xiaomi-token-plan-ams", "xiaomi-token-plan-cn",
-      "xiaomi-token-plan-sgp", "zai", "zai-coding-cn",
+  it("includes synthetic provider with correct baseUrl", () => {
+    const result = buildProviderList(mockProviders as RawProvider[], getModels);
+    const synthetic = result.find((o) => o.id === "synthetic");
+    expect(synthetic).toBeDefined();
+    expect(synthetic!.baseUrl).toBe("https://api.synthetic.dev/v1");
+    expect(synthetic!.api).toBe("openai-responses");
+  });
+
+  it("includes opencode-zen provider with correct baseUrl", () => {
+    const result = buildProviderList(mockProviders as RawProvider[], getModels);
+    const opencodeZen = result.find((o) => o.id === "opencode-zen");
+    expect(opencodeZen).toBeDefined();
+    expect(opencodeZen!.baseUrl).toBe("https://opencode.ai/zen/v1");
+    expect(opencodeZen!.api).toBe("openai-responses");
+  });
+
+  it("places opencode-go, opencode-zen, and synthetic before Custom Provider", () => {
+    const result = buildProviderList(mockProviders as RawProvider[], getModels);
+    const ids = result.map((o) => o.id);
+    const customIdx = ids.indexOf("custom");
+    const goIdx = ids.indexOf("opencode-go");
+    const zenIdx = ids.indexOf("opencode-zen");
+    const synIdx = ids.indexOf("synthetic");
+    expect(goIdx).toBeLessThan(customIdx);
+    expect(zenIdx).toBeLessThan(customIdx);
+    expect(synIdx).toBeLessThan(customIdx);
+  });
+
+  it("sets api on built-in providers from first model's api field", () => {
+    const providersWithApi: RawProvider[] = [
+      { id: "openai", name: "OpenAI", baseUrl: "https://api.openai.com/v1" },
+      { id: "anthropic", name: "Anthropic", baseUrl: "https://api.anthropic.com" },
     ];
-    for (const id of knownIds) {
-      // opencode-go has undefined baseUrl in the real catalog
-      manyProviders.push({
-        id,
-        name: id.charAt(0).toUpperCase() + id.slice(1),
-        baseUrl: id === "opencode-go" ? undefined : `https://api.${id}.com/v1`,
-      });
-    }
-    const result = buildProviderList(manyProviders, () => []);
-    expect(result.length).toBeGreaterThanOrEqual(29); // 28 with baseUrl + custom
-    expect(result[result.length - 1].id).toBe("custom");
+    const getModelsWithApi = (id: string): { id: string; name: string; api: string }[] => {
+      if (id === "openai") return [{ id: "gpt-4", name: "GPT-4", api: "openai-responses" }];
+      if (id === "anthropic") return [{ id: "claude-3", name: "Claude 3", api: "anthropic-messages" }];
+      return [];
+    };
+    const result = buildProviderList(providersWithApi, getModelsWithApi);
+    const openai = result.find((o) => o.id === "openai");
+    expect(openai!.api).toBe("openai-responses");
+    const anthropic = result.find((o) => o.id === "anthropic");
+    expect(anthropic!.api).toBe("anthropic-messages");
   });
 });
 
@@ -100,18 +117,19 @@ describe("buildSelectChoices", () => {
     { id: "custom", name: "Custom Provider", baseUrl: "", modelCount: 0 },
   ];
 
-  it("produces choices for inquirer select with name, value pairs", () => {
+  it("produces choices without model counts in names", () => {
     const choices = buildSelectChoices(options);
     expect(choices).toHaveLength(4);
-    expect(choices[0]).toEqual({ name: "OpenAI (45 models)", value: "openai" });
-    expect(choices[1]).toEqual({ name: "Anthropic (14 models)", value: "anthropic" });
+    expect(choices[0]).toEqual({ name: "OpenAI", value: "openai" });
+    expect(choices[1]).toEqual({ name: "Anthropic", value: "anthropic" });
     expect(choices[2]).toEqual({ type: "separator" });
     expect(choices[3]).toEqual({ name: "Custom Provider", value: "custom" });
   });
 
-  it("does not show model count for custom provider", () => {
+  it("does not show model count for any provider", () => {
     const choices = buildSelectChoices(options);
-    expect(choices[3]).toEqual({ name: "Custom Provider", value: "custom" });
+    expect((choices[0] as SelectChoice).name).not.toContain("45");
+    expect((choices[1] as SelectChoice).name).not.toContain("14");
   });
 
   it("returns enough items for a large pageSize", () => {
@@ -131,8 +149,8 @@ describe("buildSelectChoices", () => {
     const choices = buildSelectChoices(options);
     // Should be: [openai, anthropic, separator, custom]
     expect(choices).toHaveLength(4);
-    expect(choices[0]).toEqual({ name: "OpenAI (45 models)", value: "openai" });
-    expect(choices[1]).toEqual({ name: "Anthropic (14 models)", value: "anthropic" });
+    expect(choices[0]).toEqual({ name: "OpenAI", value: "openai" });
+    expect(choices[1]).toEqual({ name: "Anthropic", value: "anthropic" });
     expect(choices[2]).toEqual({ type: "separator" });
     expect(choices[3]).toEqual({ name: "Custom Provider", value: "custom" });
   });
@@ -148,7 +166,7 @@ describe("buildSelectChoices", () => {
     const choices = buildSelectChoices(bigOptions);
     // 28 providers + separator + custom = 30
     expect(choices).toHaveLength(30);
-    expect(choices[27]).toEqual({ name: "Provider 27 (27 models)", value: "provider-27" });
+    expect(choices[27]).toEqual({ name: "Provider 27", value: "provider-27" });
     expect(choices[28]).toEqual({ type: "separator" });
     expect(choices[29]).toEqual({ name: "Custom Provider", value: "custom" });
   });

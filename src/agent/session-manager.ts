@@ -62,6 +62,7 @@ export class AgentSessionManager implements SessionManager {
     const { homedir } = await import("node:os");
 
     const forgeAgentDir = join(homedir(), ".config", "forge", "agent");
+    const sessionDir = join(forgeAgentDir, "sessions");
     const { model, thinkingLevel } = this.resolveModel(config.agentRole);
 
     const loader = new DefaultResourceLoader({
@@ -75,10 +76,12 @@ export class AgentSessionManager implements SessionManager {
     });
     await loader.reload({ resolveProjectTrust: async () => true });
 
+    const sdkSessionManager = SdkSessionManager.create(config.cwd, sessionDir);
+
     const { session } = await createAgentSession({
       cwd: config.cwd,
       resourceLoader: loader,
-      sessionManager: SdkSessionManager.inMemory(),
+      sessionManager: sdkSessionManager,
       settingsManager: SettingsManager.inMemory(),
       authStorage: this.authStorage,
       customTools: this.customTools ?? [],
@@ -121,6 +124,25 @@ export class AgentSessionManager implements SessionManager {
 
   getSession(sessionId: string): Session | undefined {
     return this.sessions.get(sessionId);
+  }
+
+  async listSessions(cwd: string): Promise<Array<{ id: string; name: string; firstMessage: string; created: Date; modified: Date }>> {
+    const { SessionManager: SdkSessionManager } = await import("@earendil-works/pi-coding-agent");
+    const { join } = await import("node:path");
+    const { homedir } = await import("node:os");
+    const sessionDir = join(homedir(), ".config", "forge", "agent", "sessions");
+    try {
+      const sessions = await SdkSessionManager.list(cwd, sessionDir);
+      return sessions.map(s => ({
+        id: s.id,
+        name: s.name ?? s.firstMessage?.slice(0, 60) ?? "(empty)",
+        firstMessage: s.firstMessage?.slice(0, 80) ?? "",
+        created: s.created,
+        modified: s.modified,
+      }));
+    } catch {
+      return [];
+    }
   }
 
   /**

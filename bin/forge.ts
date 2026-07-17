@@ -370,9 +370,94 @@ async function runInit(cwd: string, skipAuth: boolean, reAuth: boolean): Promise
     }
   }
 
+  // --- Per-agent model assignment ---
+  await assignAgentModels(cwd);
+
   console.log("\nForge initialized successfully.");
   console.log("Run 'forge' to start the TUI.");
   process.exit(0);
+}
+
+async function assignAgentModels(cwd: string): Promise<void> {
+  const { select } = await import("@inquirer/prompts");
+  const { parse: parseYaml, stringify: stringifyYaml } = await import("yaml");
+  const { loadAgentProfiles, buildAgentModelChoices, formatAgentModelsYaml } = await import("../src/cli/agent-model-assigner");
+  const { getBuiltinProviders, getBuiltinModels } = await import("@earendil-works/pi-ai/providers/all");
+  const { fetchModels } = await import("../src/agent/model-fetcher");
+
+  const globalConfigPath = join(FORGE_CONFIG_DIR, "forge.yaml");
+  if (!existsSync(globalConfigPath)) return;
+  const globalRaw = readFileSync(globalConfigPath, "utf-8");
+  const globalConfig = parseYaml(globalRaw) as {
+    providers?: Record<string, { baseUrl: string; apiKey: string; api: string }>;
+  };
+  if (!globalConfig.providers) return;
+
+  const allModels: Array<{ providerId: string; modelId: string; name: string }> = [];
+  const builtinProviders = getBuiltinProviders();
+  for (const [name, providerConfig] of Object.entries(globalConfig.providers)) {
+    if (!providerConfig.baseUrl || !providerConfig.apiKey) continue;
+    if (builtinProviders.includes(name as any)) {
+      const models = getBuiltinModels(name as never);
+      for (const m of models) {
+        allModels.push({ providerId: name, modelId: m.id, name: m.name });
+      }
+    } else {
+      const fetched = await fetchModels(providerConfig.baseUrl, providerConfig.apiKey);
+      for (const m of fetched) {
+        allModels.push({ providerId: name, modelId: m.id, name: m.name });
+      }
+    }
+  }
+
+  if (allModels.length === 0) {
+    console.log("\nNo models available. Skipping per-agent model assignment.");
+    console.log("You can manually configure agentModels in forge.yaml later.");
+    return;
+  }
+
+  console.log("\nPer-Agent Model Assignment");
+  console.log("==========================");
+
+  const profiles = loadAgentProfiles(TEMPLATES_DIR);
+  if (profiles.length === 0) {
+    console.log("No agent profiles found. Skipping.");
+    return;
+  }
+
+  const choices = buildAgentModelChoices(profiles, allModels);
+  const assignments: Record<string, { model: string; thinkingLevel: string }> = {};
+
+  for (const profile of profiles) {
+    console.log(`\n${profile.name}: ${profile.description}`);
+    const modelValue = await select({
+      message: `Select model for ${profile.role}:`,
+      choices: choices[profile.role],
+      loop: false,
+    });
+    const thinkingLevel = await select({
+      message: `Thinking level for ${profile.role}:`,
+      choices: [
+        { name: "minimal", value: "minimal" },
+        { name: "low", value: "low" },
+        { name: "medium", value: "medium" },
+        { name: "high", value: "high" },
+        { name: "xhigh", value: "xhigh" },
+        { name: "max", value: "max" },
+      ],
+      default: "high",
+      loop: false,
+    });
+    assignments[profile.role] = { model: modelValue, thinkingLevel };
+  }
+
+  const yamlPath = join(cwd, "forge.yaml");
+  let yamlContent = readFileSync(yamlPath, "utf-8");
+  const agentModelsYaml = formatAgentModelsYaml(assignments);
+  const parsed = parseYaml(yamlContent) as any;
+  parsed.agentModels = parseYaml(agentModelsYaml).agentModels;
+  writeFileSync(yamlPath, stringifyYaml(parsed));
+  console.log("\n\u2713 Agent models written to forge.yaml");
 }
 
 async function launchTui(): Promise<void> {
@@ -597,6 +682,7 @@ async function launchTui(): Promise<void> {
       logger.info(`SDK event: type=${event.type}`);
       app.handleForgeEvent(event as any);
     });
+    app.getChatView().setThinking(true);
     logger.info("forge-new: sending prompt to agent...");
     try {
       await session.prompt(prompt);
@@ -664,10 +750,52 @@ async function launchTui(): Promise<void> {
   app.getChatView().displayMessage(buildStartupBanner(projectState, loadedConfig.inception.phases));
   logger.info(`TUI launched. Mode: ${mode}, Phase: ${projectState.inception.currentPhase}`);
 
+  // --- Question modal: detect questions in agent responses ---
+  app.setOnQuestion(async (agentText: string) => {
+    const { extractSuggestions } = await import("../src/tui/question-modal");
+    const { select } = await import("@inquirer/prompts");
+    const suggestions = extractSuggestions(agentText);
+    app.getChatView().displayMessage("\u2753 Question detected — select an answer:");
+    const answer = await select({
+      message: "Your answer:",
+      choices: suggestions.map(s => ({ name: s, value: s })),
+      loop: false,
+    });
+    if (answer === "Write your own answer") {
+      app.getInputBar().focus();
+    } else {
+      app.getInputBar().setInput(answer);
+      app.getInputBar().focus();
+    }
+  });
+
   // --- /help command (needs app reference to display in ChatView) ---
   commands.register("help", async () => {
     const allCommands = commands.getAll().sort();
     app.getChatView().displayMessage("Available commands: " + allCommands.map(c => `/${c}`).join(", "));
+  });
+
+  // --- /sessions command: list and resume sessions ---
+  commands.register("sessions", async () => {
+    const { select } = await import("@inquirer/prompts");
+    app.getChatView().displayMessage("\u2699 Loading sessions...");
+    const sessionList = await sessions.listSessions(workdir);
+    if (sessionList.length === 0) {
+      app.getChatView().displayMessage("No sessions found. Type /forge-new to start.");
+      return;
+    }
+    const sessions_with_desc = sessionList.map(s => ({
+      name: `${s.name} (${s.modified.toLocaleDateString()} ${s.modified.toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"})})`,
+      value: s.id,
+    }));
+    const selectedId = await select({
+      message: "Resume session:",
+      choices: sessions_with_desc,
+      loop: false,
+    });
+    app.getChatView().displayMessage(`\u21bb Resuming session ${selectedId}...`);
+    logger.info(`sessions: resuming ${selectedId}`);
+    app.getInputBar().focus();
   });
 
   // --- Wire InputBar callbacks (Issue 5) ---
@@ -675,6 +803,8 @@ async function launchTui(): Promise<void> {
     if (inceptionSessionId) {
       const session = sessions.getSession(inceptionSessionId);
       if (session) {
+        app.getChatView().displayUserMessage(text);
+        app.getChatView().setThinking(true);
         try {
           await session.prompt(text);
         } catch (err) {

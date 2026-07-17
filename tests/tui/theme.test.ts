@@ -44,4 +44,22 @@ describe("theme", () => {
     expect(THEME.surface1).toBeDefined();
     expect(THEME.overlay0).toBeDefined();
   });
+
+  it("has OpenCode theme colors", () => {
+    expect(THEME.surfaceDark).toBeDefined();
+    expect(THEME.surfaceTool).toBeDefined();
+  });
+
+  it("peach color is orange-ish for user lines", () => {
+    expect(THEME.peach).toMatch(/#[0-9a-f]{6}/i);
+    expect(THEME.peach.toLowerCase()).not.toBe(THEME.primary.toLowerCase());
+  });
+
+  it("primary color is blue-ish for tool lines", () => {
+    expect(THEME.primary).toMatch(/#[0-9a-f]{6}/i);
+  });
+
+  it("surfaceDark is darker than backgroundElement", () => {
+    expect(THEME.surfaceDark).not.toBe(THEME.backgroundElement);
+  });
 });

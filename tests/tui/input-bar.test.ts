@@ -57,15 +57,16 @@ describe("InputBar", () => {
     expect(cmdName).toBe("forge-new");
   });
 
-  it("renders with rounded border", async () => {
+  it("renders with left border (orange vertical line)", async () => {
     const { renderer, renderOnce, captureCharFrame } = await createTestRenderer({ width: 60, height: 10 });
     const commands = new CommandRegistry();
     const bar = new InputBar(commands);
     bar.mount(renderer);
     await renderOnce();
     const frame = captureCharFrame();
-    expect(frame).toContain("╭");
-    expect(frame).toContain("╰");
+    expect(frame).toContain("\u2502");
+    expect(frame).not.toContain("\u256d");
+    expect(frame).not.toContain("\u2570");
   });
 
   it("renders orange prompt icon", async () => {
@@ -75,6 +76,6 @@ describe("InputBar", () => {
     bar.mount(renderer);
     await renderOnce();
     const frame = captureCharFrame();
-    expect(frame).toContain("❯");
+    expect(frame).toContain("\u276f");
   });
 });

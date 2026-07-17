@@ -34,11 +34,12 @@ export class InputBar {
       flexDirection: "row",
       flexShrink: 0,
       width: "100%",
-      border: true,
-      borderStyle: "rounded",
-      borderColor: THEME.borderActive,
+      minHeight: 3,
+      border: ["left"],
+      borderColor: THEME.peach,
       backgroundColor: THEME.backgroundElement,
       paddingLeft: 1,
+      paddingY: 1,
     });
 
     const promptIcon = new TextRenderable(renderer, {
@@ -70,6 +71,13 @@ export class InputBar {
 
   focus(): void {
     this.input?.focus();
+  }
+
+  setInput(text: string): void {
+    if (this.input) {
+      this.input.value = text;
+      this.updateAutocomplete();
+    }
   }
 
   setOnSend(handler: (text: string) => void): void {

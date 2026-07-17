@@ -69,6 +69,9 @@ export class ForgeApp {
       flexDirection: "row",
       flexShrink: 0,
       width: "100%",
+      paddingLeft: 1,
+      paddingTop: 0,
+      paddingBottom: 0,
     });
     this.statusText = new TextRenderable(renderer, {
       content: this.statusBar.getText(),
@@ -123,6 +126,12 @@ export class ForgeApp {
     this.modelInfo = { agent, model, provider, thinkingLevel, maxTokens };
   }
 
+  private onQuestionCallback: ((text: string) => void) | null = null;
+
+  setOnQuestion(callback: (text: string) => void): void {
+    this.onQuestionCallback = callback;
+  }
+
   handleForgeEvent(event: ForgeEvent): void {
     this.chatView.handleEvent(event);
     if (event.type === "agent_settled") {
@@ -138,6 +147,14 @@ export class ForgeApp {
       );
       if (this.statusText) {
         this.statusText.content = this.statusBar.getText();
+      }
+      const lastAgentMsg = this.chatView.getLastAgentMessage();
+      if (lastAgentMsg && this.onQuestionCallback) {
+        import("./question-modal").then(({ isQuestion }) => {
+          if (isQuestion(lastAgentMsg)) {
+            this.onQuestionCallback!(lastAgentMsg);
+          }
+        });
       }
     }
   }

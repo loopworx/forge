@@ -134,6 +134,15 @@ export class ForgeApp {
     return this.statusBar;
   }
 
+  /**
+   * Expose the renderer so command handlers (e.g. /sessions, question modal)
+   * can mount overlays — SelectOverlay needs the renderer to add itself to
+   * renderer.root and capture keyboard input within the render loop.
+   */
+  getRenderer(): any {
+    return this.opts.renderer;
+  }
+
   setModelInfo(agent: string, model: string, provider: string, thinkingLevel: string, maxTokens: number): void {
     this.modelInfo = { agent, model, provider, thinkingLevel, maxTokens };
   }

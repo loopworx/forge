@@ -779,20 +779,31 @@ async function launchTui(): Promise<void> {
   logger.info(`TUI launched. Mode: ${mode}, Phase: ${projectState.inception.currentPhase}`);
 
   // --- Question modal: detect questions in agent responses ---
+  // Uses the native SelectOverlay instead of @inquirer/prompts select() —
+  // the readline-based inquirer select fights with OpenTUI for stdin
+  // ownership (raw mode toggling) and previously caused forge to exit on
+  // selection (OpenTUI's SIGINT handler fired while stdin was being
+  // restored by inquirer). SelectOverlay is an OpenTUI native renderable
+  // that shares the render loop's input model — no conflict.
   app.setOnQuestion(async (agentText: string) => {
     const { extractSuggestions } = await import("../src/tui/question-modal");
-    const { select } = await import("@inquirer/prompts");
+    const { SelectOverlay } = await import("../src/tui/select-overlay");
     const suggestions = extractSuggestions(agentText);
     app.getChatView().displayMessage("\u2753 Question detected — select an answer:");
-    const answer = await select({
-      message: "Your answer:",
-      choices: suggestions.map(s => ({ name: s, value: s })),
-      loop: false,
+    const overlay = new SelectOverlay(app.getRenderer(), {
+      title: "Your answer:",
+      options: suggestions.map(s => ({ name: s, description: "", value: s })),
     });
-    if (answer === "Write your own answer") {
-      app.getInputBar().focus();
-    } else {
-      app.getInputBar().setInput(answer);
+    try {
+      const answer = await overlay.showAsPromise();
+      if (answer === "Write your own answer") {
+        app.getInputBar().focus();
+      } else {
+        app.getInputBar().setInput(answer);
+        app.getInputBar().focus();
+      }
+    } catch {
+      // User pressed ESC — just return focus to the input bar.
       app.getInputBar().focus();
     }
   });
@@ -803,26 +814,129 @@ async function launchTui(): Promise<void> {
     app.getChatView().displayMessage("Available commands: " + allCommands.map(c => `/${c}`).join(", "));
   });
 
+  // --- /exit command: gracefully dispose engine + renderer ---
+  commands.register("exit", async () => {
+    logger.info("user requested exit via /exit command");
+    try {
+      engine.dispose();
+    } catch (err) {
+      logger.error(`engine.dispose() failed during /exit: ${(err as Error).message}`);
+    }
+    try {
+      renderer.destroy();
+    } catch (err) {
+      logger.error(`renderer.destroy() failed during /exit: ${(err as Error).message}`);
+    }
+    process.exit(0);
+  });
+
   // --- /sessions command: list and resume sessions ---
+  // Uses native SelectOverlay (not @inquirer/prompts select()) — see the
+  // question-modal comment above for why.
   commands.register("sessions", async () => {
-    const { select } = await import("@inquirer/prompts");
+    const { SelectOverlay } = await import("../src/tui/select-overlay");
     app.getChatView().displayMessage("\u2699 Loading sessions...");
     const sessionList = await sessions.listSessions(workdir);
     if (sessionList.length === 0) {
       app.getChatView().displayMessage("No sessions found. Type /forge-new to start.");
       return;
     }
-    const sessions_with_desc = sessionList.map(s => ({
-      name: `${s.name} (${s.modified.toLocaleDateString()} ${s.modified.toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"})})`,
-      value: s.id,
+
+    const overlayOptions = sessionList.map(s => ({
+      name: s.name,
+      description: `${s.modified.toLocaleDateString()} ${s.modified.toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"})}`,
+      value: s.path,
     }));
-    const selectedId = await select({
-      message: "Resume session:",
-      choices: sessions_with_desc,
-      loop: false,
+    const overlay = new SelectOverlay(app.getRenderer(), {
+      title: "Resume session:",
+      options: overlayOptions,
     });
-    app.getChatView().displayMessage(`\u21bb Resuming session ${selectedId}...`);
-    logger.info(`sessions: resuming ${selectedId}`);
+
+    let selectedPath: string | null = null;
+    try {
+      selectedPath = await overlay.showAsPromise();
+    } catch {
+      // ESC — user cancelled.
+      app.getChatView().displayMessage("Session resume cancelled.");
+      app.getInputBar().focus();
+      return;
+    }
+
+    if (!selectedPath) {
+      app.getInputBar().focus();
+      return;
+    }
+
+    app.getChatView().displayMessage(`\u21bb Resuming session ${selectedPath.split("/").pop()}...`);
+    logger.info(`sessions: resuming ${selectedPath}`);
+
+    // Determine which agent role to use. The project state tells us whether
+    // we're in inception (use the current phase's agent) or development
+    // (developer-agent). For now, since resume was primarily designed for
+    // inception sessions (per the plan), use the current inception phase's
+    // agent role when in inception mode, and developer-agent otherwise.
+    const projectState = engine.getProjectState();
+    const loadedConfig = config.load();
+    let agentRole: string;
+    if (projectState.mode === "inception") {
+      const { resolveInceptionPhase } = await import("../src/cli/inception-resolver");
+      try {
+        const resolution = resolveInceptionPhase(projectState, loadedConfig.inception.phases);
+        agentRole = resolution.agentRole;
+      } catch {
+        agentRole = "po-agent";
+      }
+    } else {
+      agentRole = "developer-agent";
+    }
+
+    let resumedSession;
+    try {
+      resumedSession = await sessions.resumeSession(selectedPath, {
+        cwd: workdir,
+        tools: ["read", "bash", "edit", "write", "grep", "glob", "forge_claim_story", "forge_complete_ac", "forge_handoff", "forge_create_artifact", "forge_log_progress"],
+        agentRole: agentRole as any,
+      });
+    } catch (err) {
+      const msg = (err as Error).message;
+      app.getChatView().displayMessage(`\u2717 Failed to resume session: ${msg}`);
+      logger.error(`sessions: resumeSession failed: ${msg}`, err as Error);
+      app.getInputBar().focus();
+      return;
+    }
+
+    inceptionSessionId = resumedSession.sessionId;
+
+    // Wire model info into the status bar.
+    try {
+      const resolved = sessions.resolveModel(agentRole);
+      app.setModelInfo(agentRole, resolved.model.id, resolved.model.provider, resolved.thinkingLevel, resolved.model.maxTokens);
+    } catch (err) {
+      logger.error(`sessions: resolveModel failed during resume: ${(err as Error).message}`);
+    }
+
+    // Subscribe to the resumed session's events.
+    resumedSession.subscribe((event) => {
+      logger.info(`SDK event (resumed): type=${event.type}`);
+      app.handleForgeEvent(event as any);
+    });
+
+    // Start the context-usage poller for the resumed session.
+    const usageTimer = setInterval(() => {
+      try {
+        const usage = resumedSession.getContextUsage?.();
+        if (usage && usage.tokens !== null && usage.percent !== null) {
+          app.updateContextUsage(usage.tokens, usage.contextWindow, usage.percent);
+        }
+      } catch (err) {
+        logger.debug(`usage poller (resumed): ${(err as Error).message}`);
+      }
+    }, 750);
+
+    // Clear timer on renderer destroy (e.g. /exit, Ctrl+C).
+    renderer.on("destroy", () => clearInterval(usageTimer));
+
+    app.getChatView().displayMessage(`\u2713 Session resumed (${resumedSession.sessionId.slice(0, 8)}...)`);
     app.getInputBar().focus();
   });
 

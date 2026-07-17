@@ -139,7 +139,7 @@ export class AgentSessionManager implements SessionManager {
     return this.sessions.get(sessionId);
   }
 
-  async listSessions(cwd: string): Promise<Array<{ id: string; name: string; firstMessage: string; created: Date; modified: Date }>> {
+  async listSessions(cwd: string): Promise<Array<{ id: string; name: string; firstMessage: string; created: Date; modified: Date; path: string }>> {
     const { SessionManager: SdkSessionManager } = await import("@earendil-works/pi-coding-agent");
     const { join } = await import("node:path");
     const { homedir } = await import("node:os");
@@ -152,10 +152,96 @@ export class AgentSessionManager implements SessionManager {
         firstMessage: s.firstMessage?.slice(0, 80) ?? "",
         created: s.created,
         modified: s.modified,
+        // SDK exposes `path` on SessionInfo (verified in
+        // node_modules/@earendil-works/pi-coding-agent/.../session-manager.d.ts:122).
+        // Cast to any because the SDK's TS type was wider than expected at
+        // indexing time on older versions.
+        path: (s as any).path ?? "",
       }));
     } catch {
       return [];
     }
+  }
+
+  /**
+   * Resume an existing session by path. Mirrors `createSession()` but uses
+   * `SdkSessionManager.open(path, sessionDir, cwd)` to re-open a persisted
+   * session file rather than starting a fresh one with `.create()`.
+   *
+   * Used by the `/sessions` slash command and the question modal selector
+   * in the TUI. The resumed session has the same surface as a freshly
+   * created one (prompt/steer/subscribe/abort/getContextUsage), and is
+   * tracked in the in-memory sessions map so subsequent calls to
+   * `getSession(id)` work.
+   *
+   * @param sessionPath Filesystem path to the session JSONL file returned
+   *   by `listSessions()` as the `path` field.
+   */
+  async resumeSession(sessionPath: string, config: SessionConfig): Promise<Session> {
+    const {
+      createAgentSession,
+      DefaultResourceLoader,
+      SessionManager: SdkSessionManager,
+      SettingsManager,
+    } = await import("@earendil-works/pi-coding-agent");
+    const { join } = await import("node:path");
+    const { homedir } = await import("node:os");
+
+    const forgeAgentDir = join(homedir(), ".config", "forge", "agent");
+    const sessionDir = join(forgeAgentDir, "sessions");
+    const { model, thinkingLevel } = this.resolveModel(config.agentRole);
+
+    const loader = new DefaultResourceLoader({
+      cwd: config.cwd,
+      agentDir: forgeAgentDir,
+      noExtensions: true,
+      noSkills: false,
+      noPromptTemplates: true,
+      noThemes: true,
+      noContextFiles: false,
+    });
+    await loader.reload({ resolveProjectTrust: async () => true });
+
+    const sdkSessionManager = SdkSessionManager.open(sessionPath, sessionDir, config.cwd);
+
+    const { session } = await createAgentSession({
+      cwd: config.cwd,
+      resourceLoader: loader,
+      sessionManager: sdkSessionManager,
+      settingsManager: SettingsManager.inMemory(),
+      authStorage: this.authStorage,
+      customTools: this.customTools ?? [],
+      tools: config.tools,
+      model,
+      thinkingLevel: thinkingLevel as any,
+    });
+
+    const tracked: TrackedSession = {
+      sessionId: session.sessionId,
+      storyId: config.storyId,
+      agentRole: config.agentRole,
+      prompt: (text: string) => session.prompt(text),
+      steer: (text: string) => session.steer(text),
+      subscribe: (listener: (event: SessionEvent) => void) => {
+        return session.subscribe((event: any) => {
+          const adapted = adaptSdkEvent(event);
+          if (adapted) {
+            listener(adapted as unknown as SessionEvent);
+          }
+        });
+      },
+      abort: () => session.abort(),
+      getContextUsage: () => {
+        try {
+          return (session as any).getContextUsage?.();
+        } catch {
+          return undefined;
+        }
+      },
+    };
+
+    this.sessions.set(tracked.sessionId, tracked);
+    return tracked;
   }
 
   /**

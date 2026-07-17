@@ -125,6 +125,13 @@ describe("AgentSessionManager", () => {
     expect(session?.getContextUsage!()).toBeUndefined();
   });
 
+  describe("resumeSession", () => {
+    it("exposes a resumeSession method on AgentSessionManager", () => {
+      const mgr = new AgentSessionManager("/test", {}, { find: () => undefined } as any);
+      expect(typeof (mgr as any).resumeSession).toBe("function");
+    });
+  });
+
   describe("resolveModel", () => {
     it("resolves model via modelRegistry.find(provider, modelId)", () => {
       const { registry, find } = mockRegistryReturning(mockModel);

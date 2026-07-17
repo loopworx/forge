@@ -104,6 +104,13 @@ describe("ForgeApp", () => {
     expect(app.getStatusBar()).toBeInstanceOf(StatusBar);
   });
 
+  it("getRenderer returns the active renderer", async () => {
+    const { renderer } = await createTestRenderer({ width: 100, height: 30 });
+    const app = new ForgeApp({ renderer, engine: inceptionEngine(), sessions: {} as any, commands: {} as any, mode: "inception" });
+    app.layout();
+    expect(app.getRenderer()).toBe(renderer);
+  });
+
   it("updates StatusBar on agent_settled event", async () => {
     const { renderer } = await createTestRenderer({ width: 100, height: 30 });
     const app = new ForgeApp({ renderer, engine: devEngine(), sessions: {} as any, commands: { getAll: () => [], filterByPrefix: () => [] } as any, mode: "development" });

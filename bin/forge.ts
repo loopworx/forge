@@ -7,6 +7,8 @@ import { FilePersistence } from "../src/engine/file-persistence";
 import { LinearClient } from "../src/linear/linear-story-repository";
 import { runOAuth } from "../src/linear/linear-oauth";
 import { buildProviderList, buildSelectChoices, testApiKey, mergeConfig, configToYaml, type ProviderEntry, type ModelChoice, type ConfigYaml } from "../src/cli/setup-wizard";
+import { createForgeLogger } from "../src/cli/forge-logger";
+import { buildStartupBanner } from "../src/cli/startup-banner";
 
 const TEMPLATES_DIR = join(import.meta.dir, "..", "templates");
 const FORGE_CONFIG_DIR = join(homedir(), ".config", "forge");
@@ -380,6 +382,10 @@ async function launchTui(): Promise<void> {
     process.exit(1);
   }
 
+  const logPath = join(FORGE_CONFIG_DIR, "forge.log");
+  const logger = createForgeLogger(logPath);
+  logger.info("=== Forge TUI starting ===");
+
   // --- Guard: project config ---
   const { join: joinPath } = await import("node:path");
   const workdir = process.cwd();
@@ -451,6 +457,7 @@ async function launchTui(): Promise<void> {
     for (const [name, providerConfig] of Object.entries(globalConfig.providers)) {
       if (!providerConfig.baseUrl || !providerConfig.apiKey) continue;
 
+      logger.info(`Registering provider: ${name} (${providerConfig.baseUrl})`);
       authStorage.setRuntimeApiKey(name, providerConfig.apiKey);
 
       if (builtinProviders.includes(name as any)) {
@@ -528,7 +535,6 @@ async function launchTui(): Promise<void> {
   let inceptionSessionId: string | null = null;
 
   commands.register("forge-new", async () => {
-    // Resolve the inception phase to start/resume from (Task 2: previously hardcoded phase 0 + "po-agent")
     const { resolveInceptionPhase } = await import("../src/cli/inception-resolver");
     const state = engine.getProjectState();
     const loadedConfig = config.load();
@@ -536,24 +542,55 @@ async function launchTui(): Promise<void> {
     try {
       resolution = resolveInceptionPhase(state, loadedConfig.inception.phases);
     } catch (err) {
-      console.error((err as Error).message);
+      const msg = (err as Error).message;
+      app.getChatView().displayMessage(`\u2717 ${msg}`);
+      logger.error(`forge-new: ${msg}`);
       return;
     }
     const { phaseIndex, agentRole } = resolution;
+    const phase = loadedConfig.inception.phases[phaseIndex];
+    app.getChatView().displayMessage(`\u2699 Starting inception phase ${phaseIndex + 1}/${loadedConfig.inception.phases.length}: ${phase?.name ?? "Unknown"}...`);
+    logger.info(`forge-new: starting phase ${phaseIndex} (${phase?.name}), agent=${agentRole}`);
+
     const prompt = engine.buildInceptionPrompt(phaseIndex, workdir);
     if (!prompt) {
-      console.error("No inception phases configured.");
+      app.getChatView().displayMessage("\u2717 No inception phases configured.");
+      logger.error("forge-new: no inception phases configured");
       return;
     }
     engine.markInceptionPhaseStarted(phaseIndex);
-    const session = await sessions.createSession({
-      cwd: workdir,
-      tools: ["read", "bash", "edit", "write", "grep", "glob", "forge_claim_story", "forge_complete_ac", "forge_handoff", "forge_create_artifact", "forge_log_progress"],
-      agentRole: agentRole as any,
-    });
+
+    let session;
+    try {
+      session = await sessions.createSession({
+        cwd: workdir,
+        tools: ["read", "bash", "edit", "write", "grep", "glob", "forge_claim_story", "forge_complete_ac", "forge_handoff", "forge_create_artifact", "forge_log_progress"],
+        agentRole: agentRole as any,
+      });
+    } catch (err) {
+      const msg = (err as Error).message;
+      app.getChatView().displayMessage(`\u2717 Failed to create session: ${msg}`);
+      logger.error(`forge-new: createSession failed: ${msg}`, err as Error);
+      return;
+    }
+
     inceptionSessionId = session.sessionId;
-    const { model, thinkingLevel } = sessions.resolveModel(agentRole);
-    app.setModelInfo(agentRole, model.id, model.provider, thinkingLevel, model.maxTokens);
+    let model, thinkingLevel;
+    try {
+      const resolved = sessions.resolveModel(agentRole);
+      model = resolved.model;
+      thinkingLevel = resolved.thinkingLevel;
+      app.setModelInfo(agentRole, model.id, model.provider, thinkingLevel, model.maxTokens);
+    } catch (err) {
+      const msg = (err as Error).message;
+      app.getChatView().displayMessage(`\u2717 Model resolution failed: ${msg}`);
+      logger.error(`forge-new: resolveModel failed: ${msg}`, err as Error);
+      return;
+    }
+
+    app.getChatView().displayMessage(`\u2713 Session created (model: ${model.id}, provider: ${model.provider})`);
+    logger.info(`forge-new: session created, model=${model.id}, provider=${model.provider}`);
+
     session.subscribe((event) => {
       app.handleForgeEvent(event as any);
     });
@@ -611,6 +648,11 @@ async function launchTui(): Promise<void> {
   const app = new ForgeApp({ renderer, engine, sessions, commands, mode });
   app.layout();
 
+  // --- Show startup banner ---
+  const loadedConfig = config.load();
+  app.getChatView().displayMessage(buildStartupBanner(projectState, loadedConfig.inception.phases));
+  logger.info(`TUI launched. Mode: ${mode}, Phase: ${projectState.inception.currentPhase}`);
+
   // --- /help command (needs app reference to display in ChatView) ---
   commands.register("help", async () => {
     const allCommands = commands.getAll().sort();
@@ -622,10 +664,15 @@ async function launchTui(): Promise<void> {
     if (inceptionSessionId) {
       const session = sessions.getSession(inceptionSessionId);
       if (session) {
-        await session.prompt(text);
+        try {
+          await session.prompt(text);
+        } catch (err) {
+          app.getChatView().displayMessage(`\u2717 Failed to send message: ${(err as Error).message}`);
+          logger.error(`setOnSend: prompt failed: ${(err as Error).message}`, err as Error);
+        }
       }
     } else {
-      console.error("No active inception session. Type /forge-new to start.");
+      app.getChatView().displayMessage("No active session. Type /forge-new to start.");
     }
   });
 
@@ -633,10 +680,11 @@ async function launchTui(): Promise<void> {
     const handler = commands.get(name);
     if (handler) {
       handler(args, { cwd: workdir } as any).catch((err: Error) => {
-        console.error(`Command /${name} failed: ${err.message}`);
+        app.getChatView().displayMessage(`\u2717 Command /${name} failed: ${err.message}`);
+        logger.error(`Command /${name} failed: ${err.message}`, err);
       });
     } else {
-      console.error(`Unknown command: /${name}`);
+      app.getChatView().displayMessage(`Unknown command: /${name}. Type /help for available commands.`);
     }
   });
 

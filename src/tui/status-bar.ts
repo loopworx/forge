@@ -4,7 +4,7 @@ export class StatusBar {
   private provider = "";
   private thinking = "";
   private tokens = 0;
-  private maxTokens = 1;
+  private maxTokens = 0;
   private mode = "";
 
   setInfo(agent: string, model: string, provider: string, thinking: string, tokens: number, maxTokens: number, mode: string): void {
@@ -18,9 +18,13 @@ export class StatusBar {
   }
 
   getText(): string {
+    if (!this.agent && !this.model && !this.provider) {
+      const modeLabel = this.mode ? ` (${this.mode})` : "";
+      return `Not configured${modeLabel} \u2014 run /forge-new to start`;
+    }
     const pct = this.maxTokens > 0 ? (this.tokens / this.maxTokens * 100).toFixed(1) : "0.0";
     const tokensFormatted = this.tokens >= 1000 ? `${Math.floor(this.tokens / 1000)}k` : `${this.tokens}`;
     const maxFormatted = this.maxTokens >= 1000000 ? `${this.maxTokens / 1000000}M` : `${this.maxTokens}`;
-    return `${this.agent} · ${this.model} ${this.provider} · ${this.thinking} · ${tokensFormatted}/${maxFormatted} (${pct}%) · ${this.mode}`;
+    return `${this.agent} \u00b7 ${this.model} ${this.provider} \u00b7 ${this.thinking} \u00b7 ${tokensFormatted}/${maxFormatted} (${pct}%) \u00b7 ${this.mode}`;
   }
 }

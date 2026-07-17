@@ -21,4 +21,18 @@ describe("StatusBar", () => {
     expect(text).toContain("0.0%");
     expect(text).toContain("development");
   });
+
+  it("shows 'Not configured' message when no model is set", () => {
+    const bar = new StatusBar();
+    const text = bar.getText();
+    expect(text).toContain("Not configured");
+    expect(text).toContain("/forge-new");
+  });
+
+  it("does not show dots or 0/1 when unconfigured", () => {
+    const bar = new StatusBar();
+    const text = bar.getText();
+    expect(text).not.toContain(" ·   ·  · ");
+    expect(text).not.toContain("0/1");
+  });
 });

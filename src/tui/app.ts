@@ -63,11 +63,18 @@ export class ForgeApp {
     mainColumn.add(this.chatView.mount(renderer));
     mainColumn.add(this.inputBar.mount(renderer));
 
+    const statusBarBox = new BoxRenderable(renderer, {
+      id: "status-bar",
+      flexDirection: "row",
+      flexShrink: 0,
+      width: "100%",
+    });
     const statusText = new TextRenderable(renderer, {
       content: this.statusBar.getText(),
       fg: THEME.textMuted,
     });
-    mainColumn.add(statusText);
+    statusBarBox.add(statusText);
+    mainColumn.add(statusBarBox);
 
     root.add(mainColumn);
 

@@ -51,6 +51,7 @@
     "@opentui/core": "^0.4.3",
     "open": "^11.0.0",
     "typebox": ">=0.32.0",
+    "winston": "^3.19.0",
     "yaml": "^2.9.0"
   },
   "peerDependencies": {},

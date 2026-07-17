@@ -4,7 +4,7 @@ import type {
   SessionEvent,
 } from "../engine/interfaces";
 import type { AgentRole, SessionConfig, SessionInfo } from "../engine/types";
-import type { ModelRegistry } from "@earendil-works/pi-coding-agent";
+import type { ModelRegistry, AuthStorage } from "@earendil-works/pi-coding-agent";
 import { adaptSdkEvent } from "./event-adapter";
 
 interface TrackedSession extends Session {
@@ -22,6 +22,7 @@ export class AgentSessionManager implements SessionManager {
     private defaultModelRef?: string,
     private defaultThinkingLevel?: string,
     private customTools?: any[],
+    private authStorage?: AuthStorage,
   ) {}
 
   /**
@@ -79,6 +80,7 @@ export class AgentSessionManager implements SessionManager {
       resourceLoader: loader,
       sessionManager: SdkSessionManager.inMemory(),
       settingsManager: SettingsManager.inMemory(),
+      authStorage: this.authStorage,
       customTools: this.customTools ?? [],
       tools: config.tools,
       model,

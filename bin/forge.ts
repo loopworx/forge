@@ -504,6 +504,8 @@ async function launchTui(): Promise<void> {
     modelRegistry,
     globalConfig.defaultModel || undefined,
     globalConfig.defaultThinkingLevel || undefined,
+    undefined,
+    authStorage,
   );
 
   // --- WorkflowEngine (Issue 14: null as any for unused _runtime param — acceptable) ---
@@ -592,9 +594,18 @@ async function launchTui(): Promise<void> {
     logger.info(`forge-new: session created, model=${model.id}, provider=${model.provider}`);
 
     session.subscribe((event) => {
+      logger.info(`SDK event: type=${event.type}`);
       app.handleForgeEvent(event as any);
     });
-    await session.prompt(prompt);
+    logger.info("forge-new: sending prompt to agent...");
+    try {
+      await session.prompt(prompt);
+      logger.info("forge-new: prompt completed successfully");
+    } catch (err) {
+      const msg = (err as Error).message;
+      app.getChatView().displayMessage(`\u2717 Agent prompt failed: ${msg}`);
+      logger.error(`forge-new: prompt failed: ${msg}`, err as Error);
+    }
   });
 
   commands.register("forge-next", async () => {

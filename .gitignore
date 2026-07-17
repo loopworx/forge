@@ -12,3 +12,7 @@ CLAUDE.md
 graphify-out/
 scripts/simulate-*.ts
 opencode.jsonc
+
+# MemPalace per-project files (issue #185)
+mempalace.yaml
+entities.json

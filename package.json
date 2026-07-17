@@ -31,7 +31,7 @@
     "test": "bun test",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint src/ tests/",
-    "build": "bun build bin/forge.ts --outfile dist/forge.js --external @earendil-works/pi-coding-agent --external @earendil-works/pi-ai --external @opentui/core --external typebox --external 'node:*' && bun -e \"const fs=require('fs');const f='dist/forge.js';let c=fs.readFileSync(f,'utf8');if(!c.startsWith('#!'))fs.writeFileSync(f,'#!/usr/bin/env bun\\n'+c);fs.chmodSync(f,0o755)\"",
+    "build": "bun build bin/forge.ts --outfile dist/forge.js --external @earendil-works/pi-coding-agent --external @earendil-works/pi-ai --external @opentui/core --external typebox --external winston --external 'node:*' && bun -e \"const fs=require('fs');const f='dist/forge.js';let c=fs.readFileSync(f,'utf8');if(!c.startsWith('#!'))fs.writeFileSync(f,'#!/usr/bin/env bun\\n'+c);fs.chmodSync(f,0o755)\"",
     "init": "bun run bin/forge.ts init",
     "prepublishOnly": "bun run typecheck && bun test && bun run build"
   },

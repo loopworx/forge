@@ -111,6 +111,84 @@ describe("ForgeApp", () => {
     expect(app.getRenderer()).toBe(renderer);
   });
 
+  it("refreshStatusBar updates the rendered status text immediately after setModelInfo", async () => {
+    const { renderer, renderOnce, captureCharFrame } = await createTestRenderer({ width: 100, height: 30 });
+    const mockEngine = {
+      getProjectState: () => ({ mode: "inception", inception: { mode: "inception", currentPhase: 0, phaseSessionId: null, artifacts: {} } }),
+      getActiveSessions: () => [],
+    } as any;
+    const app = new ForgeApp({ renderer, engine: mockEngine, sessions: {} as any, commands: {} as any, mode: "inception" });
+    app.layout();
+    await renderOnce();
+    expect(captureCharFrame()).toContain("Not configured");
+    app.setModelInfo("po-agent", "glm-5.2", "synthetic", "high", 16384);
+    app.refreshStatusBar();
+    await renderOnce();
+    const frame = captureCharFrame();
+    expect(frame).toContain("po-agent");
+    expect(frame).toContain("glm-5.2");
+    expect(frame).toContain("synthetic");
+    expect(frame).toContain("high");
+  });
+
+  it("refreshStatusBar does NOT trigger the question modal", async () => {
+    const { renderer, renderOnce } = await createTestRenderer({ width: 100, height: 30 });
+    const mockEngine = {
+      getProjectState: () => ({ mode: "inception", inception: { mode: "inception", currentPhase: 0, phaseSessionId: null, artifacts: {} } }),
+      getActiveSessions: () => [],
+    } as any;
+    let questionCalled = false;
+    const app = new ForgeApp({ renderer, engine: mockEngine, sessions: {} as any, commands: {} as any, mode: "inception" });
+    app.layout();
+    app.setOnQuestion(() => { questionCalled = true; });
+    // Add an agent message that ends with ? so isQuestion would return true.
+    app.getChatView().handleEvent({ type: "text_delta", delta: "Should I proceed?" } as any);
+    app.getChatView().handleEvent({ type: "message_end", role: "assistant" } as any);
+    await renderOnce();
+    // Refresh status bar — should NOT trigger the question callback.
+    app.setModelInfo("po-agent", "glm-5.2", "synthetic", "high", 16384);
+    app.refreshStatusBar();
+    await renderOnce();
+    // Give the dynamic import in handleForgeEvent a chance to settle.
+    await new Promise(r => setTimeout(r, 50));
+    expect(questionCalled).toBe(false);
+  });
+
+  it("refreshSidebar re-renders sidebar with current phase info", async () => {
+    const { renderer, renderOnce, captureCharFrame } = await createTestRenderer({ width: 100, height: 30 });
+    const mockEngine = {
+      getProjectState: () => ({ mode: "inception", inception: { mode: "inception", currentPhase: 2, phaseSessionId: null, artifacts: {} } }),
+      getActiveSessions: () => [],
+      getInceptionPhaseInfo: () => ({ name: "User Journeys", agent: "ux-agent", total: 8 }),
+    } as any;
+    const app = new ForgeApp({ renderer, engine: mockEngine, sessions: {} as any, commands: {} as any, mode: "inception" });
+    app.layout();
+    await renderOnce();
+    // Initial layout may not have phase name/agent; call refreshSidebar.
+    app.refreshSidebar();
+    await renderOnce();
+    const frame = captureCharFrame();
+    expect(frame).toContain("Phase: 2/8");
+    expect(frame).toContain("User Journeys");
+    expect(frame).toContain("(ux-agent)");
+  });
+
+  it("refreshSidebar updates phase total dynamically (not hardcoded /8)", async () => {
+    const { renderer, renderOnce, captureCharFrame } = await createTestRenderer({ width: 100, height: 30 });
+    const mockEngine = {
+      getProjectState: () => ({ mode: "inception", inception: { mode: "inception", currentPhase: 3, phaseSessionId: null, artifacts: {} } }),
+      getActiveSessions: () => [],
+      getInceptionPhaseInfo: () => ({ name: "Data Model", agent: "architect-agent", total: 12 }),
+    } as any;
+    const app = new ForgeApp({ renderer, engine: mockEngine, sessions: {} as any, commands: {} as any, mode: "inception" });
+    app.layout();
+    app.refreshSidebar();
+    await renderOnce();
+    const frame = captureCharFrame();
+    expect(frame).toContain("Phase: 3/12");
+    expect(frame).not.toContain("Phase: 3/8");
+  });
+
   it("updates StatusBar on agent_settled event", async () => {
     const { renderer } = await createTestRenderer({ width: 100, height: 30 });
     const app = new ForgeApp({ renderer, engine: devEngine(), sessions: {} as any, commands: { getAll: () => [], filterByPrefix: () => [] } as any, mode: "development" });

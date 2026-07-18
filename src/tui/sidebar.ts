@@ -3,13 +3,14 @@ import type { ProjectState, AgentSessionMeta } from "../engine/types";
 export class Sidebar {
   private lines: string[] = [];
 
-  setState(state: ProjectState, sessions: AgentSessionMeta[], phaseName?: string, phaseAgent?: string): void {
+  setState(state: ProjectState, sessions: AgentSessionMeta[], phaseName?: string, phaseAgent?: string, total?: number): void {
     const lines: string[] = [];
     lines.push(" Forge");
     lines.push("─".repeat(28));
     if (state.mode === "inception") {
       lines.push(" Mode: Inception");
-      lines.push(` Phase: ${state.inception.currentPhase}/8`);
+      const denom = total ?? 8;
+      lines.push(` Phase: ${state.inception.currentPhase}/${denom}`);
       if (phaseName) lines.push(` ${phaseName}`);
       if (phaseAgent) lines.push(` (${phaseAgent})`);
     } else {

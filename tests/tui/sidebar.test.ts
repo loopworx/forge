@@ -24,6 +24,45 @@ describe("Sidebar", () => {
     expect(lines.some(l => l.includes("Guardians"))).toBe(true);
   });
 
+  it("uses the total parameter instead of hardcoded /8", () => {
+    const sidebar = new Sidebar();
+    sidebar.setState(inceptionState, [], "Lean Canvas", "po-agent", 12);
+    const lines = sidebar.getText();
+    expect(lines.some(l => l.includes("Phase: 1/12"))).toBe(true);
+    expect(lines.some(l => l.includes("Phase: 1/8"))).toBe(false);
+  });
+
+  it("falls back to /8 when total is not provided (backwards compat)", () => {
+    const sidebar = new Sidebar();
+    sidebar.setState(inceptionState, [], "Lean Canvas", "po-agent");
+    const lines = sidebar.getText();
+    expect(lines.some(l => l.includes("Phase: 1/8"))).toBe(true);
+  });
+
+  it("shows phase name on its own line when provided", () => {
+    const sidebar = new Sidebar();
+    sidebar.setState(inceptionState, [], "Lean Canvas", "po-agent", 8);
+    const lines = sidebar.getText();
+    expect(lines.some(l => l.trim() === "Lean Canvas")).toBe(true);
+  });
+
+  it("shows agent role in parens on its own line when provided", () => {
+    const sidebar = new Sidebar();
+    sidebar.setState(inceptionState, [], "Lean Canvas", "architect-agent", 8);
+    const lines = sidebar.getText();
+    expect(lines.some(l => l.includes("(architect-agent)"))).toBe(true);
+  });
+
+  it("omits phase name line when not provided", () => {
+    const sidebar = new Sidebar();
+    sidebar.setState(inceptionState, []);
+    const lines = sidebar.getText();
+    // Phase counter still shows
+    expect(lines.some(l => l.includes("Phase: 1/8"))).toBe(true);
+    // But no stray "Lean Canvas" or "(...)" line
+    expect(lines.some(l => l.trim() === "Lean Canvas")).toBe(false);
+  });
+
   it("renders development mode with session list", () => {
     const sidebar = new Sidebar();
     const sessions = [

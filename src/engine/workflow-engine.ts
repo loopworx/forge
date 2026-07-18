@@ -224,6 +224,29 @@ Test locations: ${params.testLocations}${params.blockers ? `\nBlockers: ${params
     this.events.publish({ type: "inception_complete" });
   }
 
+  /**
+   * Return display info (name + agent + total) for the inception phase at
+   * `phaseIndex` (or the project state's currentPhase when omitted).
+   *
+   * Used by the TUI to populate the sidebar's phase-name and agent-role
+   * lines, and to replace the hardcoded `/8` denominator with the actual
+   * phase count from the project's forge.yaml.
+   *
+   * Returns `null` when the phase index is out of range — callers should
+   * treat this as "no phase info available" and fall back to defaults.
+   */
+  getInceptionPhaseInfo(phaseIndex?: number): { name: string; agent: string; total: number } | null {
+    const config = this.config.load();
+    const idx = phaseIndex ?? this.projectState.inception.currentPhase;
+    const phase = config.inception.phases[idx];
+    if (!phase) return null;
+    return {
+      name: phase.name,
+      agent: phase.agent,
+      total: config.inception.phases.length,
+    };
+  }
+
   startPolling(): void {
     if (this.pollingTimer) return;
     const interval = (this.config.load().linear.pollIntervalSeconds || 10) * 1000;

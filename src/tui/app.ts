@@ -112,6 +112,11 @@ export class ForgeApp {
     root.add(sidebarBox);
 
     renderer.root.add(root);
+
+    // After the initial layout, refresh the sidebar with phase info from
+    // the engine (name + agent + total) — the initial setState above used
+    // the no-phase-info overload.
+    this.refreshSidebar();
   }
 
   getInputBar(): InputBar {
@@ -170,39 +175,58 @@ export class ForgeApp {
     return chunks.map(c => c.text).join("");
   }
 
-  handleForgeEvent(event: ForgeEvent): void {
-    this.chatView.handleEvent(event);
-    if (event.type === "agent_settled") {
-      const state = this.opts.engine.getProjectState();
-      this.statusBar.setInfo(
-        this.modelInfo.agent,
-        this.modelInfo.model,
-        this.modelInfo.provider,
-        this.modelInfo.thinkingLevel,
-        0,
-        this.modelInfo.maxTokens,
-        state.mode,
-      );
-      if (this.leftStatusText) {
-        this.leftStatusText.content = this.statusBar.getPlainText();
-      }
-      if (this.rightStatusText) {
-        this.rightStatusText.content = this.buildRightText();
-      }
-      const lastAgentMsg = this.chatView.getLastAgentMessage();
-      if (lastAgentMsg && this.onQuestionCallback) {
-        import("./question-modal").then(({ isQuestion }) => {
-          if (isQuestion(lastAgentMsg)) {
-            this.onQuestionCallback!(lastAgentMsg);
-          }
-        });
-      }
+  /**
+   * Push the current `modelInfo` into `StatusBar` and refresh both rendered
+   * status segments. Used:
+   *   - by `handleForgeEvent` on `agent_settled` (live turn finished)
+   *   - by the `/sessions` resume flow after `setModelInfo()` so the bar
+   *     shows the resumed session's model immediately, without waiting for
+   *     the first agent turn to fire `agent_settled`.
+   *
+   * Does NOT trigger the question-modal check (unlike `handleForgeEvent`'s
+   * `agent_settled` branch), because resume doesn't imply a fresh question.
+   */
+  refreshStatusBar(): void {
+    const state = this.opts.engine.getProjectState();
+    this.statusBar.setInfo(
+      this.modelInfo.agent,
+      this.modelInfo.model,
+      this.modelInfo.provider,
+      this.modelInfo.thinkingLevel,
+      0,
+      this.modelInfo.maxTokens,
+      state.mode,
+    );
+    if (this.leftStatusText) {
+      this.leftStatusText.content = this.statusBar.getPlainText();
+    }
+    if (this.rightStatusText) {
+      this.rightStatusText.content = this.buildRightText();
     }
   }
 
-  handleEngineEvent(_event: any): void {
+  /**
+   * Re-render the sidebar with the current project state + active sessions
+   * + phase info. Used:
+   *   - by `handleEngineEvent` on any engine event
+   *   - by the `/sessions` resume flow after `engine.markInceptionPhaseStarted()`
+   *     so the sidebar reflects the resumed phase immediately.
+   *
+   * Resolves the optional phase name / agent / total from the engine when
+   * available (via `getInceptionPhaseInfo()`), replacing the prior behavior
+   * of always passing `undefined` for these args.
+   */
+  refreshSidebar(): void {
     const state = this.opts.engine.getProjectState();
-    this.sidebar.setState(state, this.opts.engine.getActiveSessions());
+    const sessions = this.opts.engine.getActiveSessions();
+    const phaseInfo = (this.opts.engine as any).getInceptionPhaseInfo?.();
+    this.sidebar.setState(
+      state,
+      sessions,
+      phaseInfo?.name,
+      phaseInfo?.agent,
+      phaseInfo?.total,
+    );
 
     if (this.sidebarBox) {
       while (this.sidebarBox.getChildrenCount() > 0) {
@@ -216,5 +240,24 @@ export class ForgeApp {
         );
       }
     }
+  }
+
+  handleForgeEvent(event: ForgeEvent): void {
+    this.chatView.handleEvent(event);
+    if (event.type === "agent_settled") {
+      this.refreshStatusBar();
+      const lastAgentMsg = this.chatView.getLastAgentMessage();
+      if (lastAgentMsg && this.onQuestionCallback) {
+        import("./question-modal").then(({ isQuestion }) => {
+          if (isQuestion(lastAgentMsg)) {
+            this.onQuestionCallback!(lastAgentMsg);
+          }
+        });
+      }
+    }
+  }
+
+  handleEngineEvent(_event: any): void {
+    this.refreshSidebar();
   }
 }

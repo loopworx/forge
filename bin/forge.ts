@@ -911,9 +911,30 @@ async function launchTui(): Promise<void> {
     try {
       const resolved = sessions.resolveModel(agentRole);
       app.setModelInfo(agentRole, resolved.model.id, resolved.model.provider, resolved.thinkingLevel, resolved.model.maxTokens);
+      // Refresh the status bar immediately so the resumed session's model
+      // appears in the bar without waiting for the first agent_settled
+      // event (which only fires after the user types something).
+      app.refreshStatusBar();
     } catch (err) {
       logger.error(`sessions: resolveModel failed during resume: ${(err as Error).message}`);
     }
+
+    // Update project state so the sidebar shows the correct inception phase
+    // for the resumed session. Find the phase whose agent matches the
+    // resolved agent role, mark it as started (this updates
+    // projectState.inception.currentPhase + phaseSessionId AND publishes a
+    // "phase_started" engine event → handleEngineEvent fires → sidebar
+    // refreshes automatically). Then call app.refreshSidebar() as a safety
+    // net for cases where the engine event doesn't fire (e.g. agent role
+    // not found in phases, or development mode).
+    const phaseIndex = loadedConfig.inception.phases.findIndex(
+      (p: any) => p.agent === agentRole,
+    );
+    if (phaseIndex >= 0 && projectState.mode === "inception") {
+      engine.markInceptionPhaseStarted(phaseIndex, resumedSession.sessionId);
+      logger.info(`sessions: marked inception phase ${phaseIndex} as started for resumed session`);
+    }
+    app.refreshSidebar();
 
     // Subscribe to the resumed session's events.
     resumedSession.subscribe((event) => {

@@ -318,5 +318,34 @@ describe("WorkflowEngine", () => {
       const state = engine.getProjectState();
       expect(state.mode).toBe("development");
     });
+
+    describe("getInceptionPhaseInfo", () => {
+      it("returns phase info for the current phase index when no arg given", () => {
+        engine.markInceptionPhaseStarted(0);
+        const info = engine.getInceptionPhaseInfo();
+        expect(info).not.toBeNull();
+        expect(info?.name).toBe("Lean Canvas");
+        expect(info?.agent).toBe("po-agent");
+        expect(info?.total).toBe(1); // MockConfig has 1 phase
+      });
+
+      it("returns phase info for a specific phase index when provided", () => {
+        const info = engine.getInceptionPhaseInfo(0);
+        expect(info).not.toBeNull();
+        expect(info?.name).toBe("Lean Canvas");
+        expect(info?.agent).toBe("po-agent");
+        expect(info?.total).toBe(1);
+      });
+
+      it("returns null for an out-of-range phase index", () => {
+        const info = engine.getInceptionPhaseInfo(999);
+        expect(info).toBeNull();
+      });
+
+      it("returns total = number of phases in config", () => {
+        const info = engine.getInceptionPhaseInfo(0);
+        expect(info?.total).toBe(1); // MockConfig has 1 phase
+      });
+    });
   });
 });

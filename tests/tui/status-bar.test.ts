@@ -133,6 +133,28 @@ describe("StatusBar", () => {
       const chunk = chunks[0] as any;
       expect(chunk.fg?.toLowerCase()).toBe("#808080");
     });
+
+    it("left chunks do NOT contain tokens/max/pct (no duplicate with right side)", () => {
+      const bar = new StatusBar();
+      bar.setInfo("po-agent", "glm-5.2", "synthetic", "high", 12000, 1000000, "inception");
+      const chunks = bar.getLeftChunks();
+      const text = chunks.map(c => c.text).join("");
+      expect(text).not.toContain("12k");
+      expect(text).not.toContain("1M");
+      expect(text).not.toContain("1.2%");
+      expect(text).not.toContain("inception");
+    });
+
+    it("right chunks contain tokens/max/pct/mode (context info)", () => {
+      const bar = new StatusBar();
+      bar.setInfo("po-agent", "glm-5.2", "synthetic", "high", 12000, 1000000, "inception");
+      const chunks = bar.getRightChunks();
+      const text = chunks.map(c => c.text).join("");
+      expect(text).toContain("12k");
+      expect(text).toContain("1M");
+      expect(text).toContain("1.2%");
+      expect(text).toContain("inception");
+    });
   });
 
   describe("setContext (live context tracking)", () => {

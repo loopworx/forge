@@ -13,14 +13,16 @@ import { fileURLToPath } from "node:url";
  * is unavailable (e.g. tests, sandboxed environments).
  */
 export const THEME = {
-  // OpenCode dark-mode step shades
-  background:        "#0a0a0a", // darkStep1
-  backgroundPanel:   "#141414", // darkStep2
-  backgroundElement: "#1e1e1e", // darkStep3
-  surface0:         "#282828", // darkStep4
-  surface1:         "#323232", // darkStep5
-  surfaceDark:      "#1e1e1e", // darkStep3 (alias for chat agent bg)
-  surfaceTool:      "#0a0a0a", // darkStep1
+  // Slightly darker step shades than OpenCode's defaults for a "smooth black"
+  // feel — background #080808, panel #0f0f0f, element #161616 — keeping subtle
+  // differentiation between areas but darker overall.
+  background:        "#080808", // darker than darkStep1 (#0a0a0a)
+  backgroundPanel:   "#0f0f0f", // darker than darkStep2 (#141414)
+  backgroundElement: "#161616", // darker than darkStep3 (#1e1e1e)
+  surface0:         "#282828", // darkStep4 (unchanged)
+  surface1:         "#323232", // darkStep5 (unchanged)
+  surfaceDark:      "#161616", // matches backgroundElement
+  surfaceTool:      "#080808", // matches background
   overlay0:         "#808080", // darkStep11
   border:           "#484848", // darkStep7
   borderActive:     "#606060", // darkStep8

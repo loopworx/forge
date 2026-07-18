@@ -48,12 +48,12 @@ describe("theme", () => {
     expect(THEME.warning.toLowerCase()).toBe("#f5a742");
   });
 
-  it("background is OpenCode dark-mode step1 (#0a0a0a)", () => {
-    expect(THEME.background.toLowerCase()).toBe("#0a0a0a");
+  it("background is darker step shade (#080808)", () => {
+    expect(THEME.background.toLowerCase()).toBe("#080808");
   });
 
-  it("backgroundElement is OpenCode dark-mode step3 (#1e1e1e)", () => {
-    expect(THEME.backgroundElement.toLowerCase()).toBe("#1e1e1e");
+  it("backgroundElement is darker step shade (#161616)", () => {
+    expect(THEME.backgroundElement.toLowerCase()).toBe("#161616");
   });
 
   it("text is OpenCode dark-mode step12 (#eeeeee)", () => {
@@ -73,7 +73,15 @@ describe("theme", () => {
   });
 
   it("surfaceDark equals backgroundElement (both step3)", () => {
-    expect(THEME.surfaceDark.toLowerCase()).toBe("#1e1e1e");
+    expect(THEME.surfaceDark.toLowerCase()).toBe("#161616");
+  });
+
+  it("backgroundPanel is darker step shade (#0f0f0f)", () => {
+    expect(THEME.backgroundPanel.toLowerCase()).toBe("#0f0f0f");
+  });
+
+  it("surfaceTool matches background (#080808)", () => {
+    expect(THEME.surfaceTool.toLowerCase()).toBe("#080808");
   });
 
   it("info matches OpenCode dark cyan (#56b6c2)", () => {
@@ -105,6 +113,7 @@ describe("loadOpencodeTheme", () => {
   it("falls back to in-code THEME when opencode.json cannot be read", async () => {
     const theme = await loadOpencodeTheme({ path: "/nonexistent/opencode.json" });
     expect(theme.primary.toLowerCase()).toBe("#fab283");
-    expect(theme.background.toLowerCase()).toBe("#0a0a0a");
+    // The fallback returns the THEME constants, which now use darker shades.
+    expect(theme.background.toLowerCase()).toBe("#080808");
   });
 });

@@ -1,4 +1,4 @@
-import { BoxRenderable, TextRenderable } from "@opentui/core";
+import { BoxRenderable, TextRenderable, bold as boldText, fg as fgColor, StyledText } from "@opentui/core";
 import type { ForgeEvent } from "../agent/event-adapter";
 import { ChatView } from "./chat-view";
 import { InputBar } from "./input-bar";
@@ -75,6 +75,14 @@ export class ForgeApp {
 
     mainColumn.add(this.inputBar.mount(renderer));
 
+    // 1-row gap between the input bar and the status bar.
+    const inputStatusGap = new BoxRenderable(renderer, {
+      id: "input-status-gap",
+      flexShrink: 0,
+      height: 1,
+    });
+    mainColumn.add(inputStatusGap);
+
     const statusBarBox = new BoxRenderable(renderer, {
       id: "status-bar",
       flexDirection: "row",
@@ -86,7 +94,7 @@ export class ForgeApp {
       alignItems: "center",
     });
     this.leftStatusText = new TextRenderable(renderer, {
-      content: this.statusBar.getPlainText(),
+      content: this.buildLeftStyledText(),
       fg: THEME.textMuted,
     });
     const spacer = new TextRenderable(renderer, {
@@ -106,20 +114,30 @@ export class ForgeApp {
 
     const sidebarBox = new BoxRenderable(renderer, {
       id: "sidebar",
-      width: 28,
+      width: 34, // 28 → 34 (~1/5 wider)
       height: "100%",
       flexDirection: "column",
       backgroundColor: THEME.backgroundPanel,
-      border: ["left"],
-      borderColor: THEME.border,
     });
+
+    // 2-column spacer between the main column and the sidebar — cleaner
+    // separation than a thin border line, matching OpenCode's spacing-based
+    // visual rhythm.
+    const sidebarGap = new BoxRenderable(renderer, {
+      id: "sidebar-gap",
+      flexShrink: 0,
+      width: 2,
+      height: "100%",
+    });
+    root.add(mainColumn);
+    root.add(sidebarGap);
+    root.add(sidebarBox);
 
     this.sidebar.setState(state, sessions);
     for (const line of this.sidebar.getText()) {
       sidebarBox.add(new TextRenderable(renderer, { content: line, fg: THEME.text }));
     }
     this.sidebarBox = sidebarBox;
-    root.add(sidebarBox);
 
     renderer.root.add(root);
 
@@ -186,6 +204,31 @@ export class ForgeApp {
   }
 
   /**
+   * Build a StyledText for the left status segment from `StatusBar.getLeftChunks()`.
+   * Each chunk carries its own `fg` + `bold` attributes, applied via the
+   * `bold()` and `fg()` helpers from @opentui/core. This replaces the prior
+   * use of `getPlainText()` which included tokens/max/pct/mode — that info
+   * belongs only on the right side (see `buildRightText()`).
+   */
+  private buildLeftStyledText(): StyledText | string {
+    const chunks = this.statusBar.getLeftChunks();
+    // Empty state: single muted chunk with no bold — return plain string
+    // (the TextRenderable's `fg` default applies THEME.textMuted).
+    if (chunks.length === 1 && !chunks[0].bold) {
+      return chunks[0].text;
+    }
+    // Build TextChunk[] via the bold/fg helpers, then wrap in StyledText.
+    const textChunks: any[] = [];
+    for (const chunk of chunks) {
+      let s: any = chunk.text;
+      if (chunk.fg) s = fgColor(chunk.fg)(s);
+      if (chunk.bold) s = boldText(s);
+      textChunks.push(s);
+    }
+    return new StyledText(textChunks);
+  }
+
+  /**
    * Push the current `modelInfo` into `StatusBar` and refresh both rendered
    * status segments. Used:
    *   - by `handleForgeEvent` on `agent_settled` (live turn finished)
@@ -208,7 +251,7 @@ export class ForgeApp {
       state.mode,
     );
     if (this.leftStatusText) {
-      this.leftStatusText.content = this.statusBar.getPlainText();
+      this.leftStatusText.content = this.buildLeftStyledText();
     }
     if (this.rightStatusText) {
       this.rightStatusText.content = this.buildRightText();

@@ -131,6 +131,37 @@ describe("ForgeApp", () => {
     expect(frame).toContain("high");
   });
 
+  it("refreshStatusBar does NOT duplicate context info on the left side", async () => {
+    const { renderer, renderOnce, captureCharFrame } = await createTestRenderer({ width: 100, height: 30 });
+    const mockEngine = {
+      getProjectState: () => ({ mode: "inception", inception: { mode: "inception", currentPhase: 0, phaseSessionId: null, artifacts: {} } }),
+      getActiveSessions: () => [],
+    } as any;
+    const app = new ForgeApp({ renderer, engine: mockEngine, sessions: {} as any, commands: {} as any, mode: "inception" });
+    app.layout();
+    app.setModelInfo("po-agent", "glm-5.2", "synthetic", "high", 16384);
+    app.refreshStatusBar();
+    await renderOnce();
+    const frame = captureCharFrame();
+    // Left side should have agent/model/provider/thinking.
+    expect(frame).toContain("po-agent");
+    expect(frame).toContain("glm-5.2");
+    // The left status text should NOT contain token/pct info.
+    // Find the status bar row (the row containing "po-agent" at the bottom
+    // of the main column, before the input bar's ❯ prompt).
+    const rows = frame.split("\n");
+    const statusRow = rows.find(r => r.includes("po-agent") && r.includes("high"));
+    expect(statusRow).toBeDefined();
+    // The status row should NOT contain "0/16" or "0.0%" (left-side
+    // context duplication). The right side shows "0/16k (0.0%)" once.
+    // With the old getPlainText() the left side also had "0/16k (0.0%) · inception".
+    // Now the left side only has agent · model · provider · thinking.
+    // The status row will contain the right-side context info once, but
+    // should NOT contain a second occurrence of "0.0%".
+    const pctMatches = (statusRow!.match(/0\.0%/g) ?? []).length;
+    expect(pctMatches).toBe(1);
+  });
+
   it("refreshStatusBar does NOT trigger the question modal", async () => {
     const { renderer, renderOnce } = await createTestRenderer({ width: 100, height: 30 });
     const mockEngine = {

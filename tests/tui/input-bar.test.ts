@@ -78,4 +78,20 @@ describe("InputBar", () => {
     const frame = captureCharFrame();
     expect(frame).toContain("\u276f");
   });
+
+  it("renders the input bar at 2x the original height (>=6 border rows)", async () => {
+    // Use a tall renderer so the input bar can fully expand.
+    const { renderer, renderOnce, captureCharFrame } = await createTestRenderer({ width: 60, height: 30 });
+    const commands = new CommandRegistry();
+    const bar = new InputBar(commands);
+    bar.mount(renderer);
+    await renderOnce();
+    const frame = captureCharFrame();
+    const rows = frame.split("\n");
+    // Count rows containing the left-border character (│) — those are the
+    // input wrapper's visible rows. Original minHeight=3 → 3 border rows.
+    // 2x = 6 border rows (minHeight includes padding in OpenTUI).
+    const borderRows = rows.filter(r => r.includes("\u2502")).length;
+    expect(borderRows).toBeGreaterThanOrEqual(6);
+  });
 });

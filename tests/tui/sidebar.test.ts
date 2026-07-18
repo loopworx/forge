@@ -13,12 +13,14 @@ const devState: ProjectState = {
 };
 
 describe("Sidebar", () => {
-  it("renders inception mode with phase info", () => {
+  it("renders inception mode with phase info (1-based display)", () => {
     const sidebar = new Sidebar();
     sidebar.setState(inceptionState, [], "Lean Canvas", "po-agent");
     const lines = sidebar.getText();
     expect(lines.some(l => l.includes("Inception"))).toBe(true);
-    expect(lines.some(l => l.includes("Phase: 1/8"))).toBe(true);
+    // currentPhase=1 is a 0-based index; display should be 1-based = "Phase: 2/8"
+    expect(lines.some(l => l.includes("Phase: 2/8"))).toBe(true);
+    expect(lines.some(l => l.includes("Phase: 1/8"))).toBe(false);
     expect(lines.some(l => l.includes("Lean Canvas"))).toBe(true);
     expect(lines.some(l => l.includes("po-agent"))).toBe(true);
     expect(lines.some(l => l.includes("Guardians"))).toBe(true);
@@ -28,15 +30,15 @@ describe("Sidebar", () => {
     const sidebar = new Sidebar();
     sidebar.setState(inceptionState, [], "Lean Canvas", "po-agent", 12);
     const lines = sidebar.getText();
-    expect(lines.some(l => l.includes("Phase: 1/12"))).toBe(true);
-    expect(lines.some(l => l.includes("Phase: 1/8"))).toBe(false);
+    expect(lines.some(l => l.includes("Phase: 2/12"))).toBe(true);
+    expect(lines.some(l => l.includes("Phase: 1/12"))).toBe(false);
   });
 
   it("falls back to /8 when total is not provided (backwards compat)", () => {
     const sidebar = new Sidebar();
     sidebar.setState(inceptionState, [], "Lean Canvas", "po-agent");
     const lines = sidebar.getText();
-    expect(lines.some(l => l.includes("Phase: 1/8"))).toBe(true);
+    expect(lines.some(l => l.includes("Phase: 2/8"))).toBe(true);
   });
 
   it("shows phase name on its own line when provided", () => {
@@ -57,10 +59,22 @@ describe("Sidebar", () => {
     const sidebar = new Sidebar();
     sidebar.setState(inceptionState, []);
     const lines = sidebar.getText();
-    // Phase counter still shows
-    expect(lines.some(l => l.includes("Phase: 1/8"))).toBe(true);
+    // Phase counter still shows (1-based)
+    expect(lines.some(l => l.includes("Phase: 2/8"))).toBe(true);
     // But no stray "Lean Canvas" or "(...)" line
     expect(lines.some(l => l.trim() === "Lean Canvas")).toBe(false);
+  });
+
+  it("displays phase 0 (currentPhase=0) as 'Phase: 1/8' (1-based)", () => {
+    const sidebar = new Sidebar();
+    const freshState: ProjectState = {
+      mode: "inception",
+      inception: { mode: "inception", currentPhase: 0, phaseSessionId: null, artifacts: {} },
+    };
+    sidebar.setState(freshState, [], "Lean Canvas", "po-agent", 8);
+    const lines = sidebar.getText();
+    expect(lines.some(l => l.includes("Phase: 1/8"))).toBe(true);
+    expect(lines.some(l => l.includes("Phase: 0/8"))).toBe(false);
   });
 
   it("renders development mode with session list", () => {

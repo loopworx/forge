@@ -168,7 +168,8 @@ describe("ForgeApp", () => {
     app.refreshSidebar();
     await renderOnce();
     const frame = captureCharFrame();
-    expect(frame).toContain("Phase: 2/8");
+    // currentPhase=2 (0-based) displays as "Phase: 3/8" (1-based)
+    expect(frame).toContain("Phase: 3/8");
     expect(frame).toContain("User Journeys");
     expect(frame).toContain("(ux-agent)");
   });
@@ -185,8 +186,34 @@ describe("ForgeApp", () => {
     app.refreshSidebar();
     await renderOnce();
     const frame = captureCharFrame();
-    expect(frame).toContain("Phase: 3/12");
+    // currentPhase=3 (0-based) displays as "Phase: 4/12" (1-based)
+    expect(frame).toContain("Phase: 4/12");
     expect(frame).not.toContain("Phase: 3/8");
+  });
+
+  it("inserts a 3-row gap between chat view and input bar", async () => {
+    const { renderer, renderOnce } = await createTestRenderer({ width: 100, height: 30 });
+    const mockEngine = {
+      getProjectState: () => ({ mode: "inception", inception: { mode: "inception", currentPhase: 0, phaseSessionId: null, artifacts: {} } }),
+      getActiveSessions: () => [],
+    } as any;
+    const app = new ForgeApp({ renderer, engine: mockEngine, sessions: {} as any, commands: {} as any, mode: "inception" });
+    app.layout();
+    await renderOnce();
+    // Find the chat-input gap renderable in the main column.
+    // Layout tree: renderer.root → forge-root → main-column → [chatView, gap, inputBar, statusBar]
+    const forgeRoot = renderer.root.getChildren().find((c: any) => c.id === "forge-root");
+    expect(forgeRoot).toBeDefined();
+    const mainColumn = (forgeRoot as any)?.getChildren().find((c: any) => c.id === "main-column");
+    expect(mainColumn).toBeDefined();
+    const children = (mainColumn as any)?.getChildren() ?? [];
+    const gap = children.find((c: any) => c.id === "chat-input-gap");
+    expect(gap).toBeDefined();
+    // Verify the gap is positioned between the chat view and the input bar.
+    const gapIdx = children.findIndex((c: any) => c.id === "chat-input-gap");
+    const inputIdx = children.findIndex((c: any) => c.id === "input-bar-container");
+    expect(gapIdx).toBeGreaterThanOrEqual(0);
+    expect(inputIdx).toBeGreaterThan(gapIdx);
   });
 
   it("updates StatusBar on agent_settled event", async () => {

@@ -34,12 +34,15 @@ export class InputBar {
       flexDirection: "row",
       flexShrink: 0,
       width: "100%",
-      minHeight: 3,
+      // 2x the original height: minHeight 3→6, paddingY 1→2.
+      // Total visual height = 6 (content) + 4 (padding) = 10 rows,
+      // exactly 2x the original 5 rows (3 + 2).
+      minHeight: 6,
       border: ["left"],
       borderColor: THEME.peach,
       backgroundColor: THEME.backgroundElement,
       paddingLeft: 1,
-      paddingY: 1,
+      paddingY: 2,
     });
 
     const promptIcon = new TextRenderable(renderer, {

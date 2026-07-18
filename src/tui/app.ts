@@ -63,6 +63,16 @@ export class ForgeApp {
     }
 
     mainColumn.add(this.chatView.mount(renderer));
+
+    // 3-row gap between the chat scrollback and the input bar, matching
+    // the OpenCode visual rhythm (chat ↓ gap ↓ input ↓ status).
+    const chatInputGap = new BoxRenderable(renderer, {
+      id: "chat-input-gap",
+      flexShrink: 0,
+      height: 3,
+    });
+    mainColumn.add(chatInputGap);
+
     mainColumn.add(this.inputBar.mount(renderer));
 
     const statusBarBox = new BoxRenderable(renderer, {

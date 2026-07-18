@@ -10,7 +10,11 @@ export class Sidebar {
     if (state.mode === "inception") {
       lines.push(" Mode: Inception");
       const denom = total ?? 8;
-      lines.push(` Phase: ${state.inception.currentPhase}/${denom}`);
+      // Display 1-based phase number to match the startup banner
+      // (startup-banner.ts:33 uses `currentPhase + 1`). The project state's
+      // `currentPhase` is a 0-based array index used for `phases[idx]`
+      // lookups; human-facing displays should be 1-based.
+      lines.push(` Phase: ${state.inception.currentPhase + 1}/${denom}`);
       if (phaseName) lines.push(` ${phaseName}`);
       if (phaseAgent) lines.push(` (${phaseAgent})`);
     } else {

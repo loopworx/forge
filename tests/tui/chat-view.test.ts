@@ -183,4 +183,85 @@ describe("ChatView", () => {
     expect(brailleChars.some(c => frame.includes(c))).toBe(false);
     expect(frame).toContain("hi");
   });
+
+  // --- Spinner animation via setInterval (issue: spinner was static) ---
+  // The `live: true` + `renderAfter` mechanism is fragile through the
+  // ScrollBox content→viewport→wrapper hierarchy: when the spinner is
+  // scrolled out of the viewport (or the viewport culling filter excludes
+  // it), `renderAfter` is not called and the spinner freezes on frame 0.
+  // A `setInterval` driving `spinner.advance()` + `spinnerText.content = ...`
+  // is immune to viewport culling — the content setter calls `requestRender()`
+  // which schedules a fresh render pass regardless of culling.
+
+  it("starts a spinner interval when setThinking(true)", async () => {
+    const { renderer } = await createTestRenderer({ width: 60, height: 20 });
+    const chat = new ChatView();
+    chat.mount(renderer);
+    chat.setThinking(true);
+    expect((chat as any).spinnerInterval).not.toBeNull();
+    chat.setThinking(false);
+    expect((chat as any).spinnerInterval).toBeNull();
+  });
+
+  it("starts a spinner interval on tool_start and stops on tool_end", async () => {
+    const { renderer } = await createTestRenderer({ width: 60, height: 20 });
+    const chat = new ChatView();
+    chat.mount(renderer);
+    chat.handleEvent({ type: "tool_start", toolName: "bash" } as ForgeEvent);
+    expect((chat as any).spinnerInterval).not.toBeNull();
+    chat.handleEvent({ type: "tool_end", toolName: "bash", isError: false } as ForgeEvent);
+    expect((chat as any).spinnerInterval).toBeNull();
+  });
+
+  it("stops the spinner interval on agent_settled", async () => {
+    const { renderer } = await createTestRenderer({ width: 60, height: 20 });
+    const chat = new ChatView();
+    chat.mount(renderer);
+    chat.setThinking(true);
+    expect((chat as any).spinnerInterval).not.toBeNull();
+    chat.handleEvent({ type: "agent_settled" } as ForgeEvent);
+    expect((chat as any).spinnerInterval).toBeNull();
+  });
+
+  it("stops the spinner interval on agent_error", async () => {
+    const { renderer } = await createTestRenderer({ width: 60, height: 20 });
+    const chat = new ChatView();
+    chat.mount(renderer);
+    chat.setThinking(true);
+    expect((chat as any).spinnerInterval).not.toBeNull();
+    chat.handleEvent({ type: "agent_error", message: "boom" } as ForgeEvent);
+    expect((chat as any).spinnerInterval).toBeNull();
+  });
+
+  it("advances the spinner frame across the braille cycle on interval ticks", async () => {
+    const { renderer, renderOnce, captureCharFrame } = await createTestRenderer({ width: 60, height: 20 });
+    const chat = new ChatView();
+    chat.mount(renderer);
+    chat.setThinking(true);
+    await renderOnce();
+    const frame0 = captureCharFrame();
+    const brailleChars = ["\u280b", "\u2819", "\u2839", "\u2838", "\u283c", "\u2834", "\u2826", "\u2827", "\u2807", "\u280f"];
+    expect(brailleChars.some(c => frame0.includes(c))).toBe(true);
+    // Force several interval callbacks to fire by awaiting setTimeouts that
+    // exceed the 80ms frame duration. The spinner should advance to a
+    // different frame over time.
+    const initialElapsed = (chat as any).spinner.elapsed;
+    await new Promise((r) => setTimeout(r, 260));
+    await renderOnce();
+    const afterElapsed = (chat as any).spinner.elapsed;
+    expect(afterElapsed).toBeGreaterThan(initialElapsed);
+    const frameAfter = captureCharFrame();
+    expect(brailleChars.some(c => frameAfter.includes(c))).toBe(true);
+    chat.setThinking(false);
+  });
+
+  it("disposes the spinner interval on dispose()", async () => {
+    const { renderer } = await createTestRenderer({ width: 60, height: 20 });
+    const chat = new ChatView();
+    chat.mount(renderer);
+    chat.setThinking(true);
+    expect((chat as any).spinnerInterval).not.toBeNull();
+    chat.dispose();
+    expect((chat as any).spinnerInterval).toBeNull();
+  });
 });

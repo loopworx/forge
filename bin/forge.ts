@@ -786,15 +786,22 @@ async function launchTui(): Promise<void> {
   // restored by inquirer). SelectOverlay is an OpenTUI native renderable
   // that shares the render loop's input model — no conflict.
   app.setOnQuestion(async (agentText: string) => {
-    const { extractSuggestions } = await import("../src/tui/question-modal");
-    const { SelectOverlay } = await import("../src/tui/select-overlay");
-    const suggestions = extractSuggestions(agentText);
-    app.getChatView().displayMessage("\u2753 Question detected — select an answer:");
-    const overlay = new SelectOverlay(app.getRenderer(), {
-      title: "Your answer:",
-      options: suggestions.map(s => ({ name: s, description: "", value: s })),
-    });
+    // Wrap the entire callback body in try/catch/finally so that ANY error
+    // (extractSuggestions, SelectOverlay creation, showAsPromise, etc.)
+    // is logged and focus is ALWAYS restored to the input bar. Without
+    // this, an error in the callback leaves the TUI in a broken state:
+    // the chat clears, /sessions stops working, and the user can't type
+    // because focus is trapped in a partially-created overlay.
+    let overlay: any = null;
     try {
+      const { extractSuggestions } = await import("../src/tui/question-modal");
+      const { SelectOverlay } = await import("../src/tui/select-overlay");
+      const suggestions = extractSuggestions(agentText);
+      app.getChatView().displayMessage("\u2753 Question detected — select an answer:");
+      overlay = new SelectOverlay(app.getRenderer(), {
+        title: "Your answer:",
+        options: suggestions.map(s => ({ name: s, description: "", value: s })),
+      });
       const answer = await overlay.showAsPromise();
       if (answer === "Write your own answer") {
         app.getInputBar().focus();
@@ -802,8 +809,17 @@ async function launchTui(): Promise<void> {
         app.getInputBar().setInput(answer);
         app.getInputBar().focus();
       }
-    } catch {
-      // User pressed ESC — just return focus to the input bar.
+    } catch (err) {
+      // User pressed ESC (showAsPromise rejects) OR an error occurred
+      // during overlay creation/suggestions extraction. Either way,
+      // log the error and cancel the overlay if it was created.
+      if (err instanceof Error && err.message !== "SelectOverlay cancelled") {
+        logger.error(`question modal failed: ${(err as Error).message}`, err as Error);
+      }
+      try { overlay?.cancel(); } catch {}
+    } finally {
+      // ALWAYS restore focus to the input bar — even if the overlay
+      // was never created or was partially created.
       app.getInputBar().focus();
     }
   });
@@ -817,6 +833,11 @@ async function launchTui(): Promise<void> {
   // --- /exit command: gracefully dispose engine + renderer ---
   commands.register("exit", async () => {
     logger.info("user requested exit via /exit command");
+    try {
+      app.getChatView().dispose();
+    } catch (err) {
+      logger.error(`chatView.dispose() failed during /exit: ${(err as Error).message}`);
+    }
     try {
       engine.dispose();
     } catch (err) {

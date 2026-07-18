@@ -49,9 +49,20 @@ export class SelectOverlay {
       top: "25%",
       left: "10%",
       width: "80%",
-      backgroundColor: THEME.backgroundPanel,
+      // Cap the overlay height so it doesn't cover the entire screen on
+      // long option lists — the user needs to see the chat below for
+      // context when answering a question. 60% leaves room for the chat
+      // above/below while fitting the title + select + hint + padding.
+      maxHeight: "60%",
+      // Use backgroundElement (#161616) — distinct from the root's
+      // backgroundPanel (#0f0f0f) — so the overlay is visually
+      // distinguishable. The previous backgroundPanel made the overlay
+      // nearly invisible against the same-shade root.
+      backgroundColor: THEME.backgroundElement,
       border: true,
-      borderColor: THEME.border,
+      // Use borderActive (#606060) for higher contrast than border
+      // (#484848) — the overlay outline must be clearly visible.
+      borderColor: THEME.borderActive,
       zIndex: 100,
       padding: 1,
     });

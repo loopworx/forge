@@ -56,6 +56,11 @@ export class ForgeApp {
       flexDirection: "column",
       flexGrow: 1,
       minHeight: 0,
+      // Darkest shade (#080808) so the chat area visually separates from
+      // the panel-shade sidebar (#0f0f0f). Without this, the main column
+      // is transparent and inherits the root's #0f0f0f — making the
+      // sidebar gap invisible.
+      backgroundColor: THEME.background,
     });
 
     if (state.mode === "development") {
@@ -122,14 +127,17 @@ export class ForgeApp {
 
     // 2-column spacer between the main column and the sidebar — cleaner
     // separation than a thin border line, matching OpenCode's spacing-based
-    // visual rhythm.
+    // visual rhythm. The gap uses the darkest shade (#080808) so it
+    // contrasts with the sidebar's panel shade (#0f0f0f); without an
+    // explicit background the gap inherits the root's #0f0f0f and is
+    // visually indistinguishable from the sidebar.
     const sidebarGap = new BoxRenderable(renderer, {
       id: "sidebar-gap",
       flexShrink: 0,
       width: 2,
       height: "100%",
+      backgroundColor: THEME.background,
     });
-    root.add(mainColumn);
     root.add(sidebarGap);
     root.add(sidebarBox);
 
@@ -301,10 +309,21 @@ export class ForgeApp {
       this.refreshStatusBar();
       const lastAgentMsg = this.chatView.getLastAgentMessage();
       if (lastAgentMsg && this.onQuestionCallback) {
+        // The dynamic import + callback chain MUST have a .catch() —
+        // if the callback throws (e.g. SelectOverlay creation fails,
+        // extractSuggestions throws, or the callback itself errors),
+        // the unhandled promise rejection leaves the TUI in a broken
+        // state: the renderer's global unhandledRejection handler
+        // swallows subsequent errors, /sessions stops working, and the
+        // chat can clear unpredictably. The .catch() logs the error and
+        // prevents the rejection from propagating.
         import("./question-modal").then(({ isQuestion }) => {
           if (isQuestion(lastAgentMsg)) {
             this.onQuestionCallback!(lastAgentMsg);
           }
+        }).catch((err) => {
+          // eslint-disable-next-line no-console
+          console.error(`[forge] question modal check failed: ${(err as Error).message}`);
         });
       }
     }

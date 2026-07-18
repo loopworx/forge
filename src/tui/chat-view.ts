@@ -18,6 +18,22 @@ export class ChatView {
   private isThinking = false;
   private spinner = new Spinner();
   private spinnerText: TextRenderable | null = null;
+  /**
+   * Interval that drives the spinner animation. Started on `setThinking(true)`
+   * and on `tool_start`; stopped on `setThinking(false)`, `tool_end`,
+   * `agent_settled`, `agent_error`, and `dispose()`.
+   *
+   * The `live: true` + `renderAfter` mechanism on `spinnerText` is fragile
+   * through the ScrollBox content→viewport→wrapper hierarchy: when the
+   * spinner is scrolled out of the viewport (or the viewport culling
+   * filter excludes it), `renderAfter` is not called and the spinner
+   * freezes on frame 0. A `setInterval` that advances the spinner and
+   * reassigns `spinnerText.content` is immune to viewport culling — the
+   * content setter calls `requestRender()` which schedules a fresh
+   * render pass regardless of culling.
+   */
+  private spinnerInterval: ReturnType<typeof setInterval> | null = null;
+  private static readonly SPINNER_INTERVAL_MS = 80;
 
   mount(renderer: any): ScrollBoxRenderable {
     this.scrollbox = new ScrollBoxRenderable(renderer, {
@@ -35,7 +51,12 @@ export class ChatView {
 
   setThinking(value: boolean): void {
     this.isThinking = value;
-    if (value) this.spinner.reset();
+    if (value) {
+      this.spinner.reset();
+      this.startSpinnerInterval();
+    } else {
+      this.stopSpinnerInterval();
+    }
     this.updateContent();
   }
 
@@ -53,6 +74,7 @@ export class ChatView {
     switch (event.type) {
       case "text_delta":
         this.isThinking = false;
+        this.stopSpinnerInterval();
         this.currentAgentText += event.delta;
         break;
       case "message_end":
@@ -62,9 +84,11 @@ export class ChatView {
       case "tool_start":
         this.flushAgentText();
         this.currentToolName = event.toolName;
+        this.startSpinnerInterval();
         break;
       case "tool_end":
         this.flushAgentText();
+        this.stopSpinnerInterval();
         if (event.isError) {
           this.messages.push({ text: `\u26a0 ${event.toolName}: failed`, source: "tool_error" });
         }
@@ -72,11 +96,13 @@ export class ChatView {
         break;
       case "agent_error":
         this.flushAgentText();
+        this.stopSpinnerInterval();
         this.messages.push({ text: event.message, source: "tool_error" });
         break;
       case "agent_settled":
         this.isThinking = false;
         this.currentToolName = null;
+        this.stopSpinnerInterval();
         break;
     }
     this.updateContent();
@@ -197,5 +223,45 @@ export class ChatView {
       fg,
     }));
     content.add(row);
+  }
+
+  /**
+   * Start a `setInterval` that advances the spinner and updates the
+   * `spinnerText.content` every `SPINNER_INTERVAL_MS` (80ms). The interval
+   * is the primary animation driver — it is immune to the ScrollBox
+   * viewport culling that can silently skip `renderAfter` callbacks when
+   * the spinner is scrolled out of view. The content setter triggers
+   * `requestRender()` on the renderable, which schedules a fresh render
+   * pass regardless of culling.
+   *
+   * Idempotent: no-op if an interval is already running.
+   */
+  private startSpinnerInterval(): void {
+    if (this.spinnerInterval !== null) return;
+    this.spinnerInterval = setInterval(() => {
+      this.spinner.advance(ChatView.SPINNER_INTERVAL_MS);
+      if (this.spinnerText) {
+        this.spinnerText.content = this.spinner.getLabel(this.currentToolName);
+      }
+    }, ChatView.SPINNER_INTERVAL_MS);
+  }
+
+  /**
+   * Clear the spinner interval if running. Idempotent.
+   */
+  private stopSpinnerInterval(): void {
+    if (this.spinnerInterval !== null) {
+      clearInterval(this.spinnerInterval);
+      this.spinnerInterval = null;
+    }
+  }
+
+  /**
+   * Stop the spinner interval and release resources. Called by the
+   * `/exit` command and on renderer destroy to prevent the interval
+   * from firing after the TUI is torn down.
+   */
+  dispose(): void {
+    this.stopSpinnerInterval();
   }
 }

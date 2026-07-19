@@ -31,6 +31,7 @@ export class ForgeApp {
   private leftStatusText: TextRenderable | null = null;
   private rightStatusText: TextRenderable | null = null;
   private workIndicator: WorkIndicator;
+  private _debug: ((msg: string) => void) | null = null;
   private modelInfo = { agent: "", model: "", provider: "", thinkingLevel: "medium", maxTokens: 16384 };
 
   constructor(private opts: ForgeAppOptions) {
@@ -40,6 +41,11 @@ export class ForgeApp {
     this.sidebar = new Sidebar();
     this.statusBar = new StatusBar();
     this.workIndicator = new WorkIndicator();
+  }
+
+  setDebugLogger(fn: (msg: string) => void): void {
+    this._debug = fn;
+    this.chatView.setDebugLogger(fn);
   }
 
   layout(): void {
@@ -365,11 +371,14 @@ export class ForgeApp {
   }
 
   handleForgeEvent(event: ForgeEvent): void {
+    this._debug?.(`handleForgeEvent: IN type=${event.type} chatMsgCount=${this.chatView.getMessageCount()}`);
     this.chatView.handleEvent(event);
+    this._debug?.(`handleForgeEvent: after chatView.handleEvent messages=${this.chatView.getMessageCount()}`);
     if (event.type === "agent_settled") {
       this.workIndicator.setWorking(false);
       this.refreshStatusBar();
       const lastAgentMsg = this.chatView.getLastAgentMessage();
+      this._debug?.(`handleForgeEvent: agent_settled lastAgentMsg=${lastAgentMsg?.slice(0, 80) ?? "null"} hasCallback=${!!this.onQuestionCallback}`);
       if (lastAgentMsg && this.onQuestionCallback) {
         import("./question-modal").then(({ isQuestion }) => {
           if (isQuestion(lastAgentMsg)) {
@@ -380,9 +389,13 @@ export class ForgeApp {
         });
       }
     } else if (event.type === "agent_error") {
+      this._debug?.(`handleForgeEvent: agent_error message=${event.message}`);
       this.workIndicator.setWorking(false);
     } else if (event.type === "tool_start") {
+      this._debug?.(`handleForgeEvent: tool_start toolName=${event.toolName}`);
       this.workIndicator.setWorking(true, event.toolName);
+    } else if (event.type === "tool_end") {
+      this._debug?.(`handleForgeEvent: tool_end toolName=${event.toolName} isError=${event.isError}`);
     }
   }
 

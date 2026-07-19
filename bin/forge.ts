@@ -820,6 +820,7 @@ async function launchTui(): Promise<void> {
   const mode = projectState.mode;
   const renderer = await createForgeRenderer();
   const app = new ForgeApp({ renderer, engine, sessions, commands, mode });
+  app.setDebugLogger((msg) => logger.debug(msg));
   app.layout();
 
   // --- Show startup banner ---
@@ -995,12 +996,13 @@ async function launchTui(): Promise<void> {
 
     // Subscribe to the resumed session's events.
     resumedSession.subscribe((event) => {
-      logger.info(`SDK event (resumed): type=${event.type}`);
+      logger.debug(`sub: IN event type=${(event as any)?.type}`);
       try {
         app.handleForgeEvent(event as any);
+        logger.debug(`sub: handleForgeEvent OK for ${(event as any)?.type}`);
       } catch (err) {
         // Same guard as forge-new — see comment there.
-        logger.error(`sessions: handleForgeEvent failed for ${event.type}: ${(err as Error).message}`, err as Error);
+        logger.error(`sessions: handleForgeEvent failed for ${(event as any)?.type}: ${(err as Error).message}`, err as Error);
       }
     });
 
@@ -1032,14 +1034,18 @@ async function launchTui(): Promise<void> {
 
   // --- Wire InputBar callbacks (Issue 5) ---
   app.getInputBar().setOnSend(async (text: string) => {
+    logger.debug(`setOnSend: entered text="${text.slice(0, 60)}" inceptionSessionId=${inceptionSessionId}`);
     if (inceptionSessionId) {
       const session = sessions.getSession(inceptionSessionId);
+      logger.debug(`setOnSend: session=${!!session} hasPrompt=${typeof session?.prompt}`);
       if (session) {
         app.getChatView().displayUserMessage(text);
         app.getChatView().setThinking(true);
         app.getWorkIndicator().setWorking(true);
+        logger.debug(`setOnSend: calling session.prompt...`);
         try {
           await session.prompt(text);
+          logger.debug(`setOnSend: session.prompt returned successfully`);
         } catch (err) {
           app.getChatView().displayMessage(`\u2717 Failed to send message: ${(err as Error).message}`);
           logger.error(`setOnSend: prompt failed: ${(err as Error).message}`, err as Error);

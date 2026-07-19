@@ -18,6 +18,15 @@ export class ChatView {
   private isThinking = false;
   private spinner = new Spinner();
   private spinnerText: TextRenderable | null = null;
+  private _debug: ((msg: string) => void) | null = null;
+
+  setDebugLogger(fn: (msg: string) => void): void {
+    this._debug = fn;
+  }
+
+  getMessageCount(): number {
+    return this.messages.length;
+  }
   /**
    * Interval that drives the spinner animation. Started on `setThinking(true)`
    * and on `tool_start`; stopped on `setThinking(false)`, `tool_end`,
@@ -71,6 +80,7 @@ export class ChatView {
   }
 
   handleEvent(event: ForgeEvent): void {
+    this._debug?.(`handleEvent: IN type=${event.type} messages=${this.messages.length} pendingLen=${this.currentAgentText.length} isThinking=${this.isThinking}`);
     switch (event.type) {
       case "text_delta":
         this.isThinking = false;
@@ -105,6 +115,7 @@ export class ChatView {
         this.stopSpinnerInterval();
         break;
     }
+    this._debug?.(`handleEvent: OUT messages=${this.messages.length} isThinking=${this.isThinking} pendingLen=${this.currentAgentText.length}`);
     this.updateContent();
   }
 
@@ -132,12 +143,14 @@ export class ChatView {
   private updateContent(): void {
     if (!this.scrollbox) return;
     const content = this.scrollbox.content;
+    this._debug?.(`updateContent: START messages=${this.messages.length} scrollboxChildren=${content.getChildrenCount()}`);
     // Phase 1: clear all existing children.
     while (content.getChildrenCount() > 0) {
       const [first] = content.getChildren();
       if (!first) break;
       content.remove(first);
     }
+    this._debug?.(`updateContent: after clear children=${content.getChildrenCount()}`);
 
     // Phase 2: re-add all messages + spinner. Wrapped in try/catch so
     // that if a renderable constructor or content.add throws mid-re-add,
@@ -145,17 +158,21 @@ export class ChatView {
     // the user saw a blank chat and /sessions stopped working). The catch
     // block adds an error row so the user sees something went wrong, and
     // the next updateContent call can recover normally.
+    let addCount = 0;
     try {
       for (const msg of this.messages) {
         if (msg.text === "" && msg.source === "system") {
           content.add(new TextRenderable(this.scrollbox.ctx, { content: "", fg: THEME.textMuted }));
+          addCount++;
           continue;
         }
         this.addMessageRow(content, msg);
+        addCount++;
       }
 
       if (this.currentAgentText) {
         this.addMessageRow(content, { text: this.currentAgentText, source: "agent" });
+        addCount++;
       }
 
       const showSpinner = this.isThinking || this.currentToolName !== null;
@@ -171,6 +188,7 @@ export class ChatView {
           this.spinnerText!.content = this.spinner.getLabel(this.currentToolName);
         };
         content.add(this.spinnerText);
+        addCount++;
       } else {
         this.spinnerText = null;
       }
@@ -180,8 +198,11 @@ export class ChatView {
           content: " (waiting for agent output...)",
           fg: THEME.textMuted,
         }));
+        addCount++;
       }
+      this._debug?.(`updateContent: re-added ${addCount} items, children=${content.getChildrenCount()}`);
     } catch (err) {
+      this._debug?.(`updateContent: ERROR in Phase 2: ${(err as Error).message}`);
       // Re-add phase failed — the chat has been cleared (phase 1) but
       // only partially repopulated. Add an error row so the user sees
       // something went wrong instead of a blank chat. The next
@@ -192,9 +213,9 @@ export class ChatView {
           content: `\u26a0 Render error: ${(err as Error).message}`,
           fg: THEME.warning,
         }));
-      } catch {
-        // Last-resort: if even the error row can't be added, give up
-        // silently — don't let the catch handler itself throw.
+      } catch (err2) {
+        // eslint-disable-next-line no-console
+        console.error(`[forge] updateContent unrecoverable error: ${(err2 as Error).message}`);
       }
     }
   }

@@ -43,6 +43,9 @@ export class ChatView {
    */
   private spinnerInterval: ReturnType<typeof setInterval> | null = null;
   private static readonly SPINNER_INTERVAL_MS = 80;
+  private static readonly MIN_UPDATE_MS = 50;
+  private _lastUpdateTime = 0;
+  private _pendingUpdate = false;
 
   mount(renderer: any): ScrollBoxRenderable {
     this.scrollbox = new ScrollBoxRenderable(renderer, {
@@ -81,6 +84,7 @@ export class ChatView {
 
   handleEvent(event: ForgeEvent): void {
     this._debug?.(`handleEvent: IN type=${event.type} messages=${this.messages.length} pendingLen=${this.currentAgentText.length} isThinking=${this.isThinking}`);
+    const isTextDelta = event.type === "text_delta";
     switch (event.type) {
       case "text_delta":
         this.isThinking = false;
@@ -116,7 +120,11 @@ export class ChatView {
         break;
     }
     this._debug?.(`handleEvent: OUT messages=${this.messages.length} isThinking=${this.isThinking} pendingLen=${this.currentAgentText.length}`);
-    this.updateContent();
+    if (isTextDelta) {
+      this.debouncedUpdate();
+    } else {
+      this.updateContent();
+    }
   }
 
   getCurrentToolName(): string | null {
@@ -140,7 +148,37 @@ export class ChatView {
     }
   }
 
+  /**
+   * Debounced version of updateContent. During fast agent streaming, text_delta
+   * events can arrive at 50-100 calls/second. Each calls updateContent() which
+   * destroys and recreates ~N*2 renderables (BoxRenderable + TextRenderable
+   * per message). Rapid create/destroy cycles exhaust OpenTUI's internal
+   * TextBuffer pool, causing "Failed to create TextBuffer" errors.
+   *
+   * This method debounces those calls: the immediate call is throttled, but a
+   * final deferred call is scheduled via setImmediate to capture the latest
+   * state. Only the text_delta case uses this — all other event types and
+   * direct API calls updateContent() synchronously.
+   */
+  private debouncedUpdate(): void {
+    const now = performance.now();
+    if (now - this._lastUpdateTime < ChatView.MIN_UPDATE_MS) {
+      if (!this._pendingUpdate) {
+        this._pendingUpdate = true;
+        setImmediate(() => {
+          this._pendingUpdate = false;
+          this._lastUpdateTime = 0;
+          this.updateContent();
+        });
+      }
+      return;
+    }
+    this._lastUpdateTime = now;
+    this.updateContent();
+  }
+
   private updateContent(): void {
+    // Remove the throttle — keep updateContent direct for all callers
     if (!this.scrollbox) return;
     const content = this.scrollbox.content;
     this._debug?.(`updateContent: START messages=${this.messages.length} scrollboxChildren=${content.getChildrenCount()}`);

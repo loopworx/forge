@@ -306,4 +306,43 @@ describe("ChatView", () => {
     await renderOnce();
     expect(captureCharFrame()).toContain("recovered");
   });
+
+  describe("updateContent throttling", () => {
+    it("preserves scrollbox children under rapid text_delta events", async () => {
+      const { renderer, renderOnce, captureCharFrame } = await createTestRenderer({ width: 60, height: 20 });
+      const chat = new ChatView();
+      chat.mount(renderer);
+      chat.displayMessage("First message");
+      chat.handleEvent({ type: "text_delta", delta: "Hello" } as ForgeEvent);
+      chat.handleEvent({ type: "message_end", role: "assistant" } as ForgeEvent);
+      await renderOnce();
+      const content = (chat as any).scrollbox.content;
+      expect(content.getChildrenCount()).toBeGreaterThan(0);
+
+      // Rapid text_delta — simulate streaming without intervening awaits
+      for (let i = 0; i < 30; i++) {
+        chat.handleEvent({ type: "text_delta", delta: " more text" } as ForgeEvent);
+      }
+
+      // Children must still be > 0 after rapid calls
+      expect(content.getChildrenCount()).toBeGreaterThan(0);
+    });
+
+    it("sets _pendingUpdate when calls arrive within throttle window", async () => {
+      const { renderer } = await createTestRenderer({ width: 60, height: 20 });
+      const chat = new ChatView();
+      chat.mount(renderer);
+      chat.displayMessage("msg");
+
+      // Capture the last update time and verify the next call within 50ms
+      // triggers the throttle (sets _pendingUpdate)
+      (chat as any)._lastUpdateTime = performance.now();
+      chat.handleEvent({ type: "text_delta", delta: "a" } as ForgeEvent);
+      expect((chat as any)._pendingUpdate).toBe(true);
+
+      // After the deferred update fires, _pendingUpdate resets
+      await new Promise(resolve => setImmediate(resolve));
+      expect((chat as any)._pendingUpdate).toBe(false);
+    });
+  });
 });

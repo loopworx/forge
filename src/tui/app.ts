@@ -32,6 +32,7 @@ export class ForgeApp {
   private rightStatusText: TextRenderable | null = null;
   private workIndicator: WorkIndicator;
   private _debug: ((msg: string) => void) | null = null;
+  private _convLog: ((msg: string) => void) | null = null;
   private modelInfo = { agent: "", model: "", provider: "", thinkingLevel: "medium", maxTokens: 16384 };
 
   constructor(private opts: ForgeAppOptions) {
@@ -46,6 +47,11 @@ export class ForgeApp {
   setDebugLogger(fn: (msg: string) => void): void {
     this._debug = fn;
     this.chatView.setDebugLogger(fn);
+  }
+
+  setConversationLogger(fn: (msg: string) => void): void {
+    this._convLog = fn;
+    this.chatView.setConversationLogger(fn);
   }
 
   layout(): void {

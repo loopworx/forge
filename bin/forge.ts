@@ -1,6 +1,6 @@
 import { parseArgs } from "node:util";
 import { join } from "node:path";
-import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync, createWriteStream } from "node:fs";
 import { homedir } from "node:os";
 import { ProjectInitializer } from "../src/cli/project-initializer";
 import { FilePersistence } from "../src/engine/file-persistence";
@@ -738,7 +738,10 @@ async function launchTui(): Promise<void> {
     logger.info(`forge-new: session created, model=${model.id}, provider=${model.provider}`);
 
     session.subscribe((event) => {
-      logger.info(`SDK event: type=${event.type}`);
+      const e = event as any;
+      const convInfo = `forge-new sub: type=${e.type}${e.delta ? ` delta="${e.delta.slice(0, 80)}"` : ""}${e.toolName ? ` toolName=${e.toolName}` : ""}${e.isError !== undefined ? ` isError=${e.isError}` : ""}${e.message ? ` message="${e.message.slice(0, 200)}"` : ""}${e.role ? ` role=${e.role}` : ""}`;
+      convLog(convInfo);
+      logger.info(`SDK event: type=${e.type}`);
       try {
         app.handleForgeEvent(event as any);
       } catch (err) {
@@ -746,7 +749,7 @@ async function launchTui(): Promise<void> {
         // updateContent so they don't propagate to the SDK's event
         // emitter (which would route them to the renderer's global
         // uncaughtException handler — silent in forge.log).
-        logger.error(`forge-new: handleForgeEvent failed for ${event.type}: ${(err as Error).message}`, err as Error);
+        logger.error(`forge-new: handleForgeEvent failed for ${e.type}: ${(err as Error).message}`, err as Error);
       }
     });
     app.getChatView().setThinking(true);
@@ -821,6 +824,13 @@ async function launchTui(): Promise<void> {
   const renderer = await createForgeRenderer();
   const app = new ForgeApp({ renderer, engine, sessions, commands, mode });
   app.setDebugLogger((msg) => logger.debug(msg));
+  // Conversation log — writes to a separate file to avoid cluttering forge.log
+  const convLogPath = joinPath(FORGE_CONFIG_DIR, "conversation.log");
+  const convStream = createWriteStream(convLogPath, { flags: "a" });
+  const convLog = (msg: string) => {
+    convStream.write(`${new Date().toISOString()} [CONV] ${msg}\n`);
+  };
+  app.setConversationLogger(convLog);
   app.layout();
 
   // --- Show startup banner ---
@@ -996,13 +1006,16 @@ async function launchTui(): Promise<void> {
 
     // Subscribe to the resumed session's events.
     resumedSession.subscribe((event) => {
-      logger.debug(`sub: IN event type=${(event as any)?.type}`);
+      const e = event as any;
+      const convInfo = `sessions sub: type=${e.type}${e.delta ? ` delta="${e.delta.slice(0, 80)}"` : ""}${e.toolName ? ` toolName=${e.toolName}` : ""}${e.isError !== undefined ? ` isError=${e.isError}` : ""}${e.message ? ` message="${e.message.slice(0, 200)}"` : ""}${e.role ? ` role=${e.role}` : ""}`;
+      convLog(convInfo);
+      logger.debug(`sub: IN event type=${e?.type}`);
       try {
         app.handleForgeEvent(event as any);
-        logger.debug(`sub: handleForgeEvent OK for ${(event as any)?.type}`);
+        logger.debug(`sub: handleForgeEvent OK for ${e?.type}`);
       } catch (err) {
         // Same guard as forge-new — see comment there.
-        logger.error(`sessions: handleForgeEvent failed for ${(event as any)?.type}: ${(err as Error).message}`, err as Error);
+        logger.error(`sessions: handleForgeEvent failed for ${e?.type}: ${(err as Error).message}`, err as Error);
       }
     });
 
@@ -1088,6 +1101,7 @@ async function launchTui(): Promise<void> {
   renderer.on("destroy", () => {
     engine.dispose();
     app.getWorkIndicator().dispose();
+    convStream.end();
   });
 }
 

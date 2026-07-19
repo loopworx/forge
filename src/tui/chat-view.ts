@@ -19,13 +19,39 @@ export class ChatView {
   private spinner = new Spinner();
   private spinnerText: TextRenderable | null = null;
   private _debug: ((msg: string) => void) | null = null;
+  private _convLog: ((msg: string) => void) | null = null;
 
   setDebugLogger(fn: (msg: string) => void): void {
     this._debug = fn;
   }
 
+  setConversationLogger(fn: (msg: string) => void): void {
+    this._convLog = fn;
+  }
+
   getMessageCount(): number {
     return this.messages.length;
+  }
+
+  /**
+   * Format the full conversation state as a multi-line string for diagnostics.
+   * Called before updateContent clears children and in the error catch block.
+   */
+  private dumpConversationState(): string {
+    const lines: string[] = [];
+    lines.push("--- Conversation State ---");
+    for (let i = 0; i < this.messages.length; i++) {
+      const m = this.messages[i];
+      const text = m.text.length > 120 ? m.text.slice(0, 117) + "..." : m.text;
+      lines.push(`  [${i}] source=${m.source} text="${text}" (${m.text.length} chars)`);
+    }
+    if (this.currentAgentText) {
+      const t = this.currentAgentText.length > 120 ? this.currentAgentText.slice(0, 117) + "..." : this.currentAgentText;
+      lines.push(`  pendingAgentText="${t}" (${this.currentAgentText.length} chars)`);
+    }
+    lines.push(`  isThinking=${this.isThinking} currentToolName=${this.currentToolName}`);
+    lines.push("--- End Conversation State ---");
+    return lines.join("\n");
   }
   /**
    * Interval that drives the spinner animation. Started on `setThinking(true)`
@@ -86,37 +112,46 @@ export class ChatView {
     this._debug?.(`handleEvent: IN type=${event.type} messages=${this.messages.length} pendingLen=${this.currentAgentText.length} isThinking=${this.isThinking}`);
     const isTextDelta = event.type === "text_delta";
     switch (event.type) {
-      case "text_delta":
+      case "text_delta": {
         this.isThinking = false;
         this.stopSpinnerInterval();
         this.currentAgentText += event.delta;
+        this._convLog?.(`handleEvent text_delta delta="${event.delta.length > 80 ? event.delta.slice(0, 77) + "..." : event.delta}"`);
         break;
+      }
       case "message_end":
         this.flushAgentText();
         this.messages.push({ text: "", source: "system" });
+        this._convLog?.(`handleEvent message_end role=${event.role}`);
         break;
-      case "tool_start":
+      case "tool_start": {
         this.flushAgentText();
         this.currentToolName = event.toolName;
         this.startSpinnerInterval();
+        this._convLog?.(`handleEvent tool_start toolName=${event.toolName}`);
         break;
-      case "tool_end":
+      }
+      case "tool_end": {
         this.flushAgentText();
         this.stopSpinnerInterval();
         if (event.isError) {
           this.messages.push({ text: `\u26a0 ${event.toolName}: failed`, source: "tool_error" });
         }
         this.currentToolName = null;
+        this._convLog?.(`handleEvent tool_end toolName=${event.toolName} isError=${event.isError}`);
         break;
+      }
       case "agent_error":
         this.flushAgentText();
         this.stopSpinnerInterval();
         this.messages.push({ text: event.message, source: "tool_error" });
+        this._convLog?.(`handleEvent agent_error message="${event.message.length > 200 ? event.message.slice(0, 197) + "..." : event.message}"`);
         break;
       case "agent_settled":
         this.isThinking = false;
         this.currentToolName = null;
         this.stopSpinnerInterval();
+        this._convLog?.("handleEvent agent_settled");
         break;
     }
     this._debug?.(`handleEvent: OUT messages=${this.messages.length} isThinking=${this.isThinking} pendingLen=${this.currentAgentText.length}`);
@@ -165,15 +200,20 @@ export class ChatView {
     if (now - this._lastUpdateTime < ChatView.MIN_UPDATE_MS) {
       if (!this._pendingUpdate) {
         this._pendingUpdate = true;
+        this._convLog?.("debouncedUpdate: throttled — scheduling deferred update");
         setImmediate(() => {
           this._pendingUpdate = false;
           this._lastUpdateTime = 0;
+          this._convLog?.("debouncedUpdate: deferred update firing");
           this.updateContent();
         });
+      } else {
+        this._convLog?.("debouncedUpdate: already pending — skipping");
       }
       return;
     }
     this._lastUpdateTime = now;
+    this._convLog?.("debouncedUpdate: direct update");
     this.updateContent();
   }
 
@@ -182,6 +222,8 @@ export class ChatView {
     if (!this.scrollbox) return;
     const content = this.scrollbox.content;
     this._debug?.(`updateContent: START messages=${this.messages.length} scrollboxChildren=${content.getChildrenCount()}`);
+    this._convLog?.(`updateContent: START messages=${this.messages.length} scrollboxChildren=${content.getChildrenCount()} pendingLen=${this.currentAgentText.length}`);
+    this._convLog?.(this.dumpConversationState());
     // Phase 1: clear all existing children.
     while (content.getChildrenCount() > 0) {
       const [first] = content.getChildren();
@@ -189,6 +231,7 @@ export class ChatView {
       content.remove(first);
     }
     this._debug?.(`updateContent: after clear children=${content.getChildrenCount()}`);
+    this._convLog?.(`updateContent: after clear children=${content.getChildrenCount()}`);
 
     // Phase 2: re-add all messages + spinner. Wrapped in try/catch so
     // that if a renderable constructor or content.add throws mid-re-add,
@@ -197,18 +240,27 @@ export class ChatView {
     // block adds an error row so the user sees something went wrong, and
     // the next updateContent call can recover normally.
     let addCount = 0;
+    let failMsgIndex = -1;
+    let failMsgText = "";
     try {
-      for (const msg of this.messages) {
+      for (let i = 0; i < this.messages.length; i++) {
+        const msg = this.messages[i];
+        this._convLog?.(`  re-add msg[${i}] source=${msg.source} text="${msg.text.slice(0, 60)}" (${msg.text.length} chars)`);
         if (msg.text === "" && msg.source === "system") {
           content.add(new TextRenderable(this.scrollbox.ctx, { content: "", fg: THEME.textMuted }));
           addCount++;
           continue;
         }
+        failMsgIndex = i;
+        failMsgText = msg.text;
         this.addMessageRow(content, msg);
         addCount++;
       }
 
       if (this.currentAgentText) {
+        this._convLog?.(`  re-add currentAgentText "${this.currentAgentText.slice(0, 60)}" (${this.currentAgentText.length} chars)`);
+        failMsgIndex = this.messages.length;
+        failMsgText = this.currentAgentText;
         this.addMessageRow(content, { text: this.currentAgentText, source: "agent" });
         addCount++;
       }
@@ -239,8 +291,13 @@ export class ChatView {
         addCount++;
       }
       this._debug?.(`updateContent: re-added ${addCount} items, children=${content.getChildrenCount()}`);
+      this._convLog?.(`updateContent: re-added ${addCount} items, children=${content.getChildrenCount()}`);
     } catch (err) {
       this._debug?.(`updateContent: ERROR in Phase 2: ${(err as Error).message}`);
+      this._convLog?.(`updateContent: ERROR in Phase 2: ${(err as Error).message}`);
+      this._convLog?.(`updateContent: failMsgIndex=${failMsgIndex} failMsgText="${failMsgText.slice(0, 200)}"`);
+      this._convLog?.(`updateContent: stack=${(err as Error).stack ?? "(no stack)"}`);
+      this._convLog?.(`updateContent: CONVERSATION AT FAILURE:\n${this.dumpConversationState()}`);
       // Re-add phase failed — the chat has been cleared (phase 1) but
       // only partially repopulated. Add an error row so the user sees
       // something went wrong instead of a blank chat. The next
@@ -285,6 +342,7 @@ export class ChatView {
     }
 
     const ctx = this.scrollbox!.ctx;
+    this._convLog?.(`  addMessageRow: creating BoxRenderable + TextRenderable fg=${fg} text="${msg.text.slice(0, 60)}"`);
     const row = new BoxRenderable(ctx, {
       flexDirection: "row",
       width: "100%",

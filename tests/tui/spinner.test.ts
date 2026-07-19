@@ -1,9 +1,51 @@
 import { describe, expect, it } from "bun:test";
-import { Spinner, getSpinnerFrame } from "../../src/tui/spinner";
+import {
+  Spinner,
+  getSpinnerFrame,
+  formatThinkingLabel,
+  formatToolLabel,
+  SPINNER_FRAMES,
+  FRAME_DURATION_MS,
+} from "../../src/tui/spinner";
 
-const BRAILLE_FRAMES = ["\u280b", "\u2819", "\u2839", "\u2838", "\u283c", "\u2834", "\u2826", "\u2827", "\u2807", "\u280f"];
+const BRAILLE_FRAMES: string[] = ["\u280b", "\u2819", "\u2839", "\u2838", "\u283c", "\u2834", "\u2826", "\u2827", "\u2807", "\u280f"];
 
-describe("Spinner", () => {
+describe("Spinner (pure functions)", () => {
+  it("SPINNER_FRAMES exports the 10 braille frames", () => {
+    expect(SPINNER_FRAMES).toEqual(BRAILLE_FRAMES);
+    expect(SPINNER_FRAMES.length).toBe(10);
+  });
+
+  it("FRAME_DURATION_MS is 80", () => {
+    expect(FRAME_DURATION_MS).toBe(80);
+  });
+
+  it("formatThinkingLabel combines frame + 'Thinking' (no dots)", () => {
+    expect(formatThinkingLabel(BRAILLE_FRAMES[0])).toBe(`${BRAILLE_FRAMES[0]} Thinking`);
+    expect(formatThinkingLabel(BRAILLE_FRAMES[3])).toBe(`${BRAILLE_FRAMES[3]} Thinking`);
+  });
+
+  it("formatThinkingLabel does NOT contain dots", () => {
+    for (const frame of BRAILLE_FRAMES) {
+      const label = formatThinkingLabel(frame);
+      expect(label).not.toContain(".");
+    }
+  });
+
+  it("formatToolLabel combines frame + toolName (no '...')", () => {
+    expect(formatToolLabel(BRAILLE_FRAMES[0], "bash")).toBe(`${BRAILLE_FRAMES[0]} bash`);
+    expect(formatToolLabel(BRAILLE_FRAMES[5], "edit")).toBe(`${BRAILLE_FRAMES[5]} edit`);
+  });
+
+  it("formatToolLabel does NOT contain '...'", () => {
+    for (const frame of BRAILLE_FRAMES) {
+      const label = formatToolLabel(frame, "bash");
+      expect(label).not.toContain("...");
+    }
+  });
+});
+
+describe("Spinner (stateful class)", () => {
   it("first frame is the first braille glyph", () => {
     const s = new Spinner();
     expect(s.getFrame()).toBe(BRAILLE_FRAMES[0]);
@@ -32,66 +74,46 @@ describe("Spinner", () => {
     expect(s.getFrame()).toBe(BRAILLE_FRAMES[0]);
   });
 
-  describe("dots", () => {
-    it("starts with a single dot", () => {
-      const s = new Spinner();
-      expect(s.getDots()).toBe(".");
-    });
-
-    it("cycles . → .. → ... → .", () => {
-      const s = new Spinner();
-      expect(s.getDots()).toBe(".");
-      expect(s.getDots()).toBe("..");
-      expect(s.getDots()).toBe("...");
-      expect(s.getDots()).toBe(".");
-      expect(s.getDots()).toBe("..");
-    });
-
-    it("getDots() advances the dot counter each call", () => {
-      const s = new Spinner();
-      expect(s.getDots()).toBe(".");
-      expect(s.getDots()).toBe("..");
-    });
-  });
-
   describe("getLabel", () => {
-    it("thinking label has braille frame + 'Thinking' + dots", () => {
+    it("thinking label has braille frame + 'Thinking' (no dots)", () => {
       const s = new Spinner();
       const label = s.getLabel(null);
       expect(label).toContain("Thinking");
-      expect(label).toContain(".");
+      expect(label).not.toContain(".");
       expect(BRAILLE_FRAMES).toContain(label[0]);
     });
 
-    it("thinking label cycles dots across calls", () => {
+    it("thinking label is stable across calls (no dot cycling)", () => {
       const s = new Spinner();
       const l1 = s.getLabel(null);
       const l2 = s.getLabel(null);
       const l3 = s.getLabel(null);
-      const l4 = s.getLabel(null);
-      expect(l1).toContain("Thinking.");
-      expect(l1).not.toContain("Thinking..");
-      expect(l2).toContain("Thinking..");
-      expect(l2).not.toContain("Thinking...");
-      expect(l3).toContain("Thinking...");
-      expect(l4).toContain("Thinking.");
+      // Without dots, all calls return the same label (for the same frame).
+      expect(l1).toBe(l2);
+      expect(l2).toBe(l3);
     });
 
-    it("tool label includes frame + toolName + ...", () => {
+    it("tool label includes frame + toolName (no '...')", () => {
       const s = new Spinner();
       const label = s.getLabel("bash");
       expect(label).toContain("bash");
-      expect(label).toContain("...");
+      expect(label).not.toContain("...");
       expect(BRAILLE_FRAMES).toContain(label[0]);
     });
-  });
 
-  describe("getSpinnerFrame (legacy helper)", () => {
-    it("returns frames by elapsed ms", () => {
-      expect(getSpinnerFrame(0)).toBe(BRAILLE_FRAMES[0]);
-      expect(getSpinnerFrame(80)).toBe(BRAILLE_FRAMES[1]);
-      expect(getSpinnerFrame(800)).toBe(BRAILLE_FRAMES[0]); // wraps
+    it("getLabel(null) and getLabel(undefined) return thinking label", () => {
+      const s = new Spinner();
+      expect(s.getLabel(null)).toBe(s.getLabel(undefined));
     });
   });
 });
+
+describe("getSpinnerFrame (pure helper)", () => {
+  it("returns frames by elapsed ms", () => {
+    expect(getSpinnerFrame(0)).toBe(BRAILLE_FRAMES[0]);
+    expect(getSpinnerFrame(80)).toBe(BRAILLE_FRAMES[1]);
+    expect(getSpinnerFrame(800)).toBe(BRAILLE_FRAMES[0]); // wraps
+  });
+});
+
 

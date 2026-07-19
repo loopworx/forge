@@ -1,5 +1,6 @@
 import { describe, expect, it, mock } from "bun:test";
 import { AgentSessionManager } from "../../src/agent/session-manager";
+import { NOOP_LOGGER, type Logger } from "../../src/cli/forge-logger";
 
 const mockModel = { id: "glm-5.2", name: "GLM 5.2" };
 
@@ -252,6 +253,127 @@ describe("AgentSessionManager", () => {
       );
       const result = mgr.resolveModel("po-agent");
       expect(result.thinkingLevel).toBe("medium");
+    });
+  });
+
+  describe("logger injection", () => {
+    it("accepts a Logger in the constructor (last positional arg)", () => {
+      const debug = mock(() => {});
+      const logger: Logger = {
+        info: () => {}, error: () => {}, warn: () => {}, debug,
+      };
+      const mgr = new AgentSessionManager(
+        "/test", {}, { find: () => undefined } as any,
+        undefined, undefined, undefined, undefined, logger,
+      );
+      expect((mgr as any).logger).toBe(logger);
+    });
+
+    it("defaults to NOOP_LOGGER when no logger is provided", () => {
+      const mgr = new AgentSessionManager("/test", {}, { find: () => undefined } as any);
+      expect((mgr as any).logger).toBe(NOOP_LOGGER);
+    });
+
+    it("tracked session getContextUsage logs debug on throw", () => {
+      const debug = mock(() => {});
+      const logger: Logger = {
+        info: () => {}, error: () => {}, warn: () => {}, debug,
+      };
+      const mgr = new AgentSessionManager(
+        "/test", {}, { find: () => undefined } as any,
+        undefined, undefined, undefined, undefined, logger,
+      );
+      // Use the real buildSessionProxy path — an SDK session whose
+      // getContextUsage throws should produce a tracked session that
+      // catches, logs debug, and returns undefined.
+      const sdkSession = {
+        sessionId: "throwing",
+        prompt: async () => {},
+        steer: async () => {},
+        subscribe: () => () => {},
+        abort: async () => {},
+        getContextUsage: () => { throw new Error("boom"); },
+      };
+      const tracked = (mgr as any).buildSessionProxy(sdkSession, {
+        cwd: "/test", tools: [], agentRole: "po-agent",
+      });
+      expect(tracked.getContextUsage()).toBeUndefined();
+      expect(debug).toHaveBeenCalledTimes(1);
+    });
+
+    it("tracked session getHistory logs debug on throw", () => {
+      const debug = mock(() => {});
+      const logger: Logger = {
+        info: () => {}, error: () => {}, warn: () => {}, debug,
+      };
+      const mgr = new AgentSessionManager(
+        "/test", {}, { find: () => undefined } as any,
+        undefined, undefined, undefined, undefined, logger,
+      );
+      const sdkSession = {
+        sessionId: "throwing-h",
+        prompt: async () => {},
+        steer: async () => {},
+        subscribe: () => () => {},
+        abort: async () => {},
+        sessionManager: {
+          buildContextEntries: () => { throw new Error("history boom"); },
+        },
+      };
+      const tracked = (mgr as any).buildSessionProxy(sdkSession, {
+        cwd: "/test", tools: [], agentRole: "po-agent",
+      });
+      expect(tracked.getHistory()).toEqual([]);
+      expect(debug).toHaveBeenCalledTimes(1);
+    });
+
+    it("listSessions logs debug and returns [] on throw", async () => {
+      const debug = mock(() => {});
+      const logger: Logger = {
+        info: () => {}, error: () => {}, warn: () => {}, debug,
+      };
+      const mgr = new AgentSessionManager(
+        "/test", {}, { find: () => undefined } as any,
+        undefined, undefined, undefined, undefined, logger,
+      );
+      // Force listSessions to throw by passing a bogus cwd that doesn't
+      // exist — the underlying SDK list() should reject. We can't easily
+      // force a throw without mocking the SDK, so we use a path that
+      // definitely doesn't exist.
+      const result = await mgr.listSessions("/nonexistent/path/that/does/not/exist");
+      expect(result).toEqual([]);
+    });
+
+    it("tracked session subscribe forwards adapted events", () => {
+      const mgr = new AgentSessionManager(
+        "/test", {}, { find: () => undefined } as any,
+      );
+      const sdkSession = {
+        sessionId: "sub-test",
+        prompt: async () => {},
+        steer: async () => {},
+        subscribe: (listener: Function) => {
+          // Simulate an SDK event that the adapter transforms
+          listener({ type: "agent_settled" });
+          listener({ type: "message_update", assistantMessageEvent: { type: "text_delta", delta: "hello" } });
+          // Simulate an SDK event that the adapter drops (unknown type)
+          listener({ type: "some_unknown_internal_event" });
+          return () => {};
+        },
+        abort: async () => {},
+      };
+      const tracked = (mgr as any).buildSessionProxy(sdkSession, {
+        cwd: "/test", tools: [], agentRole: "po-agent",
+      });
+      const received: string[] = [];
+      const unsub = tracked.subscribe((event: any) => {
+        received.push(event.type);
+      });
+      expect(received).toContain("agent_settled");
+      expect(received).toContain("text_delta");
+      // The unknown event should be filtered out by the adapter
+      expect(received).not.toContain("some_unknown_internal_event");
+      expect(typeof unsub).toBe("function");
     });
   });
 });

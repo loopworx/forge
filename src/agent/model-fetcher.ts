@@ -18,7 +18,10 @@ export async function fetchModels(baseUrl: string, apiKey: string): Promise<Fetc
     return models
       .filter((m: any) => m && typeof m.id === "string")
       .map((m: any) => ({ id: m.id as string, name: (m.name ?? m.id) as string }));
-  } catch {
+  } catch (err) {
+    // Pure module — no logger injection. Log to stderr so the error is
+    // visible when debugging, but don't let it crash the caller (returns []).
+    console.error(`[model-fetcher] fetchModels failed for ${baseUrl}: ${(err as Error).message}`);
     return [];
   } finally {
     clearTimeout(timeout);

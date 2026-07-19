@@ -7,11 +7,55 @@ import { FilePersistence } from "../src/engine/file-persistence";
 import { LinearClient } from "../src/linear/linear-story-repository";
 import { runOAuth } from "../src/linear/linear-oauth";
 import { buildProviderList, buildSelectChoices, testApiKey, mergeConfig, configToYaml, type ProviderEntry, type ModelChoice, type ConfigYaml } from "../src/cli/setup-wizard";
-import { createForgeLogger } from "../src/cli/forge-logger";
+import { createForgeLogger, type Logger } from "../src/cli/forge-logger";
 import { buildStartupBanner } from "../src/cli/startup-banner";
 
 const TEMPLATES_DIR = join(import.meta.dir, "..", "templates");
 const FORGE_CONFIG_DIR = join(homedir(), ".config", "forge");
+
+/**
+ * Start a 750ms poller that reads `session.getContextUsage()` and pushes
+ * the live token/percent figures into the status bar via
+ * `app.updateContextUsage()`. Returns a cleanup function that clears the
+ * interval — call it on `agent_settled`, on error, or on renderer destroy.
+ *
+ * Extracted from the duplicated inline poller blocks in `forge-new` and
+ * `/sessions` resume (was ~15 lines copy-pasted in each).
+ */
+function startUsagePoller(
+  session: any,
+  app: any,
+  logger: Logger,
+  renderer: any,
+  label: string,
+): () => void {
+  const timer = setInterval(() => {
+    try {
+      const usage = session.getContextUsage?.();
+      if (usage && usage.tokens !== null && usage.percent !== null) {
+        app.updateContextUsage(usage.tokens, usage.contextWindow, usage.percent);
+      }
+    } catch (err) {
+      logger.debug(`usage poller (${label}): ${(err as Error).message}`);
+    }
+  }, 750);
+  logger.info(`${label}: usage poller started`);
+  const cleanup = () => {
+    try {
+      const usage = session.getContextUsage?.();
+      if (usage && usage.tokens !== null && usage.percent !== null) {
+        app.updateContextUsage(usage.tokens, usage.contextWindow, usage.percent);
+      }
+    } catch (err) {
+      logger.debug(`usage poller (${label}) final poll: ${(err as Error).message}`);
+    }
+    clearInterval(timer);
+  };
+  if (renderer) {
+    renderer.on("destroy", () => clearInterval(timer));
+  }
+  return cleanup;
+}
 
 const TEMPLATE_CONFIG = `# ~/.config/forge/forge.yaml — Global Forge Configuration
 # Fill in your AI provider details below, then run 'forge init' in your project.
@@ -471,6 +515,21 @@ async function launchTui(): Promise<void> {
   const logger = createForgeLogger(logPath);
   logger.info("=== Forge TUI starting ===");
 
+  // --- Global error handlers ---
+  // Install BEFORE the renderer is created so ALL errors are captured to
+  // forge.log — regardless of source. The renderer installs its own
+  // `process.on("uncaughtException")` handler that only does
+  // `console.error(error)` (stderr — NOT forge.log), so without our
+  // handlers, errors that propagate to the event loop are completely
+  // silent in the log file. This was the root cause of issue 3: the TUI
+  // failed and the forge.log showed 0 ERROR entries.
+  process.on("unhandledRejection", (err) => {
+    logger.error(`unhandledRejection: ${err instanceof Error ? err.message : String(err)}`, err instanceof Error ? err : undefined);
+  });
+  process.on("uncaughtException", (err) => {
+    logger.error(`uncaughtException: ${err.message}`, err);
+  });
+
   // --- Guard: project config ---
   const { join: joinPath } = await import("node:path");
   const workdir = process.cwd();
@@ -680,26 +739,23 @@ async function launchTui(): Promise<void> {
 
     session.subscribe((event) => {
       logger.info(`SDK event: type=${event.type}`);
-      app.handleForgeEvent(event as any);
+      try {
+        app.handleForgeEvent(event as any);
+      } catch (err) {
+        // Catch errors from handleForgeEvent → chatView.handleEvent →
+        // updateContent so they don't propagate to the SDK's event
+        // emitter (which would route them to the renderer's global
+        // uncaughtException handler — silent in forge.log).
+        logger.error(`forge-new: handleForgeEvent failed for ${event.type}: ${(err as Error).message}`, err as Error);
+      }
     });
     app.getChatView().setThinking(true);
 
+    // --- Work indicator: show the gear spinner while the agent processes ---
+    app.getWorkIndicator().setWorking(true);
+
     // --- Context usage poller: refreshes the right-aligned status segment ---
-    // The SDK exposes `session.getContextUsage()` returning
-    // `{ tokens, contextWindow, percent }`. We poll every 750ms while a
-    // session is active and reflect the live numbers in the status bar
-    // (replaces the static "0.0%" that used to be shown).
-    const usageTimer = setInterval(() => {
-      try {
-        const usage = session.getContextUsage?.();
-        if (usage && usage.tokens !== null && usage.percent !== null) {
-          app.updateContextUsage(usage.tokens, usage.contextWindow, usage.percent);
-        }
-      } catch (err) {
-        logger.debug(`usage poller: ${(err as Error).message}`);
-      }
-    }, 750);
-    logger.info("forge-new: usage poller started");
+    const stopUsagePoller = startUsagePoller(session, app, logger, renderer, "forge-new");
 
     logger.info("forge-new: sending prompt to agent...");
     try {
@@ -710,15 +766,8 @@ async function launchTui(): Promise<void> {
       app.getChatView().displayMessage(`\u2717 Agent prompt failed: ${msg}`);
       logger.error(`forge-new: prompt failed: ${msg}`, err as Error);
     } finally {
-      // One final synchronous poll so the status bar reflects the latest
-      // usage snapshot after `agent_settled` before tearing down the timer.
-      try {
-        const usage = session.getContextUsage?.();
-        if (usage && usage.tokens !== null && usage.percent !== null) {
-          app.updateContextUsage(usage.tokens, usage.contextWindow, usage.percent);
-        }
-      } catch {}
-      clearInterval(usageTimer);
+      // Final poll + clear — the cleanup function does both.
+      stopUsagePoller();
     }
   });
 
@@ -778,6 +827,25 @@ async function launchTui(): Promise<void> {
   app.getChatView().displayMessage(buildStartupBanner(projectState, loadedConfig.inception.phases));
   logger.info(`TUI launched. Mode: ${mode}, Phase: ${projectState.inception.currentPhase}`);
 
+  // --- ESC to stop: abort the active session when ESC is pressed while
+  // the work indicator is visible (i.e. the AI is actively processing).
+  // Listens on the renderer's global key handler — fires before renderable
+  // handlers (e.g. SelectOverlay), so we only intervene when the indicator
+  // is visible (no overlay is active). Without this check, ESC would
+  // dismiss the overlay instead of stopping the AI.
+  renderer.keyInput.on("keypress", (key: any) => {
+    if ((key.name === "escape" || key.name === "esc") && app.getWorkIndicator().isVisible()) {
+      key.preventDefault();
+      const session = inceptionSessionId ? sessions.getSession(inceptionSessionId) : null;
+      if (session) {
+        logger.info("ESC: aborting active session");
+        app.getChatView().displayMessage("\u23f9 Session aborted");
+        app.getWorkIndicator().setWorking(false);
+        session.abort();
+      }
+    }
+  });
+
   // --- Question modal: detect questions in agent responses ---
   // Uses the native SelectOverlay instead of @inquirer/prompts select() —
   // the readline-based inquirer select fights with OpenTUI for stdin
@@ -786,42 +854,10 @@ async function launchTui(): Promise<void> {
   // restored by inquirer). SelectOverlay is an OpenTUI native renderable
   // that shares the render loop's input model — no conflict.
   app.setOnQuestion(async (agentText: string) => {
-    // Wrap the entire callback body in try/catch/finally so that ANY error
-    // (extractSuggestions, SelectOverlay creation, showAsPromise, etc.)
-    // is logged and focus is ALWAYS restored to the input bar. Without
-    // this, an error in the callback leaves the TUI in a broken state:
-    // the chat clears, /sessions stops working, and the user can't type
-    // because focus is trapped in a partially-created overlay.
-    let overlay: any = null;
-    try {
-      const { extractSuggestions } = await import("../src/tui/question-modal");
-      const { SelectOverlay } = await import("../src/tui/select-overlay");
-      const suggestions = extractSuggestions(agentText);
-      app.getChatView().displayMessage("\u2753 Question detected — select an answer:");
-      overlay = new SelectOverlay(app.getRenderer(), {
-        title: "Your answer:",
-        options: suggestions.map(s => ({ name: s, description: "", value: s })),
-      });
-      const answer = await overlay.showAsPromise();
-      if (answer === "Write your own answer") {
-        app.getInputBar().focus();
-      } else {
-        app.getInputBar().setInput(answer);
-        app.getInputBar().focus();
-      }
-    } catch (err) {
-      // User pressed ESC (showAsPromise rejects) OR an error occurred
-      // during overlay creation/suggestions extraction. Either way,
-      // log the error and cancel the overlay if it was created.
-      if (err instanceof Error && err.message !== "SelectOverlay cancelled") {
-        logger.error(`question modal failed: ${(err as Error).message}`, err as Error);
-      }
-      try { overlay?.cancel(); } catch {}
-    } finally {
-      // ALWAYS restore focus to the input bar — even if the overlay
-      // was never created or was partially created.
-      app.getInputBar().focus();
-    }
+    // Delegate to the TUI layer — showQuestionModal handles overlay
+    // creation, error catching, and focus restoration. This keeps
+    // TUI logic out of the CLI entry point.
+    await app.showQuestionModal(agentText, logger);
   });
 
   // --- /help command (needs app reference to display in ChatView) ---
@@ -960,7 +996,12 @@ async function launchTui(): Promise<void> {
     // Subscribe to the resumed session's events.
     resumedSession.subscribe((event) => {
       logger.info(`SDK event (resumed): type=${event.type}`);
-      app.handleForgeEvent(event as any);
+      try {
+        app.handleForgeEvent(event as any);
+      } catch (err) {
+        // Same guard as forge-new — see comment there.
+        logger.error(`sessions: handleForgeEvent failed for ${event.type}: ${(err as Error).message}`, err as Error);
+      }
     });
 
     // Replay the existing session history into ChatView so the user sees
@@ -983,19 +1024,7 @@ async function launchTui(): Promise<void> {
     }
 
     // Start the context-usage poller for the resumed session.
-    const usageTimer = setInterval(() => {
-      try {
-        const usage = resumedSession.getContextUsage?.();
-        if (usage && usage.tokens !== null && usage.percent !== null) {
-          app.updateContextUsage(usage.tokens, usage.contextWindow, usage.percent);
-        }
-      } catch (err) {
-        logger.debug(`usage poller (resumed): ${(err as Error).message}`);
-      }
-    }, 750);
-
-    // Clear timer on renderer destroy (e.g. /exit, Ctrl+C).
-    renderer.on("destroy", () => clearInterval(usageTimer));
+    startUsagePoller(resumedSession, app, logger, renderer, "sessions");
 
     app.getChatView().displayMessage(`\u2713 Session resumed (${resumedSession.sessionId.slice(0, 8)}...)`);
     app.getInputBar().focus();
@@ -1008,6 +1037,7 @@ async function launchTui(): Promise<void> {
       if (session) {
         app.getChatView().displayUserMessage(text);
         app.getChatView().setThinking(true);
+        app.getWorkIndicator().setWorking(true);
         try {
           await session.prompt(text);
         } catch (err) {
@@ -1036,7 +1066,11 @@ async function launchTui(): Promise<void> {
 
   // --- Wire engine events to TUI (sidebar/statusbar refresh) ---
   events.subscribe((event) => {
-    app.handleEngineEvent(event);
+    try {
+      app.handleEngineEvent(event);
+    } catch (err) {
+      logger.error(`engine event handler failed: ${(err as Error).message}`, err as Error);
+    }
   });
 
   // --- Start polling if development mode ---
@@ -1047,6 +1081,7 @@ async function launchTui(): Promise<void> {
   // --- Cleanup ---
   renderer.on("destroy", () => {
     engine.dispose();
+    app.getWorkIndicator().dispose();
   });
 }
 

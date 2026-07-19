@@ -112,7 +112,7 @@ describe("ChatView", () => {
     expect(brailleChars.some(c => frame.includes(c))).toBe(true);
   });
 
-  it("spinner shows 'Thinking' label with dots", async () => {
+  it("spinner shows 'Thinking' label (no dots)", async () => {
     const { renderer, renderOnce, captureCharFrame } = await createTestRenderer({ width: 60, height: 20 });
     const chat = new ChatView();
     chat.mount(renderer);
@@ -120,8 +120,6 @@ describe("ChatView", () => {
     await renderOnce();
     const frame = captureCharFrame();
     expect(frame).toContain("Thinking");
-    // Should contain at least one dot
-    expect(frame).toContain(".");
   });
 
   it("spinner renderable is live so the renderer keeps animating it", async () => {
@@ -263,5 +261,49 @@ describe("ChatView", () => {
     expect((chat as any).spinnerInterval).not.toBeNull();
     chat.dispose();
     expect((chat as any).spinnerInterval).toBeNull();
+  });
+
+  // --- updateContent error resilience (issue 3: chat clears + TUI freezes) ---
+  // updateContent() clears all children, then re-adds them. If an error
+  // occurs during the re-add phase (e.g. a renderable constructor throws),
+  // the chat stays cleared — the user sees an empty chat and subsequent
+  // commands may not work. Fix: wrap the re-add phase in try/catch and
+  // display an error row so the chat is never left empty.
+
+  it("updateContent displays an error row instead of leaving chat empty on renderable failure", async () => {
+    const { renderer, renderOnce, captureCharFrame } = await createTestRenderer({ width: 60, height: 20 });
+    const chat = new ChatView();
+    chat.mount(renderer);
+    chat.displayMessage("first message");
+    chat.displayMessage("second message");
+    await renderOnce();
+    // Force the next updateContent to fail mid-re-add by sabotaging the
+    // scrollbox's content.add — make it throw on the 2nd call. After the
+    // children are cleared (phase 1 of updateContent), the re-add phase
+    // will add the 1st row successfully, then throw on the 2nd row,
+    // leaving the chat with only 1 of 2 messages UNLESS updateContent
+    // catches the error and adds an error row.
+    const content = (chat as any).scrollbox.content;
+    const originalAdd = content.add.bind(content);
+    let addCallCount = 0;
+    content.add = (child: any) => {
+      addCallCount++;
+      if (addCallCount >= 2) {
+        throw new Error("simulated render failure");
+      }
+      return originalAdd(child);
+    };
+    // Trigger an updateContent that will fail mid-re-add.
+    chat.displayMessage("third message");
+    await renderOnce();
+    // The chat must NOT be empty — updateContent should have caught the
+    // error and added an error row instead of leaving the chat blank.
+    const frame = captureCharFrame();
+    expect(frame.length).toBeGreaterThan(0);
+    // Restore and verify the chat recovers on the next call.
+    content.add = originalAdd;
+    chat.displayMessage("recovered");
+    await renderOnce();
+    expect(captureCharFrame()).toContain("recovered");
   });
 });

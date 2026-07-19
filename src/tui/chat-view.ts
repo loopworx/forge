@@ -132,54 +132,70 @@ export class ChatView {
   private updateContent(): void {
     if (!this.scrollbox) return;
     const content = this.scrollbox.content;
+    // Phase 1: clear all existing children.
     while (content.getChildrenCount() > 0) {
       const [first] = content.getChildren();
       if (!first) break;
       content.remove(first);
     }
 
-    for (const msg of this.messages) {
-      if (msg.text === "" && msg.source === "system") {
-        content.add(new TextRenderable(this.scrollbox.ctx, { content: "", fg: THEME.textMuted }));
-        continue;
+    // Phase 2: re-add all messages + spinner. Wrapped in try/catch so
+    // that if a renderable constructor or content.add throws mid-re-add,
+    // the chat is not left empty (which was the root cause of issue 3:
+    // the user saw a blank chat and /sessions stopped working). The catch
+    // block adds an error row so the user sees something went wrong, and
+    // the next updateContent call can recover normally.
+    try {
+      for (const msg of this.messages) {
+        if (msg.text === "" && msg.source === "system") {
+          content.add(new TextRenderable(this.scrollbox.ctx, { content: "", fg: THEME.textMuted }));
+          continue;
+        }
+        this.addMessageRow(content, msg);
       }
-      this.addMessageRow(content, msg);
-    }
 
-    if (this.currentAgentText) {
-      this.addMessageRow(content, { text: this.currentAgentText, source: "agent" });
-    }
+      if (this.currentAgentText) {
+        this.addMessageRow(content, { text: this.currentAgentText, source: "agent" });
+      }
 
-    const showSpinner = this.isThinking || this.currentToolName !== null;
-    if (showSpinner) {
-      const label = this.spinner.getLabel(this.currentToolName);
-      this.spinnerText = new TextRenderable(this.scrollbox.ctx, {
-        content: label,
-        fg: THEME.spinner,
-        // `live: true` forces the renderer to continuously re-render this
-        // renderable at targetFps (30). Without it, renderAfter only fires
-        // during a dirty render pass — which never happens between events,
-        // so the spinner freezes on its first frame.
-        live: true,
-      });
-      this.spinnerText.renderAfter = (_buf, dt) => {
-        // dt is already in milliseconds (OpenTUI convention — see
-        // `deltaSeconds = deltaTime / 1000` in @opentui/core). The previous
-        // `dt * 1000` scaled 1000× too fast, landing on the same frame each
-        // tick and freezing the visible animation.
-        this.spinner.advance(dt);
-        this.spinnerText!.content = this.spinner.getLabel(this.currentToolName);
-      };
-      content.add(this.spinnerText);
-    } else {
-      this.spinnerText = null;
-    }
+      const showSpinner = this.isThinking || this.currentToolName !== null;
+      if (showSpinner) {
+        const label = this.spinner.getLabel(this.currentToolName);
+        this.spinnerText = new TextRenderable(this.scrollbox.ctx, {
+          content: label,
+          fg: THEME.spinner,
+          live: true,
+        });
+        this.spinnerText.renderAfter = (_buf, dt) => {
+          this.spinner.advance(dt);
+          this.spinnerText!.content = this.spinner.getLabel(this.currentToolName);
+        };
+        content.add(this.spinnerText);
+      } else {
+        this.spinnerText = null;
+      }
 
-    if (content.getChildrenCount() === 0) {
-      content.add(new TextRenderable(this.scrollbox.ctx, {
-        content: " (waiting for agent output...)",
-        fg: THEME.textMuted,
-      }));
+      if (content.getChildrenCount() === 0) {
+        content.add(new TextRenderable(this.scrollbox.ctx, {
+          content: " (waiting for agent output...)",
+          fg: THEME.textMuted,
+        }));
+      }
+    } catch (err) {
+      // Re-add phase failed — the chat has been cleared (phase 1) but
+      // only partially repopulated. Add an error row so the user sees
+      // something went wrong instead of a blank chat. The next
+      // updateContent call will try again and can recover.
+      try {
+        this.spinnerText = null;
+        content.add(new TextRenderable(this.scrollbox.ctx, {
+          content: `\u26a0 Render error: ${(err as Error).message}`,
+          fg: THEME.warning,
+        }));
+      } catch {
+        // Last-resort: if even the error row can't be added, give up
+        // silently — don't let the catch handler itself throw.
+      }
     }
   }
 

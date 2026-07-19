@@ -19,7 +19,10 @@ export class FilePersistence implements Persistence {
     if (!existsSync(path)) return null;
     try {
       return JSON.parse(readFileSync(path, "utf-8")) as T;
-    } catch {
+    } catch (err) {
+      // Corrupt JSON — log so the user can diagnose, but don't crash
+      // (returning null lets the caller fall back to defaults).
+      console.error(`[file-persistence] failed to read ${path}: ${(err as Error).message}`);
       return null;
     }
   }

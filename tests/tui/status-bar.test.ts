@@ -1,5 +1,122 @@
 import { describe, expect, it } from "bun:test";
-import { StatusBar } from "../../src/tui/status-bar";
+import {
+  StatusBar,
+  formatTokens,
+  formatMaxTokens,
+  formatPercent,
+  buildLeftChunks,
+  buildRightChunks,
+  buildPlainText,
+  type StatusBarState,
+} from "../../src/tui/status-bar";
+
+describe("StatusBar (pure functions)", () => {
+  describe("formatTokens", () => {
+    it("formats raw number for < 1000", () => {
+      expect(formatTokens(0)).toBe("0");
+      expect(formatTokens(42)).toBe("42");
+      expect(formatTokens(999)).toBe("999");
+    });
+    it("formats as 'Nk' for >= 1000 (floored)", () => {
+      expect(formatTokens(1000)).toBe("1k");
+      expect(formatTokens(12000)).toBe("12k");
+      expect(formatTokens(1234567)).toBe("1234k");
+    });
+  });
+
+  describe("formatMaxTokens", () => {
+    it("formats raw number for < 1000000", () => {
+      expect(formatMaxTokens(0)).toBe("0");
+      expect(formatMaxTokens(100000)).toBe("100000");
+    });
+    it("formats as 'NM' for >= 1000000", () => {
+      expect(formatMaxTokens(1000000)).toBe("1M");
+      expect(formatMaxTokens(2000000)).toBe("2M");
+    });
+  });
+
+  describe("formatPercent", () => {
+    it("returns '0.0' when max <= 0", () => {
+      expect(formatPercent(100, 0)).toBe("0.0");
+      expect(formatPercent(100, -1)).toBe("0.0");
+    });
+    it("computes tokens/max * 100 with 1 decimal", () => {
+      expect(formatPercent(0, 1000)).toBe("0.0");
+      expect(formatPercent(120, 1000)).toBe("12.0");
+      expect(formatPercent(50, 200)).toBe("25.0");
+    });
+  });
+
+  describe("buildLeftChunks", () => {
+    it("returns 'Not configured' chunk when unconfigured", () => {
+      const state: StatusBarState = {
+        agent: "", model: "", provider: "", thinking: "",
+        tokens: 0, maxTokens: 0, mode: "inception",
+      };
+      const chunks = buildLeftChunks(state);
+      expect(chunks.length).toBe(1);
+      expect(chunks[0].text).toContain("Not configured");
+    });
+    it("returns 6 chunks for configured state (agent · sep · model · provider · sep · thinking)", () => {
+      const state: StatusBarState = {
+        agent: "po-agent", model: "glm-5.2", provider: "synthetic",
+        thinking: "high", tokens: 0, maxTokens: 16384, mode: "inception",
+      };
+      const chunks = buildLeftChunks(state);
+      expect(chunks.length).toBe(6);
+      expect(chunks[0].text).toBe("po-agent");
+      expect(chunks[0].bold).toBe(true);
+      expect(chunks[2].text).toBe("glm-5.2");
+      expect(chunks[5].text).toBe("high");
+      expect(chunks[5].bold).toBe(true);
+    });
+  });
+
+  describe("buildRightChunks", () => {
+    it("returns [] when unconfigured", () => {
+      const state: StatusBarState = {
+        agent: "", model: "", provider: "", thinking: "",
+        tokens: 0, maxTokens: 0, mode: "inception",
+      };
+      expect(buildRightChunks(state)).toEqual([]);
+    });
+    it("returns single chunk with tokens/max (pct%) · mode", () => {
+      const state: StatusBarState = {
+        agent: "po-agent", model: "glm-5.2", provider: "synthetic",
+        thinking: "high", tokens: 12000, maxTokens: 1000000, mode: "inception",
+      };
+      const chunks = buildRightChunks(state);
+      expect(chunks.length).toBe(1);
+      expect(chunks[0].text).toContain("12k/1M");
+      expect(chunks[0].text).toContain("1.2%");
+      expect(chunks[0].text).toContain("inception");
+    });
+  });
+
+  describe("buildPlainText", () => {
+    it("returns 'Not configured' when unconfigured", () => {
+      const state: StatusBarState = {
+        agent: "", model: "", provider: "", thinking: "",
+        tokens: 0, maxTokens: 0, mode: "inception",
+      };
+      const text = buildPlainText(state);
+      expect(text).toContain("Not configured");
+    });
+    it("includes all fields when configured", () => {
+      const state: StatusBarState = {
+        agent: "po-agent", model: "glm-5.2", provider: "synthetic",
+        thinking: "high", tokens: 12000, maxTokens: 1000000, mode: "inception",
+      };
+      const text = buildPlainText(state);
+      expect(text).toContain("po-agent");
+      expect(text).toContain("glm-5.2");
+      expect(text).toContain("synthetic");
+      expect(text).toContain("high");
+      expect(text).toContain("1.2%");
+      expect(text).toContain("inception");
+    });
+  });
+});
 
 describe("StatusBar", () => {
   describe("getPlainText (legacy)", () => {

@@ -1,13 +1,32 @@
 import { describe, expect, it, beforeEach, afterEach } from "bun:test";
 import { existsSync, mkdirSync, rmSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { createForgeLogger } from "../../src/cli/forge-logger";
+import { createForgeLogger, NOOP_LOGGER, type Logger } from "../../src/cli/forge-logger";
 
 const TMP_DIR = join(import.meta.dir, "..", ".test-logger");
 
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+describe("Logger interface", () => {
+  it("NOOP_LOGGER implements all Logger methods as no-ops", () => {
+    // Should not throw on any call:
+    expect(() => NOOP_LOGGER.info("x")).not.toThrow();
+    expect(() => NOOP_LOGGER.error("x")).not.toThrow();
+    expect(() => NOOP_LOGGER.debug("x")).not.toThrow();
+    expect(() => NOOP_LOGGER.warn("x")).not.toThrow();
+  });
+
+  it("NOOP_LOGGER satisfies the Logger interface", () => {
+    const logger: Logger = NOOP_LOGGER;
+    expect(logger).toBeDefined();
+    expect(typeof logger.info).toBe("function");
+    expect(typeof logger.error).toBe("function");
+    expect(typeof logger.debug).toBe("function");
+    expect(typeof logger.warn).toBe("function");
+  });
+});
 
 describe("createForgeLogger", () => {
   beforeEach(() => {

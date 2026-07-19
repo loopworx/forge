@@ -103,6 +103,9 @@ export async function loadOpencodeTheme(opts: { path?: string } = {}): Promise<O
     const raw = readFileSync(themePath, "utf-8");
     json = JSON.parse(raw) as OpencodeJson;
   } catch {
+    // Expected fallback: the bundled opencode.json may not be present
+    // (e.g. sandboxed test env, stripped dist). Return the in-code THEME
+    // constants — they mirror the JSON's resolved dark-mode values.
     return THEME;
   }
   const defs = json.defs ?? {};

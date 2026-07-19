@@ -444,4 +444,35 @@ describe("ForgeApp", () => {
       process.off("unhandledRejection", rejectionHandler);
     }
   });
+
+  it("handleEngineEvent catches errors from refreshSidebar (no unhandled rejection)", async () => {
+    const { renderer, renderOnce } = await createTestRenderer({ width: 100, height: 30 });
+    // Engine whose getActiveSessions throws on the 2nd+ call — the 1st
+    // call is from layout() (must succeed), subsequent calls are from
+    // refreshSidebar() via handleEngineEvent (must throw).
+    let callCount = 0;
+    const mockEngine = {
+      getProjectState: () => ({ mode: "inception", inception: { mode: "inception", currentPhase: 0, phaseSessionId: null, artifacts: {} } }),
+      getActiveSessions: () => {
+        callCount++;
+        if (callCount <= 2) return []; // 1st: layout line 43, 2nd: layout line 155
+        throw new Error("engine boom"); // 3rd+: handleEngineEvent → refreshSidebar
+      },
+    } as any;
+    let unhandledRejection = false;
+    const rejectionHandler = () => { unhandledRejection = true; };
+    process.on("unhandledRejection", rejectionHandler);
+    try {
+      const app = new ForgeApp({ renderer, engine: mockEngine, sessions: {} as any, commands: {} as any, mode: "inception" });
+      app.layout();
+      await renderOnce();
+      // handleEngineEvent should catch the error from refreshSidebar
+      // (which calls engine.getActiveSessions() → throws on 2nd call).
+      expect(() => app.handleEngineEvent({})).not.toThrow();
+      await new Promise(r => setTimeout(r, 50));
+      expect(unhandledRejection).toBe(false);
+    } finally {
+      process.off("unhandledRejection", rejectionHandler);
+    }
+  });
 });

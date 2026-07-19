@@ -81,8 +81,11 @@ export class WorkflowEngine {
     }
     try {
       await this.stories.postComment(storyId, `[AC${acNumber} Complete] ${summary}`);
-    } catch {
-      // Comment failure is non-fatal
+    } catch (err) {
+      // Comment failure is non-fatal — the AC is still complete. Publish
+      // a story_halted event so the failure is visible to the TUI + logs
+      // rather than silently swallowed.
+      this.events.publish({ type: "story_halted", storyId, reason: `postComment failed: ${(err as Error).message}` });
     }
     this.events.publish({ type: "ac_completed", storyId, acNumber, summary });
     return { success: true };
@@ -255,7 +258,11 @@ Test locations: ${params.testLocations}${params.blockers ? `\nBlockers: ${params
         this.events.publish({ type: "story_halted", storyId: "", reason: `polling error: ${err.message}` });
       });
     }, interval);
-    this.pollAndDispatch().catch(() => {});
+    this.pollAndDispatch().catch((err) => {
+      // Initial dispatch failure — publish so it's visible. The previous
+      // silent `catch (() => {})` swallowed this completely.
+      this.events.publish({ type: "story_halted", storyId: "", reason: `initial dispatch error: ${err.message}` });
+    });
   }
 
   stopPolling(): void {

@@ -67,4 +67,46 @@ describe("LinearStoryRepository", () => {
     const team = await repo.discoverTeam();
     expect(team?.name).toBe("Test");
   });
+
+  it("delegates getLastCommentWithDate to LinearClient", async () => {
+    mock.comments.push("comment with date");
+    const result = await repo.getLastCommentWithDate("FORGE-1");
+    expect(result).not.toBeNull();
+    expect(result!.body).toBe("comment with date");
+    expect(result!.createdAt).toBeDefined();
+  });
+
+  it("delegates listTeams to LinearClient", async () => {
+    const teams = await repo.listTeams();
+    expect(teams.length).toBe(1);
+    expect(teams[0].id).toBe("team-1");
+  });
+
+  it("getLastCommentWithDate returns null when no comments exist", async () => {
+    const result = await repo.getLastCommentWithDate("FORGE-1");
+    expect(result).toBeNull();
+  });
+});
+
+describe("LinearClient", () => {
+  it("constructor throws when authPath is empty", () => {
+    expect(() => new LinearClient({} as any)).toThrow("authPath");
+  });
+
+  it("constructor sets default retry config", () => {
+    const client = new LinearClient({ authPath: "/tmp/auth.json" });
+    expect((client as any).maxRetries).toBe(3);
+    expect((client as any).retryDelayMs).toBe(1000);
+  });
+
+  it("discoverTeam returns null when multiple teams exist", async () => {
+    const client = new LinearClient({ authPath: "/tmp/auth.json" });
+    // Mock listTeams to return multiple teams
+    (client as any).listTeams = async () => [
+      { id: "team-1", name: "Team A" },
+      { id: "team-2", name: "Team B" },
+    ];
+    const result = await client.discoverTeam();
+    expect(result).toBeNull();
+  });
 });

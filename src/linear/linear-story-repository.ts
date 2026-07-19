@@ -130,7 +130,12 @@ export class LinearClient {
       const dir = this.authPath.substring(0, this.authPath.lastIndexOf("/")) || ".";
       mkdirSync(dir, { recursive: true });
       writeFileSync(this.authPath, JSON.stringify(this.auth, null, 2));
-    } catch {}
+    } catch (err) {
+      // Auth token persistence failure — log to stderr but don't crash
+      // (the in-memory token is still valid for this session; the next
+      // restart will just need to re-authenticate).
+      console.error(`[linear] failed to persist auth token to ${this.authPath}: ${(err as Error).message}`);
+    }
   }
 
   async graphql(query: string, variables: Record<string, unknown> = {}): Promise<any> {

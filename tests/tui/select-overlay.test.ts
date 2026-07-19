@@ -252,4 +252,60 @@ describe("SelectOverlay", () => {
     expect(box.height).toBeLessThanOrEqual(12);
     expect(box.height).toBeGreaterThan(0);
   });
+
+  it("cancel is idempotent", () => {
+    const onCancel = mock(() => {});
+    const overlay = new SelectOverlay(null as any, {
+      title: "Test",
+      options: sampleOptions,
+      onCancel,
+    });
+    overlay.cancel();
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    // Second call should be a no-op
+    overlay.cancel();
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("confirmSelection is idempotent", () => {
+    const onSelect = mock(() => {});
+    const overlay = new SelectOverlay(null as any, {
+      title: "Test",
+      options: sampleOptions,
+      onSelect,
+    });
+    overlay.confirmSelection();
+    expect(onSelect).toHaveBeenCalledTimes(1);
+    overlay.confirmSelection();
+    expect(onSelect).toHaveBeenCalledTimes(1);
+  });
+
+  it("getSelectedValue returns undefined before show", () => {
+    const overlay = new SelectOverlay(null as any, {
+      title: "Test",
+      options: sampleOptions,
+    });
+    expect(overlay.getSelectedValue()).toBeUndefined();
+  });
+
+  it("isVisible returns false before show", () => {
+    const overlay = new SelectOverlay(null as any, {
+      title: "Test",
+      options: sampleOptions,
+    });
+    expect(overlay.isVisible()).toBe(false);
+  });
+
+  it("isVisible returns true after show and false after cancel", async () => {
+    const { renderer, renderOnce } = await createTestRenderer({ width: 60, height: 20 });
+    const overlay = new SelectOverlay(renderer, {
+      title: "Test",
+      options: sampleOptions,
+    });
+    overlay.show();
+    await renderOnce();
+    expect(overlay.isVisible()).toBe(true);
+    overlay.cancel();
+    expect(overlay.isVisible()).toBe(false);
+  });
 });

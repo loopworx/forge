@@ -5,15 +5,18 @@ import { InputBar } from "./input-bar";
 import { TabBar } from "./tab-bar";
 import { Sidebar } from "./sidebar";
 import { StatusBar } from "./status-bar";
+import { SelectOverlay } from "./select-overlay";
+import { WorkIndicator } from "./work-indicator";
+import { isQuestion, extractSuggestions } from "./question-modal";
 import { THEME } from "./theme";
-import type { WorkflowEngine } from "../engine/workflow-engine";
-import type { AgentSessionManager } from "../agent/session-manager";
+import type { ProjectStateProvider, WorkIndicatorController } from "./interfaces";
+import type { Logger } from "../cli/forge-logger";
 import type { CommandRegistry } from "../agent/command-registry";
 
 export interface ForgeAppOptions {
   renderer: any;
-  engine: WorkflowEngine;
-  sessions: AgentSessionManager;
+  engine: ProjectStateProvider;
+  sessions: any;
   commands: CommandRegistry;
   mode: "inception" | "development";
 }
@@ -27,6 +30,7 @@ export class ForgeApp {
   private sidebarBox: BoxRenderable | null = null;
   private leftStatusText: TextRenderable | null = null;
   private rightStatusText: TextRenderable | null = null;
+  private workIndicator: WorkIndicator;
   private modelInfo = { agent: "", model: "", provider: "", thinkingLevel: "medium", maxTokens: 16384 };
 
   constructor(private opts: ForgeAppOptions) {
@@ -35,6 +39,7 @@ export class ForgeApp {
     this.tabBar = new TabBar();
     this.sidebar = new Sidebar();
     this.statusBar = new StatusBar();
+    this.workIndicator = new WorkIndicator();
   }
 
   layout(): void {
@@ -80,13 +85,17 @@ export class ForgeApp {
 
     mainColumn.add(this.inputBar.mount(renderer));
 
-    // 1-row gap between the input bar and the status bar.
+    // 1-row gap between the input bar and the work indicator.
     const inputStatusGap = new BoxRenderable(renderer, {
       id: "input-status-gap",
       flexShrink: 0,
       height: 1,
     });
     mainColumn.add(inputStatusGap);
+
+    // Work indicator — gear icon + "AI is working" + ESC hint; hidden by
+    // default, shown via WorkIndicatorController.setWorking().
+    mainColumn.add(this.workIndicator.mount(renderer));
 
     const statusBarBox = new BoxRenderable(renderer, {
       id: "status-bar",
@@ -184,6 +193,10 @@ export class ForgeApp {
     return this.opts.renderer;
   }
 
+  getWorkIndicator(): WorkIndicatorController {
+    return this.workIndicator;
+  }
+
   setModelInfo(agent: string, model: string, provider: string, thinkingLevel: string, maxTokens: number): void {
     this.modelInfo = { agent, model, provider, thinkingLevel, maxTokens };
   }
@@ -192,6 +205,54 @@ export class ForgeApp {
 
   setOnQuestion(callback: (text: string) => void): void {
     this.onQuestionCallback = callback;
+  }
+
+  /**
+   * Show the question modal overlay for a detected agent question.
+   * Extracts suggestions from the agent text, mounts a `SelectOverlay`,
+   * and on selection either focuses the input bar (for "Write your own
+   * answer") or pre-fills it with the chosen suggestion.
+   *
+   * Wrapped in try/catch/finally so ANY error (extractSuggestions,
+   * SelectOverlay creation, showAsPromise) is logged and focus is
+   * ALWAYS restored to the input bar. Without this, an error in the
+   * callback leaves the TUI in a broken state (chat clears, /sessions
+   * stops working, focus trapped in a partially-created overlay).
+   *
+   * This method was moved from `bin/forge.ts` so the TUI logic lives in
+   * the TUI layer — `bin/forge.ts` just calls
+   * `app.setOnQuestion((text) => app.showQuestionModal(text, logger))`.
+   */
+  async showQuestionModal(agentText: string, logger: Logger): Promise<void> {
+    let overlay: SelectOverlay | null = null;
+    try {
+      const suggestions = extractSuggestions(agentText);
+      this.getChatView().displayMessage("\u2753 Question detected — select an answer:");
+      overlay = new SelectOverlay(this.getRenderer(), {
+        title: "Your answer:",
+        options: suggestions.map(s => ({ name: s, description: "", value: s })),
+      });
+      const answer = await overlay.showAsPromise();
+      if (answer === "Write your own answer") {
+        this.getInputBar().focus();
+      } else {
+        this.getInputBar().setInput(answer);
+        this.getInputBar().focus();
+      }
+    } catch (err) {
+      // User pressed ESC (showAsPromise rejects with "SelectOverlay
+      // cancelled") OR an error occurred during overlay creation /
+      // suggestions extraction. Either way, log the error and cancel the
+      // overlay if it was created.
+      if (err instanceof Error && err.message !== "SelectOverlay cancelled") {
+        logger.error(`question modal failed: ${(err as Error).message}`, err as Error);
+      }
+      try { overlay?.cancel(); } catch {}
+    } finally {
+      // ALWAYS restore focus to the input bar — even if the overlay
+      // was never created or was partially created.
+      this.getInputBar().focus();
+    }
   }
 
   /**
@@ -306,30 +367,35 @@ export class ForgeApp {
   handleForgeEvent(event: ForgeEvent): void {
     this.chatView.handleEvent(event);
     if (event.type === "agent_settled") {
+      this.workIndicator.setWorking(false);
       this.refreshStatusBar();
       const lastAgentMsg = this.chatView.getLastAgentMessage();
       if (lastAgentMsg && this.onQuestionCallback) {
-        // The dynamic import + callback chain MUST have a .catch() —
-        // if the callback throws (e.g. SelectOverlay creation fails,
-        // extractSuggestions throws, or the callback itself errors),
-        // the unhandled promise rejection leaves the TUI in a broken
-        // state: the renderer's global unhandledRejection handler
-        // swallows subsequent errors, /sessions stops working, and the
-        // chat can clear unpredictably. The .catch() logs the error and
-        // prevents the rejection from propagating.
         import("./question-modal").then(({ isQuestion }) => {
           if (isQuestion(lastAgentMsg)) {
             this.onQuestionCallback!(lastAgentMsg);
           }
         }).catch((err) => {
-          // eslint-disable-next-line no-console
           console.error(`[forge] question modal check failed: ${(err as Error).message}`);
         });
       }
+    } else if (event.type === "agent_error") {
+      this.workIndicator.setWorking(false);
+    } else if (event.type === "tool_start") {
+      this.workIndicator.setWorking(true, event.toolName);
     }
   }
 
   handleEngineEvent(_event: any): void {
-    this.refreshSidebar();
+    try {
+      this.refreshSidebar();
+    } catch (err) {
+      // Catch errors from refreshSidebar (e.g. engine.getActiveSessions
+      // throws) so they don't propagate to the caller (the events.subscribe
+      // callback in bin/forge.ts). Without this, a throwing engine method
+      // would crash the event loop and leave the TUI frozen.
+      // eslint-disable-next-line no-console
+      console.error(`[forge] handleEngineEvent failed: ${(err as Error).message}`);
+    }
   }
 }

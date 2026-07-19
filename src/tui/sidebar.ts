@@ -1,9 +1,17 @@
-import type { ProjectState, AgentSessionMeta } from "../engine/types";
+import type { ProjectState } from "../engine/types";
+
+/** Minimal session shape the sidebar renders. */
+export interface SidebarSession {
+  sessionId: string;
+  agentRole: string;
+  storyId: string;
+  workflowState?: string;
+}
 
 export class Sidebar {
   private lines: string[] = [];
 
-  setState(state: ProjectState, sessions: AgentSessionMeta[], phaseName?: string, phaseAgent?: string, total?: number): void {
+  setState(state: ProjectState, sessions: SidebarSession[], phaseName?: string, phaseAgent?: string, total?: number): void {
     const lines: string[] = [];
     lines.push(" Forge");
     lines.push("─".repeat(28));

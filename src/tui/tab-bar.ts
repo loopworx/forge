@@ -66,10 +66,9 @@ export class TabBar {
 
   private renderTabs(): void {
     if (!this.container) return;
-    while (this.container.getChildrenCount() > 0) {
-      const [first] = this.container.getChildren();
-      if (!first) break;
-      this.container.remove(first);
+    const oldChildren = [...this.container.getChildren()];
+    for (const child of oldChildren) {
+      child.destroyRecursively();
     }
 
     for (const tab of this.tabs) {

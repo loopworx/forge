@@ -345,4 +345,32 @@ describe("ChatView", () => {
       expect((chat as any)._pendingUpdate).toBe(false);
     });
   });
+
+  it("destroyRecursively is called on old children during updateContent (no resource leak)", async () => {
+    const { renderer } = await createTestRenderer({ width: 60, height: 20 });
+    const chat = new ChatView();
+    chat.mount(renderer);
+    chat.displayMessage("first");
+    chat.displayMessage("second");
+    const content = (chat as any).scrollbox.content;
+
+    // Grab references to the children before the next updateContent
+    const oldChildren = content.getChildren();
+    expect(oldChildren.length).toBeGreaterThan(0);
+    const originalDestroy = oldChildren[0].destroyRecursively;
+    let destroyCalled = false;
+    oldChildren[0].destroyRecursively = () => {
+      destroyCalled = true;
+      originalDestroy.call(oldChildren[0]);
+    };
+
+    // Trigger updateContent — this should call destroyRecursively on old children
+    chat.displayMessage("third");
+    expect(destroyCalled).toBe(true);
+
+    // Verify the old children are marked as destroyed
+    for (const child of oldChildren) {
+      expect(child.isDestroyed).toBe(true);
+    }
+  });
 });

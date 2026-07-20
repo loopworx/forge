@@ -224,11 +224,16 @@ export class ChatView {
     this._debug?.(`updateContent: START messages=${this.messages.length} scrollboxChildren=${content.getChildrenCount()}`);
     this._convLog?.(`updateContent: START messages=${this.messages.length} scrollboxChildren=${content.getChildrenCount()} pendingLen=${this.currentAgentText.length}`);
     this._convLog?.(this.dumpConversationState());
-    // Phase 1: clear all existing children.
-    while (content.getChildrenCount() > 0) {
-      const [first] = content.getChildren();
-      if (!first) break;
-      content.remove(first);
+    // Phase 1: destroy all existing children, freeing native resources.
+    // Must use destroyRecursively() instead of content.remove() — remove()
+    // only unlinks from the layout tree but does NOT call destroy(), so
+    // the child TextBufferRenderable's TextBuffer and TextBufferView native
+    // resources leak. After many updateContent cycles the Zig allocator
+    // pool exhausts and TextBufferView creation fails.
+    this.spinnerText = null;
+    const oldChildren = [...content.getChildren()];
+    for (const child of oldChildren) {
+      child.destroyRecursively();
     }
     this._debug?.(`updateContent: after clear children=${content.getChildrenCount()}`);
     this._convLog?.(`updateContent: after clear children=${content.getChildrenCount()}`);

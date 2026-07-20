@@ -109,10 +109,9 @@ export class InputBar {
     }
 
     const content = this.autocompleteBox;
-    while (content.getChildrenCount() > 0) {
-      const [first] = content.getChildren();
-      if (!first) break;
-      content.remove(first);
+    const oldChildren = [...content.getChildren()];
+    for (const child of oldChildren) {
+      child.destroyRecursively();
     }
     for (const item of items) {
       const text = new TextRenderable(content.ctx, {

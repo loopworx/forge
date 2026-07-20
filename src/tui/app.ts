@@ -363,10 +363,9 @@ export class ForgeApp {
     );
 
     if (this.sidebarBox) {
-      while (this.sidebarBox.getChildrenCount() > 0) {
-        const [first] = this.sidebarBox.getChildren();
-        if (!first) break;
-        this.sidebarBox.remove(first);
+      const oldChildren = [...this.sidebarBox.getChildren()];
+      for (const child of oldChildren) {
+        child.destroyRecursively();
       }
       for (const line of this.sidebar.getText()) {
         this.sidebarBox.add(
